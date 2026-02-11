@@ -1,0 +1,133 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* RAP Nova Escola Design System
+   Urban, contemporary, professional yet human
+   Colors in HSL format for Tailwind compatibility
+*/
+
+@layer base {
+  :root {
+    /* Core Brand Colors - Dark Urban Theme */
+    --background: 213 24% 22%; /* #2B3544 - Main dark background */
+    --foreground: 0 0% 98%; /* White text */
+
+    --card: 213 20% 18%; /* Slightly darker cards */
+    --card-foreground: 0 0% 98%;
+
+    --popover: 213 20% 16%;
+    --popover-foreground: 0 0% 98%;
+
+    /* Cyan Accent - Primary action color */
+    --primary: 186 64% 57%; /* #4DC4D9 - Cyan accent */
+    --primary-foreground: 213 24% 12%;
+
+    /* Brand Red/Orange - RAP Nova Escola signature color */
+    --brand: 12 85% 50%; /* Vibrant red-orange from logo */
+    --brand-foreground: 0 0% 98%;
+
+    /* Muted backgrounds for secondary elements */
+    --secondary: 213 20% 28%;
+    --secondary-foreground: 0 0% 90%;
+
+    --muted: 213 15% 25%;
+    --muted-foreground: 213 10% 60%;
+
+    --accent: 186 64% 57%;
+    --accent-foreground: 213 24% 12%;
+
+    /* Status Colors - Blue-based palette */
+    --destructive: 220 70% 55%; /* Deep blue for errors/critical */
+    --destructive-foreground: 0 0% 98%;
+
+    --success: 186 64% 45%; /* Darker cyan for success */
+    --success-foreground: 0 0% 98%;
+
+    --warning: 200 60% 50%; /* Steel blue for warnings */
+    --warning-foreground: 0 0% 98%;
+
+    --info: 186 64% 57%;
+    --info-foreground: 213 24% 12%;
+
+    /* Session States - Blue-based palette */
+    --draft: 213 20% 50%;
+    --draft-foreground: 0 0% 98%;
+
+    --pending: 200 60% 50%; /* Steel blue */
+    --pending-foreground: 0 0% 98%;
+
+    --confirmed: 186 64% 45%; /* Darker cyan */
+    --confirmed-foreground: 0 0% 98%;
+
+    --rejected: 220 70% 55%; /* Deep blue */
+    --rejected-foreground: 0 0% 98%;
+
+    /* UI Elements */
+    --border: 213 15% 30%;
+    --input: 213 15% 30%;
+    --ring: 186 64% 57%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar */
+    --sidebar-background: 213 24% 16%;
+    --sidebar-foreground: 0 0% 90%;
+    --sidebar-primary: 186 64% 57%;
+    --sidebar-primary-foreground: 213 24% 12%;
+    --sidebar-accent: 213 20% 22%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 213 15% 25%;
+    --sidebar-ring: 186 64% 57%;
+  }
+
+  /* No dark mode variant needed - this is already a dark theme */
+  .dark {
+    /* Same as root - dark by default */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+}
+
+@layer utilities {
+  /* Custom scrollbar for dark theme */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted));
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground));
+  }
+}

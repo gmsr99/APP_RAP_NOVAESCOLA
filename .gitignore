@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.venv/
+venv/
+ENV/
+env/
+
+# Virtual envs inside config
+config/venv/
+
+# Caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment
+.env
+.env.*
+
+# OS / Editor
+.DS_Store
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Local secrets / artifacts
+slack_webhook_url
+
+# Backups
+z_BackUP (não mexer)/
