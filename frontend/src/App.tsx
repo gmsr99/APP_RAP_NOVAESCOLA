@@ -17,8 +17,9 @@ import Equipamento from "./pages/Equipamento";
 import Formacao from "./pages/Formacao";
 import Chat from "./pages/Chat";
 import Login from "./pages/Login";
-import Turmas from "./pages/Turmas";
+
 import NotFound from "./pages/NotFound";
+import Wiki from "./pages/Wiki";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient();
@@ -47,7 +48,8 @@ const App = () => (
                 <Route path="/equipamento" element={<Equipamento />} />
                 <Route path="/formacao" element={<Formacao />} />
                 <Route path="/chat" element={<Chat />} />
-                <Route path="/turmas" element={<Turmas />} />
+
+                <Route path="/wiki" element={<Wiki />} />
               </Route>
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

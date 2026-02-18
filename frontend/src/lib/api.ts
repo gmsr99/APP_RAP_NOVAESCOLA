@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { supabase } from './supabase';
 
 export const api = axios.create({
     baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8000',
@@ -7,14 +8,17 @@ export const api = axios.create({
     },
 });
 
-// Add a request interceptor to include the auth token
+// Add a request interceptor to include the auth token derived from Supabase session
 api.interceptors.request.use(
-    (config) => {
-        // You can add logic here to get the token from local storage or context
-        const token = localStorage.getItem('supabase_token'); // Example
-        if (token) {
-            config.headers['Authorization'] = `Bearer ${token}`;
+    async (config) => {
+        // Get the current session from Supabase
+        // Supabase client handles caching/refreshing automatically
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (session?.access_token) {
+            config.headers['Authorization'] = `Bearer ${session.access_token}`;
         }
+
         return config;
     },
     (error) => {

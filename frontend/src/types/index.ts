@@ -10,7 +10,7 @@ export interface User {
 }
 
 // Sessions / Classes
-export type SessionStatus = 'rascunho' | 'pendente' | 'confirmado' | 'recusado';
+export type SessionStatus = 'rascunho' | 'pendente' | 'confirmada' | 'recusada';
 
 export interface PublicProfile {
   id: string;
@@ -81,13 +81,13 @@ export type NotificationType = 'info' | 'action' | 'urgent';
 
 export interface Notification {
   id: string;
-  type: NotificationType;
+  type: string;
   title: string;
   message: string;
-  createdAt: Date;
+  createdAt: string;
   read: boolean;
-  actionUrl?: string;
-  forProfile?: UserProfile[];
+  link?: string;
+  metadados?: any;
 }
 
 // Dashboard Stats
@@ -105,22 +105,33 @@ export interface AulaAPI {
   id: number;
   tipo: string;
   data_hora: string;
+  duracao_minutos: number; // Added
   estado: string;
   tema: string | null;
+  local: string | null; // Added
+  observacoes: string | null; // Added
   turma_nome: string;
+  turma_id: number; // Added
   mentor_nome: string | null;
-  instituicao_nome: string;
+  mentor_id: number | null; // Added
+  mentor_user_id: string; // Added for filtering
+  estabelecimento_nome: string; // Renamed from instituicao_nome
+  atividade_nome?: string;
+  atividade_id?: number;
+  disciplina_nome?: string;
+  equipamento_id?: string;
+  equipamento_nome?: string;
 }
 
 export interface Turma {
   id: number;
   nome: string;
-  instituicao_nome: string;
-  instituicao_id: number;
+  estabelecimento_nome: string; // Renamed
+  estabelecimento_id: number; // Renamed
   display_name: string;
 }
 
-export interface Instituicao {
+export interface Estabelecimento { // Renamed form Instituicao
   id: number;
   nome: string;
 }
@@ -134,4 +145,6 @@ export interface AulaCreate {
   tema?: string;
   observacoes?: string;
   tipo: string;
+  atividade_id?: number | null;
+  equipamento_id?: string | null;
 }

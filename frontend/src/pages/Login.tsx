@@ -87,6 +87,7 @@ export default function Login() {
                     placeholder="O teu nome"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    required
                   />
                 </div>
 

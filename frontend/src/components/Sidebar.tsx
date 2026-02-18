@@ -15,6 +15,7 @@ import {
   GraduationCap,
   Users,
   Building2,
+  Database,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
@@ -28,7 +29,8 @@ const navigation = [
   { name: 'Equipa', href: '/equipa', icon: Users, profiles: ['coordenador', 'mentor', 'produtor', 'mentor_produtor'] },
   { name: 'Equipamento', href: '/equipamento', icon: Package, profiles: ['coordenador'] },
   { name: 'Formação', href: '/formacao', icon: GraduationCap, profiles: ['coordenador', 'mentor', 'produtor', 'mentor_produtor'] },
-  { name: 'Turmas', href: '/turmas', icon: Building2, profiles: ['coordenador'] },
+
+  { name: 'Wiki/Base', href: '/wiki', icon: Database, profiles: ['coordenador', 'mentor', 'produtor', 'mentor_produtor'] },
   { name: 'Chat', href: '/chat', icon: MessageSquare, profiles: ['coordenador', 'mentor', 'produtor', 'mentor_produtor'] },
 ];
 

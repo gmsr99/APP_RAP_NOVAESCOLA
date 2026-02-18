@@ -60,16 +60,9 @@ app.add_middleware(
     allow_headers=["*"],  # Permite todos os cabeçalhos
 )
 
-
 # -----------------------------------------------------------------------------
-# Endpoints de Equipa (Cross-functional)
+# Endpoints de Estúdio
 # -----------------------------------------------------------------------------
-
-@app.get("/api/equipa", tags=["Core"])
-async def get_equipa():
-    """Lista toda a equipa (Mentores, Produtores, Coordenadores)."""
-    return estudio_service.listar_equipa()
-
 # -----------------------------------------------------------------------------
 # Endpoints de Estúdio
 # -----------------------------------------------------------------------------
@@ -175,6 +168,8 @@ class AulaCreate(BaseModel):
     tema: Optional[str] = None
     observacoes: Optional[str] = None
     tipo: str = "pratica_escrita"
+    atividade_id: Optional[int] = None
+    equipamento_id: Optional[str] = None
 
 @app.post("/api/aulas", tags=["Aulas"])
 async def create_aula(aula: AulaCreate):
@@ -190,16 +185,137 @@ async def create_aula(aula: AulaCreate):
             mentor_id=aula.mentor_id,
             local=aula.local,
             tema=aula.tema,
-            observacoes=aula.observacoes
+            objetivos=None,
+            observacoes=aula.observacoes,
+            atividade_id=aula.atividade_id,
+            equipamento_id=aula.equipamento_id
         )
         if nova_aula:
             return nova_aula
-        return {"error": "Falha ao criar aula"}
+        raise HTTPException(status_code=500, detail="Erro ao criar aula")
     except Exception as e:
         return {"error": str(e)}
 
-# --- Rotas para Turmas/Instituições ---
-from services import turma_service, profile_service, estudio_service
+class AulaUpdate(BaseModel):
+    turma_id: Optional[int] = None
+    mentor_id: Optional[int] = None
+    data_hora: Optional[str] = None
+    duracao_minutos: Optional[int] = None
+    local: Optional[str] = None
+    tema: Optional[str] = None
+    observacoes: Optional[str] = None
+    tipo: Optional[str] = None
+    estado: Optional[str] = None
+    atividade_id: Optional[int] = None
+    equipamento_id: Optional[str] = None
+
+@app.put("/api/aulas/{aula_id}", tags=["Aulas"])
+async def update_aula(aula_id: int, aula: AulaUpdate):
+    """
+    Atualiza uma aula existente.
+    """
+    try:
+        # Filtrar campos None
+        dados = {k: v for k, v in aula.dict().items() if v is not None}
+        sucesso = aula_service.atualizar_aula(aula_id, dados)
+        
+        if sucesso:
+            return {"message": "Aula atualizada com sucesso"}
+        raise HTTPException(status_code=404, detail="Aula não encontrada ou erro ao atualizar")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/aulas/{aula_id}", tags=["Aulas"])
+async def delete_aula(aula_id: int):
+    """
+    Apaga uma aula.
+    """
+    try:
+        sucesso = aula_service.apagar_aula(aula_id)
+        if sucesso:
+            return {"message": "Aula apagada com sucesso"}
+        raise HTTPException(status_code=404, detail="Aula não encontrada ou erro ao apagar")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/aulas/{aula_id}/confirm", tags=["Aulas"])
+async def confirm_aula(aula_id: int):
+    """
+    Confirma uma aula (status -> 'confirmada').
+    """
+    try:
+        sucesso = aula_service.mudar_estado_aula(aula_id, "confirmada")
+        if sucesso:
+            return {"message": "Aula confirmada com sucesso"}
+        raise HTTPException(status_code=400, detail="Erro ao confirmar aula")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/aulas/{aula_id}/reject", tags=["Aulas"])
+async def reject_aula(aula_id: int):
+    """
+    Recusa uma aula (status -> 'recusada').
+    """
+    try:
+        sucesso = aula_service.mudar_estado_aula(aula_id, "recusada")
+        if sucesso:
+            return {"message": "Aula recusada com sucesso"}
+        raise HTTPException(status_code=400, detail="Erro ao recusar aula")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- Rotas para Notificações ---
+
+from auth import get_current_user_required
+
+@app.get("/api/notifications", tags=["Notifications"])
+async def get_notifications(user=Depends(get_current_user_required)):
+    """
+    Lista notificações de um utilizador.
+    O user_id é extraído do token JWT (sub).
+    """
+    try:
+        # Extrair user_id do token (campo 'sub' é o UUID no Supabase)
+        uid = user.get("sub")
+        
+        if not uid:
+             raise HTTPException(status_code=401, detail="Token inválido ou sem ID")
+
+        notificacoes = notification_service.listar_notificacoes(uid)
+        return notificacoes
+    except Exception as e:
+        # Se for erro de auth, já foi tratado pelo Depends
+        print(f"Erro ao listar notificações: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/notifications/{id}/read", tags=["Notifications"])
+async def mark_notification_read(id: int):
+    """
+    Marca notificação como lida.
+    """
+    try:
+        sucesso = notification_service.marcar_como_lida(id)
+        if sucesso:
+            return {"message": "Notificação marcada como lida"}
+        raise HTTPException(status_code=404, detail="Notificação não encontrada")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/notifications/{id}", tags=["Notifications"])
+async def delete_notification(id: int):
+    """
+    Apaga notificação.
+    """
+    try:
+        sucesso = notification_service.apagar_notificacao(id)
+        if sucesso:
+            return {"message": "Notificação apagada"}
+        raise HTTPException(status_code=404, detail="Notificação não encontrada")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# --- Rotas para Turmas/Estabelecimentos ---
+from services import turma_service, profile_service, estudio_service, notification_service
 
 @app.get("/api/equipa", tags=["Core"])
 async def get_equipa():
@@ -218,38 +334,54 @@ async def get_equipamento():
 
 
 
-@app.get("/api/instituicoes", tags=["Core"])
-async def get_instituicoes():
-    """Lista instituições."""
-    return turma_service.listar_instituicoes()
+@app.get("/api/estabelecimentos", tags=["Core"])
+async def get_estabelecimentos():
+    """Lista estabelecimentos."""
+    return turma_service.listar_estabelecimentos()
 
-class InstituicaoCreate(BaseModel):
+class EstabelecimentoCreate(BaseModel):
     nome: str
 
-@app.post("/api/instituicoes", tags=["Core"])
-async def create_instituicao(inst: InstituicaoCreate):
-    """Cria uma nova instituição."""
-    res = turma_service.criar_instituicao(inst.nome)
+@app.post("/api/estabelecimentos", tags=["Core"])
+async def create_estabelecimento(inst: EstabelecimentoCreate):
+    """Cria um novo estabelecimento."""
+    res = turma_service.criar_estabelecimento(inst.nome)
     if res:
         return res
-    raise HTTPException(status_code=400, detail="Falha ao criar instituição (pode já existir)")
+    raise HTTPException(status_code=400, detail="Falha ao criar estabelecimento (pode já existir)")
 
 class TurmaCreate(BaseModel):
     nome: str
-    instituicao_id: str
+    estabelecimento_id: str
 
 @app.post("/api/turmas", tags=["Core"])
 async def create_turma(turma: TurmaCreate):
     """Cria uma nova turma."""
-    res = turma_service.criar_turma(turma.nome, turma.instituicao_id)
+    res = turma_service.criar_turma(turma.nome, turma.estabelecimento_id)
     if res:
         return res
     raise HTTPException(status_code=400, detail="Falha ao criar turma (pode já existir)")
 
 @app.get("/api/turmas", tags=["Core"])
 async def get_turmas():
-    """Lista todas as turmas com instituições."""
-    return turma_service.listar_turmas_com_instituicao()
+    """Lista todas as turmas com estabelecimentos."""
+    return turma_service.listar_turmas_com_estabelecimento()
+
+@app.put("/api/turmas/{id}", tags=["Core"])
+async def update_turma(id: int, turma: TurmaCreate):
+    """Atualiza uma turma."""
+    sucesso = turma_service.atualizar_turma(id, turma.nome, turma.estabelecimento_id)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao atualizar turma")
+    return {"message": "Turma atualizada"}
+
+@app.delete("/api/turmas/{id}", tags=["Core"])
+async def delete_turma(id: int):
+    """Apaga uma turma."""
+    sucesso = turma_service.apagar_turma(id)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao apagar turma")
+    return {"message": "Turma apagada"}
 
 @app.get("/api/mentores", tags=["Core"])
 async def get_mentores():
@@ -269,9 +401,11 @@ async def get_produtores():
 from services import musica_service
 
 @app.get("/api/musicas", tags=["Producao"])
-async def get_musicas(arquivadas: bool = False):
+async def get_musicas(arquivadas: bool = False, user=Depends(get_current_user_optional)):
     """Lista todas as músicas (ativas ou arquivadas)."""
-    return musica_service.listar_musicas(arquivadas)
+    user_id = user.get("sub") if user else None
+    role = (user.get("user_metadata") or {}).get("role") if user else None
+    return musica_service.listar_musicas(arquivadas, user_id, role)
 
 class MusicaCreate(BaseModel):
     titulo: str
@@ -279,9 +413,10 @@ class MusicaCreate(BaseModel):
     disciplina: str = None
 
 @app.post("/api/musicas", tags=["Producao"])
-async def create_musica(musica: MusicaCreate):
+async def create_musica(musica: MusicaCreate, user=Depends(get_current_user_required)):
     """Cria uma nova música."""
-    resultado = musica_service.criar_musica(musica.dict())
+    criador_id = user.get("sub")
+    resultado = musica_service.criar_musica(musica.dict(), criador_id)
     if not resultado:
         raise HTTPException(status_code=500, detail="Erro ao criar música")
     return resultado
@@ -291,8 +426,26 @@ class MusicaEstadoUpdate(BaseModel):
 
 @app.patch("/api/musicas/{musica_id}/estado", tags=["Producao"])
 async def update_musica_estado(musica_id: int, update: MusicaEstadoUpdate):
-    """Atualiza o estado de uma música."""
+    """Atualiza o estado de uma música (Manual - Admin only idealmente)."""
     sucesso, mensagem = musica_service.atualizar_estado(musica_id, update.estado)
+    if not sucesso:
+        raise HTTPException(status_code=400, detail=mensagem)
+    return {"message": mensagem}
+
+@app.post("/api/musicas/{musica_id}/avancar", tags=["Producao"])
+async def avancar_fase_musica(musica_id: int, dados: Optional[dict] = None, user=Depends(get_current_user_required)):
+    """Avança a música para a próxima fase."""
+    user_id = user.get("sub")
+    sucesso, mensagem = musica_service.avancar_fase(musica_id, user_id, dados)
+    if not sucesso:
+        raise HTTPException(status_code=400, detail=mensagem)
+    return {"message": mensagem}
+
+@app.post("/api/musicas/{musica_id}/aceitar", tags=["Producao"])
+async def aceitar_tarefa_musica(musica_id: int, user=Depends(get_current_user_required)):
+    """Aceita uma tarefa da pool."""
+    user_id = user.get("sub")
+    sucesso, mensagem = musica_service.aceitar_tarefa(musica_id, user_id)
     if not sucesso:
         raise HTTPException(status_code=400, detail=mensagem)
     return {"message": mensagem}
@@ -313,6 +466,111 @@ async def desarquivar_musica(musica_id: int):
         raise HTTPException(status_code=400, detail=mensagem)
     return {"message": mensagem}
 
+
+# -----------------------------------------------------------------------------
+# 9. DASHBOARD (Estatísticas para Produtores)
+# -----------------------------------------------------------------------------
+from services import dashboard_service
+
+@app.get("/api/dashboard/produtor", tags=["Dashboard"])
+async def get_produtor_dashboard(user=Depends(get_current_user_required)):
+    """Retorna estatísticas e dados do dashboard para produtores."""
+    user_id = user.get("sub")
+    dashboard_data = dashboard_service.get_produtor_dashboard(user_id)
+    if not dashboard_data:
+        raise HTTPException(status_code=500, detail="Erro ao obter dados do dashboard")
+    return dashboard_data
+
+# -----------------------------------------------------------------------------
+# 10. CURRÍCULO (Competências e Avaliações)
+# -----------------------------------------------------------------------------
+class EstabelecimentoWikiCreate(BaseModel):
+    nome: str
+    sigla: str = None
+
+@app.get("/api/estabelecimentos", tags=["Wiki"])
+async def get_estabelecimentos():
+    return turma_service.listar_estabelecimentos()
+
+@app.post("/api/estabelecimentos", tags=["Wiki"])
+async def create_estabelecimento(inst: EstabelecimentoWikiCreate):
+    res = turma_service.criar_estabelecimento(inst.nome, inst.sigla)
+    if not res:
+        raise HTTPException(status_code=400, detail="Erro ao criar. Possível duplicado.")
+    return res
+
+@app.put("/api/estabelecimentos/{id}", tags=["Wiki"])
+async def update_estabelecimento(id: int, inst: EstabelecimentoWikiCreate):
+    sucesso = turma_service.atualizar_estabelecimento(id, inst.nome, inst.sigla)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao atualizar.")
+    return {"message": "Atualizado com sucesso"}
+
+@app.delete("/api/estabelecimentos/{id}", tags=["Wiki"])
+async def delete_estabelecimento(id: int):
+    sucesso = turma_service.apagar_estabelecimento(id)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao apagar.")
+    return {"message": "Apagado com sucesso"}
+
+# -----------------------------------------------------------------------------
+# Endpoints de Currículo (Wiki)
+# -----------------------------------------------------------------------------
+from services import curriculo_service
+
+@app.get("/api/curriculo", tags=["Wiki"])
+async def get_curriculo():
+    """Lista todo o currículo (disciplinas e atividades)."""
+    return curriculo_service.listar_curriculo()
+
+class DisciplinaCreate(BaseModel):
+    nome: str
+    descricao: str = None
+
+@app.post("/api/disciplinas", tags=["Wiki"])
+async def create_disciplina(disc: DisciplinaCreate):
+    """Cria uma nova disciplina."""
+    id = curriculo_service.adicionar_disciplina(disc.nome, disc.descricao)
+    if not id:
+        raise HTTPException(status_code=500, detail="Erro ao criar disciplina")
+    return {"id": id, "nome": disc.nome}
+
+class AtividadeCreate(BaseModel):
+    disciplina_id: int
+    codigo: str
+    nome: str
+    sessoes_padrao: int = None
+    horas_padrao: int = None
+    producoes_esperadas: int = 0
+    perfil_mentor: str = None
+
+@app.post("/api/atividades", tags=["Wiki"])
+async def create_atividade(act: AtividadeCreate):
+    """Cria uma nova atividade."""
+    id = curriculo_service.adicionar_atividade(
+        act.disciplina_id, act.codigo, act.nome, 
+        act.sessoes_padrao, act.horas_padrao, 
+        act.producoes_esperadas, act.perfil_mentor
+    )
+    if not id:
+        raise HTTPException(status_code=500, detail="Erro ao criar atividade")
+    return {"id": id}
+
+@app.put("/api/atividades/{id}", tags=["Wiki"])
+async def update_atividade(id: int, act: AtividadeCreate):
+    """Atualiza uma atividade existente."""
+    sucesso = curriculo_service.atualizar_atividade(id, act.dict())
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao atualizar atividade")
+    return {"message": "Atividade atualizada"}
+
+@app.delete("/api/atividades/{id}", tags=["Wiki"])
+async def delete_atividade(id: int):
+    """Remove uma atividade."""
+    sucesso = curriculo_service.apagar_atividade(id)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao apagar atividade")
+    return {"message": "Atividade removida"}
 
 # -----------------------------------------------------------------------------
 # 3. PONTO DE ENTRADA PARA ARRANCAR O SERVIDOR

@@ -55,7 +55,7 @@ def testar_slack_notification():
     }
     return enviar_payload(payload)
 
-def notificar_aula_atribuida(aula_id, mentor_nome, turma_nome, data_hora, tipo_aula, instituicao_nome, tema=None):
+def notificar_aula_atribuida(aula_id, mentor_nome, turma_nome, data_hora, tipo_aula, estabelecimento_nome, tema=None):
     """
     Notifica quando uma aula é atribuída a um mentor.
     """
@@ -77,7 +77,7 @@ def notificar_aula_atribuida(aula_id, mentor_nome, turma_nome, data_hora, tipo_a
                     {"type": "mrkdwn", "text": f"*Data/Hora:*\n{data_hora}"},
                     {"type": "mrkdwn", "text": f"*ID Aula:*\n#{aula_id}"},
                     {"type": "mrkdwn", "text": f"*Tipo:*\n{tipo_aula}"},
-                    {"type": "mrkdwn", "text": f"*Instituição:*\n{instituicao_nome}"}
+                    {"type": "mrkdwn", "text": f"*Estabelecimento:*\n{estabelecimento_nome}"}
                 ]
             }
         ]

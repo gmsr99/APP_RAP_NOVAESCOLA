@@ -1,42 +1,63 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { 
-  Calendar, 
-  MapPin, 
-  Users, 
-  AlertTriangle, 
-  Music, 
+import {
+  Calendar,
+  MapPin,
+  Users,
+  AlertTriangle,
+  Music,
   Package,
   Plus,
   ArrowRight,
   Clock
 } from 'lucide-react';
-import { dashboardStats, sessions, musics, equipment } from '@/data/mockData';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 
-const statusColors = {
-  rascunho: 'bg-draft text-draft-foreground',
-  pendente: 'bg-warning text-warning-foreground',
-  confirmado: 'bg-success text-success-foreground',
-  recusado: 'bg-destructive text-destructive-foreground',
+const statusColors: Record<string, string> = {
+  rascunho: 'bg-muted text-muted-foreground',
+  pendente: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-900',
+  confirmada: 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-200 dark:border-green-900',
+  recusada: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900',
 };
 
-const statusLabels = {
+const statusLabels: Record<string, string> = {
   rascunho: 'Rascunho',
   pendente: 'Pendente',
-  confirmado: 'Confirmado',
-  recusado: 'Recusado',
+  confirmada: 'Confirmada',
+  recusada: 'Recusada',
 };
 
 export function CoordinatorDashboard() {
-  const pendingSessions = sessions.filter(s => s.status === 'pendente');
-  const todaySessions = sessions.filter(s => 
-    format(s.date, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
-  );
-  const equipmentInMaintenance = equipment.filter(e => e.status === 'manutencao');
+  const { data: sessions = [] } = useQuery({
+    queryKey: ['aulas'],
+    queryFn: async () => {
+      const res = await api.get('/api/aulas');
+      return res.data;
+    }
+  });
+
+  const { data: equipa = [] } = useQuery({
+    queryKey: ['equipa'],
+    queryFn: async () => {
+      const res = await api.get('/api/equipa');
+      return res.data;
+    }
+  });
+
+  const pendingSessions = sessions.filter((s: any) => s.estado === 'pendente');
+  const todaySessions = sessions.filter((s: any) =>
+    format(new Date(s.data_hora), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
+  ).sort((a: any, b: any) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime());
+
+  // Calculate real stats
+  const sessionsThisWeek = sessions.length; // Simplified for now
+  const activeLocations = new Set(sessions.map((s: any) => s.estabelecimento_nome)).size;
+  const activeMentors = new Set(sessions.map((s: any) => s.mentor_id)).size;
 
   return (
     <div className="space-y-6">
@@ -45,7 +66,7 @@ export function CoordinatorDashboard() {
         <div>
           <h1 className="text-3xl font-display font-bold">Dashboard</h1>
           <p className="text-muted-foreground mt-1">
-            Bem-vindo de volta! Aqui está o resumo do projeto.
+            Resumo da atividade do projeto.
           </p>
         </div>
         <div className="flex gap-2">
@@ -63,12 +84,12 @@ export function CoordinatorDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Sessões esta semana
+              Total Sessões
             </CardTitle>
             <Calendar className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold font-display">{dashboardStats.sessionsThisWeek}</div>
+            <div className="text-3xl font-bold font-display">{sessions.length}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {pendingSessions.length} por confirmar
             </p>
@@ -83,7 +104,7 @@ export function CoordinatorDashboard() {
             <MapPin className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold font-display">{dashboardStats.activeLocations}</div>
+            <div className="text-3xl font-bold font-display">{activeLocations}</div>
             <p className="text-xs text-muted-foreground mt-1">
               Instituições com sessões
             </p>
@@ -98,7 +119,7 @@ export function CoordinatorDashboard() {
             <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold font-display">{dashboardStats.activeMentors}</div>
+            <div className="text-3xl font-bold font-display">{activeMentors}</div>
             <p className="text-xs text-muted-foreground mt-1">
               Com sessões agendadas
             </p>
@@ -108,61 +129,43 @@ export function CoordinatorDashboard() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Músicas em produção
+              Equipa Total
             </CardTitle>
-            <Music className="h-4 w-4 text-primary" />
+            <Users className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold font-display">{dashboardStats.musicInProduction}</div>
+            <div className="text-3xl font-bold font-display">{equipa.length}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              No pipeline atual
+              Membros registados
             </p>
           </CardContent>
         </Card>
       </div>
 
       {/* Alerts */}
-      {(pendingSessions.length > 0 || equipmentInMaintenance.length > 0) && (
-        <Card className="border-warning/50 bg-warning/5">
+      {pendingSessions.length > 0 && (
+        <Card className="border-yellow-200 dark:border-yellow-900 bg-yellow-50/50 dark:bg-yellow-900/10">
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-warning" />
+            <CardTitle className="text-lg flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
+              <AlertTriangle className="h-5 w-5" />
               Atenção necessária
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {pendingSessions.length > 0 && (
-              <div className="flex items-center justify-between p-3 rounded-lg bg-card">
-                <div className="flex items-center gap-3">
-                  <Clock className="h-5 w-5 text-warning" />
-                  <div>
-                    <p className="font-medium">{pendingSessions.length} sessões por confirmar</p>
-                    <p className="text-sm text-muted-foreground">
-                      Aguardam resposta dos mentores
-                    </p>
-                  </div>
+          <CardContent>
+            <div className="flex items-center justify-between p-3 rounded-lg bg-card border border-border">
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-yellow-600" />
+                <div>
+                  <p className="font-medium">{pendingSessions.length} sessões por confirmar</p>
+                  <p className="text-sm text-muted-foreground">
+                    Aguardam resposta dos mentores
+                  </p>
                 </div>
-                <Button variant="outline" size="sm" asChild>
-                  <Link to="/horarios">Ver todas</Link>
-                </Button>
               </div>
-            )}
-            {equipmentInMaintenance.length > 0 && (
-              <div className="flex items-center justify-between p-3 rounded-lg bg-card">
-                <div className="flex items-center gap-3">
-                  <Package className="h-5 w-5 text-warning" />
-                  <div>
-                    <p className="font-medium">{equipmentInMaintenance.length} equipamento em manutenção</p>
-                    <p className="text-sm text-muted-foreground">
-                      {equipmentInMaintenance.map(e => e.name).join(', ')}
-                    </p>
-                  </div>
-                </div>
-                <Button variant="outline" size="sm" asChild>
-                  <Link to="/equipamento">Gerir</Link>
-                </Button>
-              </div>
-            )}
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/horarios">Ver todas</Link>
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -170,7 +173,7 @@ export function CoordinatorDashboard() {
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Today's Sessions */}
-        <Card>
+        <Card className="col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Sessões de Hoje</CardTitle>
             <Button variant="ghost" size="sm" asChild>
@@ -186,70 +189,32 @@ export function CoordinatorDashboard() {
               </p>
             ) : (
               <div className="space-y-3">
-                {todaySessions.map((session) => (
+                {todaySessions.map((session: any) => (
                   <div
                     key={session.id}
                     className="flex items-center justify-between p-3 rounded-lg bg-secondary/30"
                   >
                     <div className="flex items-center gap-3">
                       <div className="text-center min-w-[60px]">
-                        <p className="text-lg font-bold font-display">{session.startTime}</p>
-                        <p className="text-xs text-muted-foreground">{session.duration}min</p>
+                        <p className="text-lg font-bold font-display">
+                          {format(new Date(session.data_hora), 'HH:mm')}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{session.duracao_minutos}min</p>
                       </div>
                       <div>
-                        <p className="font-medium">{session.institution}</p>
+                        <p className="font-medium">{session.estabelecimento_nome}</p>
                         <p className="text-sm text-muted-foreground">
-                          {session.turma} • {session.mentor.name}
+                          {session.turma_nome} • {session.mentor_nome || 'Sem mentor'}
                         </p>
                       </div>
                     </div>
-                    <Badge className={statusColors[session.status]}>
-                      {statusLabels[session.status]}
+                    <Badge className={statusColors[session.estado] || statusColors.confirmada}>
+                      {statusLabels[session.estado] || session.estado}
                     </Badge>
                   </div>
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* Music Production Status */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Produção Musical</CardTitle>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/producao">
-                Ver pipeline <ArrowRight className="h-4 w-4 ml-1" />
-              </Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {musics.slice(0, 4).map((music) => (
-                <div
-                  key={music.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-secondary/30"
-                >
-                  <div>
-                    <p className="font-medium">{music.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {music.turma} • {music.responsible.name}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <Badge variant="outline" className="capitalize">
-                      {music.stage.replace('cao', 'ção')}
-                    </Badge>
-                    <div className="mt-1 w-20 h-1.5 rounded-full bg-secondary overflow-hidden">
-                      <div 
-                        className="h-full bg-primary rounded-full transition-all"
-                        style={{ width: `${music.progress}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
           </CardContent>
         </Card>
       </div>

@@ -40,6 +40,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { computeEventLayout } from '@/lib/eventLayout';
+import { setHours, setMinutes } from 'date-fns';
 
 // Types matched to API
 interface TeamMember {
@@ -464,15 +466,32 @@ export default function Estudio() {
               const dayBookings = getBookingsForDay(day);
               const isToday = isSameDay(day, new Date());
 
+              // Prepare for layout
+              const eventsForLayout = dayBookings.map(booking => {
+                const [startHour, startMinute] = booking.startTime.split(':').map(Number);
+                const [endHour, endMinute] = booking.endTime.split(':').map(Number);
+
+                const start = setMinutes(setHours(new Date(day), startHour), startMinute);
+                const end = setMinutes(setHours(new Date(day), endHour), endMinute);
+
+                return {
+                  ...booking,
+                  start,
+                  end
+                };
+              });
+
+              const layoutEvents = computeEventLayout(eventsForLayout);
+
               return (
                 <div
                   key={day.toISOString()}
                   className={cn(
-                    'min-h-[200px] rounded-lg border p-2 transition-colors',
+                    'h-[1000px] rounded-lg border flex flex-col transition-colors',
                     isToday ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/50'
                   )}
                 >
-                  <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center justify-between p-2 flex-shrink-0">
                     <div className="text-center">
                       <p className="text-xs text-muted-foreground uppercase">
                         {format(day, 'EEE', { locale: pt })}
@@ -494,38 +513,50 @@ export default function Estudio() {
                     </Button>
                   </div>
 
-                  <ScrollArea className="h-[140px]">
-                    <div className="space-y-1">
-                      {dayBookings.length === 0 ? (
-                        <p className="text-xs text-muted-foreground text-center py-4">
-                          Disponível
-                        </p>
-                      ) : (
-                        dayBookings.map((booking) => {
-                          const typeInfo = getBookingTypeInfo(booking.type);
-                          return (
-                            <button
-                              key={booking.id}
-                              onClick={() => openBookingDetails(booking)}
-                              className={cn(
-                                'w-full text-left p-2 rounded-md text-xs transition-colors',
-                                'bg-card hover:bg-secondary border border-border'
-                              )}
-                            >
-                              <div className="flex items-center gap-1.5 mb-1">
-                                <div className={cn('w-2 h-2 rounded-full shrink-0', typeInfo.color)} />
-                                <span className="font-medium truncate">
-                                  {booking.startTime} - {booking.endTime}
-                                </span>
-                              </div>
-                              <p className="font-medium truncate">{booking.artist}</p>
-                              <p className="text-muted-foreground truncate">{booking.project}</p>
-                            </button>
-                          );
-                        })
-                      )}
+                  <div className="relative flex-grow w-full overflow-hidden border-t border-border/50">
+                    {/* Grid lines for hours */}
+                    <div className="absolute inset-0 pointer-events-none">
+                      {Array.from({ length: 24 }).map((_, i) => (
+                        <div key={i} className="border-t border-border/20 h-[4.16%] w-full box-border" />
+                      ))}
                     </div>
-                  </ScrollArea>
+
+                    {layoutEvents.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-4 relative z-10">
+                        Disponível
+                      </p>
+                    ) : (
+                      layoutEvents.map((booking) => {
+                        const typeInfo = getBookingTypeInfo(booking.type);
+                        return (
+                          <button
+                            key={booking.id}
+                            style={{
+                              top: booking.top,
+                              height: booking.height,
+                              left: booking.left,
+                              width: booking.width,
+                              position: 'absolute',
+                              zIndex: booking.zIndex || 10
+                            }}
+                            onClick={() => openBookingDetails(booking)}
+                            className={cn(
+                              'block text-left p-1 rounded-sm text-[10px] leading-tight transition-colors border overflow-hidden flex flex-col',
+                              'bg-card hover:bg-secondary border-border',
+                              typeInfo.color.replace('bg-', 'border-l-4 border-') // Use color as border accent
+                            )}
+                            title={`${booking.startTime} - ${booking.endTime} | ${booking.artist}`}
+                          >
+                            <div className="font-bold text-xs truncate">
+                              {booking.startTime}
+                            </div>
+                            <div className="font-medium truncate">{booking.artist}</div>
+                            <div className="text-muted-foreground truncate opacity-80">{booking.project}</div>
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               );
             })}

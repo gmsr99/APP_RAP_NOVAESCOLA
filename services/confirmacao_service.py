@@ -606,11 +606,11 @@ def listar_aulas_pendentes_mentor(mentor_id):
                 a.local,
                 a.tema,
                 t.nome as turma_nome,
-                i.nome as instituicao_nome,
+                e.nome as estabelecimento_nome,
                 a.criado_em
             FROM aulas a
             JOIN turmas t ON a.turma_id = t.id
-            JOIN instituicoes i ON t.instituicao_id = i.id
+            JOIN estabelecimentos e ON t.estabelecimento_id = e.id
             WHERE a.mentor_id = %s 
             AND a.estado = 'pendente'
             ORDER BY a.data_hora ASC;
@@ -629,7 +629,7 @@ def listar_aulas_pendentes_mentor(mentor_id):
                 'local': row[4],
                 'tema': row[5],
                 'turma_nome': row[6],
-                'instituicao_nome': row[7],
+                'estabelecimento_nome': row[7],
                 'criado_em': row[8]
             }
             aulas.append(aula)

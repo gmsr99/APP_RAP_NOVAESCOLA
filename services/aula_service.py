@@ -73,7 +73,7 @@ TIPOS_AULA = [
 
 def criar_aula(turma_id, data_hora, tipo="pratica_escrita", duracao_minutos=90,
                mentor_id=None, local=None, tema=None, objetivos=None, 
-               projeto_id=None, observacoes=None):
+               projeto_id=None, observacoes=None, atividade_id=None, equipamento_id=None):
     """
     Cria uma nova aula no sistema.
     
@@ -134,9 +134,10 @@ def criar_aula(turma_id, data_hora, tipo="pratica_escrita", duracao_minutos=90,
             INSERT INTO aulas (
                 turma_id, mentor_id, projeto_id,
                 tipo, data_hora, duracao_minutos, estado,
-                local, tema, objetivos, observacoes
+                local, tema, objetivos, observacoes,
+                atividade_id, equipamento_id
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id, estado, criado_em;
         """
         
@@ -144,7 +145,8 @@ def criar_aula(turma_id, data_hora, tipo="pratica_escrita", duracao_minutos=90,
         cur.execute(query, (
             turma_id, mentor_id, projeto_id,
             tipo, data_hora, duracao_minutos, estado_inicial,
-            local, tema, objetivos, observacoes
+            local, tema, objetivos, observacoes,
+            atividade_id, equipamento_id
         ))
         
         # Obter o ID da aula criada
@@ -162,12 +164,39 @@ def criar_aula(turma_id, data_hora, tipo="pratica_escrita", duracao_minutos=90,
         
         cur.close()
         conn.close()
+
+        # Notificar Mentor se atribuído
+        if mentor_id:
+            try:
+                from services import notification_service, turma_service, profile_service
+                
+                # 1. Obter email do mentor
+                email_mentor = turma_service.obter_email_mentor(mentor_id)
+                
+                if email_mentor:
+                    # 2. Obter UUID do profile
+                    profile_id = profile_service.obter_profile_id_por_email(email_mentor)
+                    
+                    if profile_id:
+                        # 3. Criar notificação
+                        notification_service.criar_notificacao(
+                            user_id=profile_id,
+                            tipo="session_created",
+                            titulo="Nova Sessão Atribuída",
+                            mensagem=f"Foi-lhe atribuída uma nova sessão a {data_hora}.",
+                            link="/dashboard", 
+                            metadados={"aula_id": aula_id}
+                        )
+            except Exception as e:
+                print(f"⚠️ Erro ao criar notificação: {e}")
         
         # Retornar dados da aula criada
         return {
             'id': aula_id,
             'turma_id': turma_id,
             'mentor_id': mentor_id,
+            'atividade_id': atividade_id,
+            'equipamento_id': equipamento_id,
             'tipo': tipo,
             'data_hora': data_hora,
             'estado': estado,
@@ -200,7 +229,7 @@ def listar_aulas_por_estado(estado, limite=50):
         limite (int): Número máximo de resultados (padrão: 50)
     
     Retorna:
-        list: Lista de dicionários com dados das aulas, ou lista vazia se não houver
+        list: Lista de dicionáterios com dados das aulas, ou lista vazia se não houver
         
     Exemplo:
         aulas_pendentes = listar_aulas_por_estado('pendente')
@@ -234,11 +263,12 @@ def listar_aulas_por_estado(estado, limite=50):
                 t.id as turma_id,
                 m.nome as mentor_nome,
                 m.id as mentor_id,
-                i.nome as instituicao_nome
+                e.nome as estabelecimento_nome,
+                m.user_id as mentor_user_id
             FROM aulas a
             JOIN turmas t ON a.turma_id = t.id
             LEFT JOIN mentores m ON a.mentor_id = m.id
-            JOIN instituicoes i ON t.instituicao_id = i.id
+            JOIN estabelecimentos e ON t.estabelecimento_id = e.id
             WHERE a.estado = %s
             ORDER BY a.data_hora DESC
             LIMIT %s;
@@ -265,7 +295,8 @@ def listar_aulas_por_estado(estado, limite=50):
                 'turma_id': row[11],
                 'mentor_nome': row[12] if row[12] else "Sem mentor atribuído",
                 'mentor_id': row[13],
-                'instituicao_nome': row[14]
+                'mentor_user_id': row[15], # UUID do mentor
+                'estabelecimento_nome': row[14]
             }
             aulas.append(aula)
         
@@ -360,25 +391,51 @@ def atribuir_mentor(aula_id, mentor_id):
         cur.close()
         conn.close()
         
-        # Enviar notificação Slack
+        # Enviar notificação Slack e Sistema
         try:
             from notifications import slack_service
+            from services import notification_service
             
             # Buscar informações completas da aula
             aula = obter_aula_por_id(aula_id)
             
             if aula:
+                # Slack
                 slack_service.notificar_aula_atribuida(
                     aula_id=aula_id,
                     mentor_nome=aula['mentor_nome'],
                     turma_nome=aula['turma_nome'],
                     data_hora=aula['data_hora'],
                     tipo_aula=aula['tipo'],
-                    instituicao_nome=aula['instituicao_nome'],
+                    estabelecimento_nome=aula['estabelecimento_nome'],
                     tema=aula['tema']
                 )
+
+                # Notificação Sistema
+                # Resolvendo ID do Mentor -> UUID
+                email_mentor = aula['mentor_email'] if 'mentor_email' in aula else None
+                # Se não vier no obter_aula_por_id, buscar via serviço
+                if not email_mentor:
+                    # Precisamos importar turma_service aqui se não estiver no topo
+                    from services import turma_service
+                    email_mentor = turma_service.obter_email_mentor(mentor_id)
+
+                if email_mentor:
+                    from services import profile_service
+                    profile_id = profile_service.obter_profile_id_por_email(email_mentor)
+                    
+                    if profile_id:
+                        notification_service.criar_notificacao(
+                            user_id=profile_id,
+                            tipo="session_created",
+                            titulo="Nova Sessão Atribuída",
+                            mensagem=f"Foi-lhe atribuída a sessão de '{aula['turma_nome']}' a {aula['data_hora']}.",
+                            link="/dashboard",
+                            metadados={"aula_id": aula_id}
+                        )
+
         except Exception as e:
-            print(f"⚠️  Aviso: Erro ao enviar notificação Slack: {e}")
+            print(f"⚠️  Aviso: Erro ao enviar notificação: {e}")
             # Não interrompe o fluxo principal
         
         return True
@@ -450,8 +507,51 @@ def mudar_estado_aula(aula_id, novo_estado, observacao=None):
         
         print(f"✅ Estado da aula #{aula_id} atualizado: '{estado_anterior}' → '{novo_estado}'")
         
+        # Identificar quem deve ser notificado
+        # Se confirmar/recusar -> Notificar Coordenadores
+        # Buscar UUIDs dos coordenadores na tabela profiles
+        conn = get_db_connection() # Reabrir conexão pois foi fechada
+        cur = conn.cursor()
+        
+        # Simplificação: Buscar perfis com role 'coordenador'
+        # Nota: A tabela profiles no Supabase mapeia users auth.
+        # Precisamos garantir que temos acesso a essa info. 
+        # Se a tabela profiles estiver syncada, podemos usar:
+        try:
+            # Opção A: Usar profile_service (Supabase client)
+            from services import profile_service
+            perfis = profile_service.listar_perfis()
+            coordenadores_ids = [p['id'] for p in perfis if p.get('role') == 'coordenador']
+            
+            # Opção B: SQL direto se profiles estiver no public (o que parece estar pelo list_tables)
+            # cur.execute("SELECT id FROM profiles WHERE role = 'coordenador'")
+            # coordenadores_ids = [r[0] for r in cur.fetchall()]
+        except:
+            coordenadores_ids = []
+
         cur.close()
         conn.close()
+
+        if novo_estado in [ESTADO_CONFIRMADA, ESTADO_RECUSADA]:
+            try:
+                from services import notification_service
+                aulaInfo = obter_aula_por_id(aula_id)
+                mentor_nome = aulaInfo['mentor_nome'] if aulaInfo else "Um mentor"
+                
+                titulo = "Sessão Confirmada" if novo_estado == ESTADO_CONFIRMADA else "Sessão Recusada"
+                msg = f"{mentor_nome} {novo_estado} a sessão de {aulaInfo['data_hora']}."
+
+                for coord_id in coordenadores_ids:
+                    notification_service.criar_notificacao(
+                        user_id=coord_id,
+                        tipo=f"session_{novo_estado}", 
+                        titulo=titulo,
+                        mensagem=msg,
+                        link="/horarios",
+                        metadados={"aula_id": aula_id}
+                    )
+            except Exception as e:
+                print(f"⚠️ Erro ao enviar notificação ao coordenador: {e}")
         
         return True
         
@@ -489,13 +589,19 @@ def obter_aula_por_id(aula_id):
                 a.criado_em, a.atualizado_em,
                 t.nome as turma_nome, t.id as turma_id,
                 m.nome as mentor_nome, m.id as mentor_id,
-                i.nome as instituicao_nome,
-                p.nome as projeto_nome
+                e.nome as estabelecimento_nome,
+                p.nome as projeto_nome,
+                at.nome as atividade_nome, at.id as atividade_id,
+                d.nome as disciplina_nome,
+                eq.name as equipamento_nome, eq.id as equipamento_id
             FROM aulas a
             JOIN turmas t ON a.turma_id = t.id
             LEFT JOIN mentores m ON a.mentor_id = m.id
-            JOIN instituicoes i ON t.instituicao_id = i.id
+            JOIN estabelecimentos e ON t.estabelecimento_id = e.id
             LEFT JOIN projetos p ON a.projeto_id = p.id
+            LEFT JOIN atividades at ON a.atividade_id = at.id
+            LEFT JOIN disciplinas d ON at.disciplina_id = d.id
+            LEFT JOIN equipments eq ON a.equipamento_id = eq.id
             WHERE a.id = %s;
         """
         
@@ -522,8 +628,15 @@ def obter_aula_por_id(aula_id):
             'turma_id': row[12],
             'mentor_nome': row[13],
             'mentor_id': row[14],
-            'instituicao_nome': row[15],
-            'projeto_nome': row[16]
+            'estabelecimento_nome': row[15],
+            'mentor_id': row[14],
+            'estabelecimento_nome': row[15],
+            'projeto_nome': row[16],
+            'atividade_nome': row[17],
+            'atividade_id': row[18],
+            'disciplina_nome': row[19],
+            'equipamento_nome': row[20],
+            'equipamento_id': row[21]
         }
         
         cur.close()
@@ -558,14 +671,22 @@ def listar_todas_aulas(limite=100):
         
         query = """
             SELECT 
-                a.id, a.tipo, a.data_hora, a.estado, a.tema,
-                t.nome as turma_nome,
-                m.nome as mentor_nome,
-                i.nome as instituicao_nome
+                a.id, a.tipo, a.data_hora, a.duracao_minutos, a.estado, a.tema,
+                a.local, a.observacoes,
+                t.nome as turma_nome, t.id as turma_id,
+                m.nome as mentor_nome, m.id as mentor_id,
+                e.nome as estabelecimento_nome,
+                m.user_id as mentor_user_id,
+                at.nome as atividade_nome,
+                eq.name as equipamento_nome,
+                d.nome as disciplina_nome
             FROM aulas a
             JOIN turmas t ON a.turma_id = t.id
             LEFT JOIN mentores m ON a.mentor_id = m.id
-            JOIN instituicoes i ON t.instituicao_id = i.id
+            JOIN estabelecimentos e ON t.estabelecimento_id = e.id
+            LEFT JOIN atividades at ON a.atividade_id = at.id
+            LEFT JOIN disciplinas d ON at.disciplina_id = d.id
+            LEFT JOIN equipments eq ON a.equipamento_id = eq.id
             ORDER BY a.data_hora DESC
             LIMIT %s;
         """
@@ -579,11 +700,21 @@ def listar_todas_aulas(limite=100):
                 'id': row[0],
                 'tipo': row[1],
                 'data_hora': row[2],
-                'estado': row[3],
-                'tema': row[4],
-                'turma_nome': row[5],
-                'mentor_nome': row[6] if row[6] else "Sem mentor",
-                'instituicao_nome': row[7]
+                'duracao_minutos': row[3],
+                'estado': row[4],
+                'tema': row[5],
+                'local': row[6],
+                'observacoes': row[7],
+                'turma_nome': row[8],
+                'turma_id': row[9],
+                'mentor_nome': row[10] if row[10] else "Sem mentor",
+                'mentor_id': row[11],
+                'estabelecimento_nome': row[12],
+                'estabelecimento_nome': row[12],
+                'mentor_user_id': row[13], # UUID
+                'atividade_nome': row[14],
+                'equipamento_nome': row[15],
+                'disciplina_nome': row[16]
             })
         
         cur.close()
@@ -601,9 +732,164 @@ def listar_todas_aulas(limite=100):
             conn.close()
 
 
-# ==============================================================================
-# EXEMPLO DE USO (apenas para testes)
-# ==============================================================================
+def atualizar_aula(aula_id, dados):
+    """
+    Atualiza os dados de uma aula.
+    
+    Parâmetros:
+        aula_id (int): ID da aula
+        dados (dict): Dicionário com os campos a atualizar
+    
+    Retorna:
+        bool: True se sucesso, False se erro
+    """
+    if not aula_id or not dados:
+        return False
+
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Construir query dinamicamente
+        campos = []
+        valores = []
+        
+        for campo, valor in dados.items():
+            if campo in ['turma_id', 'mentor_id', 'projeto_id', 'tipo', 'data_hora', 'duracao_minutos', 'local', 'tema', 'objetivos', 'observacoes', 'atividade_id', 'equipamento_id']:
+                campos.append(f"{campo} = %s")
+                valores.append(valor)
+
+        # Verificar se houve mudança de horário para reiniciar estado
+        should_notify_mentor_change = False
+        
+        if 'data_hora' in dados:
+            cur.execute("SELECT data_hora, estado, mentor_id FROM aulas WHERE id = %s", (aula_id,))
+            row = cur.fetchone()
+            
+            if row:
+                current_data_hora = row[0]
+                current_estado = row[1]
+                mentor_id = row[2]
+                
+                # Converter para string para comparação simples (ou datetime se ambos forem)
+                # O driver do psycopg2 retorna datetime objects para timestamp
+                new_data_hora = dados['data_hora']
+                
+                # Normalizar para comparação
+                if str(new_data_hora) != str(current_data_hora):
+                    # Se estava confirmada ou recusada, volta a pendente
+                    if current_estado in [ESTADO_CONFIRMADA, ESTADO_RECUSADA]:
+                        print(f"ℹ️  Horário alterado ({current_data_hora} -> {new_data_hora}). Reiniciando estado para 'pendente'.")
+                        
+                        # Remover 'estado' se já tiver sido adicionado pelo loop anterior (para não duplicar)
+                        # Nota: o loop acima adiciona cega e loucamente. Se 'estado' não está no loop, ok. 
+                        # Mas 'estado' NÃO está na lista permitida do loop acima: ['turma_id', ... 'observacoes']. 
+                        # 'estado' não está lá. Então podemos adicionar seguros.
+                        
+                        campos.append("estado = %s")
+                        valores.append(ESTADO_PENDENTE)
+                        
+                        # Adicionar nota nas observações
+                        nota = f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M')}] Sistema: Horário alterado. Estado reiniciado para 'pendente'."
+                        
+                        # Se observacoes já foi adicionado aos campos/valores, temos de atualizar o valor.
+                        # Mas é complexo encontrar e substituir na lista 'valores'.
+                        # Vamos assumir que se 'observacoes' veio nos dados, já está em 'campos'.
+                        
+                        if 'observacoes' in dados:
+                            # O valor já está na lista 'valores'. Qual índice?
+                            # Difícil saber.
+                            # Simplificação: Não adicionar nota se já estamos a editar observações.
+                            # Ou melhor: vamos concatenar na DB.
+                            # Mas se já temos "observacoes = %s", adicionar outro "observacoes = ..." vai dar erro SQL ou comportamento estranho.
+                            pass 
+                        else:
+                             # Se não está a ser atualizado explicitamente, adicionamos append
+                             campos.append("observacoes = COALESCE(observacoes, '') || %s")
+                             valores.append(nota)
+                             
+                        should_notify_mentor_change = True
+        
+        if not campos:
+            return False
+
+        valores.append(aula_id)
+        query = f"UPDATE aulas SET {', '.join(campos)}, atualizado_em = CURRENT_TIMESTAMP WHERE id = %s"
+
+        cur.execute(query, tuple(valores))
+        conn.commit()
+        
+        print(f"✅ Aula #{aula_id} atualizada com sucesso!")
+        
+        cur.close()
+        conn.close()
+
+        # Enviar notificação se necessário
+        if should_notify_mentor_change and mentor_id:
+            try:
+                from services import notification_service, turma_service, profile_service
+                
+                email_mentor = turma_service.obter_email_mentor(mentor_id)
+                if email_mentor:
+                    profile_id = profile_service.obter_profile_id_por_email(email_mentor)
+                    if profile_id:
+                        notification_service.criar_notificacao(
+                            user_id=profile_id,
+                            tipo="session_updated",
+                            titulo="Horário de Sessão Alterado",
+                            mensagem=f"O horário da sessão foi alterado. Por favor confirme a nova hora.",
+                            link="/dashboard",
+                            metadados={"aula_id": aula_id}
+                        )
+            except Exception as e:
+                print(f"⚠️ Erro ao notificar mentor: {e}")
+
+        return True
+
+    except Exception as e:
+        print(f"❌ Erro ao atualizar aula: {e}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if 'cur' in locals() and cur:
+            cur.close()
+        if 'conn' in locals() and conn:
+            conn.close()
+
+def apagar_aula(aula_id):
+    """
+    Apaga uma aula do sistema.
+    
+    Parâmetros:
+        aula_id (int): ID da aula
+    
+    Retorna:
+        bool: True se sucesso, False se erro
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        
+        cur.execute("DELETE FROM aulas WHERE id = %s", (aula_id,))
+        conn.commit()
+        
+        print(f"✅ Aula #{aula_id} apagada com sucesso!")
+        
+        cur.close()
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f"❌ Erro ao apagar aula: {e}")
+        if conn:
+            conn.rollback()
+        return False
+    finally:
+        if 'cur' in locals() and cur:
+            cur.close()
+        if 'conn' in locals() and conn:
+            conn.close()
 
 if __name__ == "__main__":
     """
@@ -618,7 +904,7 @@ if __name__ == "__main__":
     
     # Este é apenas um exemplo - em produção, os IDs virão do sistema
     print("💡 Para testar, certifica-te que tens pelo menos:")
-    print("   - 1 instituição criada")
+    print("   - 1 estabelecimento criada")
     print("   - 1 turma criada")
     print("   - 1 mentor criado")
     print()

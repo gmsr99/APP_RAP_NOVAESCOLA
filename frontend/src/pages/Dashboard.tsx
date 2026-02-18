@@ -8,6 +8,7 @@ const Dashboard = () => {
 
   switch (profile) {
     case 'mentor':
+    case 'mentor_produtor':
       return <MentorDashboard />;
     case 'produtor':
       return <ProducerDashboard />;
