@@ -27,7 +27,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Music2,
   Plus,
   PlayCircle,
   CheckCircle2,
@@ -39,7 +38,7 @@ import {
   Archive
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, addMinutes } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 
@@ -78,29 +77,35 @@ interface Turma {
 }
 
 const ESTADOS = ['gravação', 'edição', 'pool_mistura', 'mistura_wip', 'pool_feedback', 'feedback_wip', 'pool_finalização', 'finalização_wip', 'concluído'];
+const MENTOR_STATES = ['gravação', 'edição'];
+const LAB_STATES = ['pool_mistura', 'mistura_wip', 'pool_finalização', 'finalização_wip'];
+const FEEDBACK_STATES = ['pool_feedback', 'feedback_wip'];
+
+// States that open WorkLogModal (user is finishing a phase — log time)
+const WORKLOG_STATES = ['gravação', 'edição', 'mistura_wip', 'finalização_wip'];
+// States that do a direct advance (user is starting a phase — no time log)
+const DIRECT_ADVANCE_STATES = ['pool_mistura', 'pool_finalização', 'pool_feedback'];
 
 const Producao = () => {
   const { user } = useAuth();
+  const { profile } = useProfile();
   const [isNewMusicOpen, setIsNewMusicOpen] = useState(false);
-  const [selectedMusicId, setSelectedMusicId] = useState<number | null>(null);
-  const [feedbackText, setFeedbackText] = useState('');
-  const [viewArchived, setViewArchived] = useState(false);
   const [viewCompleted, setViewCompleted] = useState(false);
+  const [workLogModal, setWorkLogModal] = useState<{ open: boolean; music: Musica | null }>({ open: false, music: null });
+  const [workLogForm, setWorkLogForm] = useState({ date: '', hora_inicio: '', hora_fim: '', observacoes: '' });
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Form State
-  const [newMusicData, setNewMusicData] = useState({
-    titulo: '',
-    turma_id: '',
-    disciplina: ''
-  });
+  const [newMusicData, setNewMusicData] = useState({ titulo: '', turma_id: '', disciplina: '' });
+
+  const isCoordinator = profile === 'coordenador';
+  const isProdutor = profile === 'produtor' || profile === 'mentor_produtor';
 
   // Queries
   const { data: musicas = [], isLoading } = useQuery({
-    queryKey: ['musicas', viewArchived, user?.id],
+    queryKey: ['musicas', user?.id],
     queryFn: async () => {
-      const res = await api.get(`/api/musicas?arquivadas=${viewArchived}`);
+      const res = await api.get('/api/musicas?arquivadas=false');
       return res.data as Musica[];
     }
   });
@@ -135,34 +140,67 @@ const Producao = () => {
     onError: (err: any) => toast({ title: 'Erro', description: err.response?.data?.detail || 'Erro ao avançar fase.', variant: 'destructive' })
   });
 
-  const acceptTaskMutation = useMutation({
-    mutationFn: (id: number) => api.post(`/api/musicas/${id}/aceitar`),
+  const createWorkLogMutation = useMutation({
+    mutationFn: (payload: any) => api.post('/api/aulas', payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['musicas'] });
-      toast({ title: 'Tarefa aceite!', description: 'Agora és o responsável por esta música.' });
+      queryClient.invalidateQueries({ queryKey: ['aulas'] });
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err.response?.data?.detail || 'Erro ao aceitar tarefa.', variant: 'destructive' })
+    onError: () => {
+      toast({ title: 'Aviso', description: 'Fase avançada, mas erro ao registar no calendário.', variant: 'default' });
+    }
   });
 
-  // Helper Logic
-  const canIAccessPool = (estado: string) => {
-    if (!user) return false;
-    const role = user.role;
+  // ─── Filtering ───────────────────────────────────────────────────────────────
 
-    if (role === 'coordenador' && estado === 'pool_feedback') return true;
-    if ((role === 'produtor' || role === 'mentor_produtor') && (estado === 'pool_mistura' || estado === 'pool_finalização')) return true;
+  const activeMusicas = musicas.filter(m => !m.arquivado && m.estado !== 'concluído');
+  const completedMusicas = musicas.filter(m => m.estado === 'concluído' && !m.arquivado);
 
-    return false; // Mentores don't pick from pools typically, they push TO pools
+  const getVisibleMusicas = (): Musica[] => {
+    if (isCoordinator) {
+      // Coordinator main view: musicas needing feedback
+      return activeMusicas.filter(m => FEEDBACK_STATES.includes(m.estado));
+    }
+    if (profile === 'produtor') {
+      // Produtor sees all lab-stage musicas
+      return activeMusicas.filter(m => LAB_STATES.includes(m.estado));
+    }
+    if (profile === 'mentor') {
+      // Mentor sees only musicas they created
+      return activeMusicas.filter(m => m.criador?.id === user?.id);
+    }
+    if (profile === 'mentor_produtor') {
+      // Sees own musicas (as mentor) + all lab-stage musicas (as produtor), deduplicated
+      const seen = new Set<number>();
+      return activeMusicas.filter(m => {
+        if (m.criador?.id === user?.id || LAB_STATES.includes(m.estado)) {
+          if (!seen.has(m.id)) { seen.add(m.id); return true; }
+        }
+        return false;
+      });
+    }
+    return activeMusicas;
   };
 
-  // Get user role from ProfileContext
-  const { profile } = useProfile();
-  const isCoordinator = profile === 'coordenador';
+  const visibleMusicas = getVisibleMusicas();
 
-  const myWorkMusicas = musicas.filter(m => m.responsavel?.id === user?.id && !m.arquivado && m.estado !== 'concluído');
-  const poolMusicas = musicas.filter(m => m.responsavel === null && canIAccessPool(m.estado) && !m.arquivado);
-  const completedMusicas = musicas.filter(m => m.estado === 'concluído' && !m.arquivado);
-  const allActiveMusicas = musicas.filter(m => !m.arquivado && m.estado !== 'concluído');
+  // ─── Permissions ─────────────────────────────────────────────────────────────
+
+  const canUserAction = (music: Musica): boolean => {
+    if (!user) return false;
+    const { estado } = music;
+    if (MENTOR_STATES.includes(estado)) {
+      return music.criador?.id === user.id || music.responsavel?.id === user.id;
+    }
+    if (LAB_STATES.includes(estado)) {
+      return isProdutor;
+    }
+    if (FEEDBACK_STATES.includes(estado)) {
+      return isCoordinator;
+    }
+    return false;
+  };
+
+  // ─── Handlers ────────────────────────────────────────────────────────────────
 
   const handleSubmit = () => {
     if (!newMusicData.titulo || !newMusicData.turma_id) {
@@ -177,49 +215,75 @@ const Producao = () => {
   };
 
   const handleAdvance = (music: Musica) => {
+    const now = new Date();
+    setWorkLogForm({
+      date: format(now, 'yyyy-MM-dd'),
+      hora_inicio: format(addMinutes(now, -120), 'HH:mm'),
+      hora_fim: format(now, 'HH:mm'),
+      observacoes: '',
+    });
+    setWorkLogModal({ open: true, music });
+  };
+
+  const handleWorkLogConfirm = () => {
+    const music = workLogModal.music;
+    if (!music || !workLogForm.date || !workLogForm.hora_inicio || !workLogForm.hora_fim) {
+      toast({ title: 'Campos obrigatórios', description: 'Preenche a data e os horários.', variant: 'destructive' });
+      return;
+    }
+    const [hStart, mStart] = workLogForm.hora_inicio.split(':').map(Number);
+    const [hEnd, mEnd] = workLogForm.hora_fim.split(':').map(Number);
+    const duracao = (hEnd * 60 + mEnd) - (hStart * 60 + mStart);
+    if (duracao <= 0) {
+      toast({ title: 'Hora inválida', description: 'A hora de fim deve ser posterior à de início.', variant: 'destructive' });
+      return;
+    }
+    setWorkLogModal({ open: false, music: null });
     advancePhaseMutation.mutate({ id: music.id });
+    createWorkLogMutation.mutate({
+      data_hora: `${workLogForm.date} ${workLogForm.hora_inicio}`,
+      duracao_minutos: duracao,
+      tipo: 'trabalho_autonomo',
+      is_autonomous: true,
+      is_realized: true,
+      tipo_atividade: 'Produção Musical',
+      responsavel_user_id: user?.id,
+      musica_id: music.id,
+      turma_id: music.turma?.id ?? null,
+      observacoes: workLogForm.observacoes || '',
+    });
   };
 
   const submitFeedback = (musicId: number, feedback: string) => {
-    advancePhaseMutation.mutate({
-      id: musicId,
-      data: { feedback }
-    });
-    setSelectedMusicId(null);
-    setFeedbackText('');
+    advancePhaseMutation.mutate({ id: musicId, data: { feedback } });
   };
 
+  // ─── Display Helpers ─────────────────────────────────────────────────────────
+
   const getPhaseInfo = (status: string) => {
-    // FASE A: Criação/Preparação (Mentor)
-    if (['gravação', 'edição'].includes(status)) {
+    if (MENTOR_STATES.includes(status))
       return { label: 'FASE A: Criação', color: 'bg-blue-100 text-blue-700 border-blue-200' };
-    }
-    // FASE B: Mistura (Produtor)
-    if (['pool_mistura', 'mistura_wip'].includes(status)) {
+    if (['pool_mistura', 'mistura_wip'].includes(status))
       return { label: 'FASE B: Mistura', color: 'bg-purple-100 text-purple-700 border-purple-200' };
-    }
-    // FASE C: Revisão (Coordenador)
-    if (['pool_feedback', 'feedback_wip'].includes(status)) {
+    if (FEEDBACK_STATES.includes(status))
       return { label: 'FASE C: Revisão', color: 'bg-orange-100 text-orange-700 border-orange-200' };
-    }
-    // FASE D: Finalização (Produtor)
-    if (['pool_finalização', 'finalização_wip'].includes(status)) {
+    if (['pool_finalização', 'finalização_wip'].includes(status))
       return { label: 'FASE D: Finalização', color: 'bg-pink-100 text-pink-700 border-pink-200' };
-    }
-    // CONCLUÍDO
-    if (status === 'concluído') {
+    if (status === 'concluído')
       return { label: 'CONCLUÍDO', color: 'bg-green-100 text-green-700 border-green-200' };
-    }
     return { label: 'DESCONHECIDO', color: 'bg-gray-100 text-gray-700' };
   };
 
   const getActionLabel = (status: string) => {
     switch (status) {
-      case 'gravação': return 'Avançar para Edição';
-      case 'edição': return 'Enviar para Laboratório (Mistura)';
-      case 'mistura_wip': return 'Enviar para Feedback';
-      case 'feedback_wip': return 'Enviar para Finalização'; // Managed by modal, but fallback text
-      case 'finalização_wip': return 'Terminar Trabalho';
+      case 'gravação':       return 'Avançar para Edição';
+      case 'edição':         return 'Enviar para Laboratório';
+      case 'pool_mistura':   return 'Iniciar Mistura';
+      case 'mistura_wip':    return 'Enviar para Feedback';
+      case 'pool_feedback':  return 'Iniciar Revisão';
+      case 'feedback_wip':   return 'Enviar Feedback & Devolver';
+      case 'pool_finalização': return 'Iniciar Finalização';
+      case 'finalização_wip':  return 'Terminar Trabalho';
       default: return 'Avançar Fase';
     }
   };
@@ -239,7 +303,8 @@ const Producao = () => {
     return labels[status] || status;
   };
 
-  // Feedback Dialog Component (uncontrolled to avoid cursor issues)
+  // ─── Sub-components ───────────────────────────────────────────────────────────
+
   const FeedbackDialog = ({ music, onSubmit }: { music: Musica; onSubmit: (feedback: string) => void }) => {
     const [open, setOpen] = useState(false);
     const [localFeedback, setLocalFeedback] = useState('');
@@ -270,9 +335,7 @@ const Producao = () => {
             className="min-h-[100px]"
             maxLength={500}
           />
-          <div className="text-xs text-right text-muted-foreground">
-            {localFeedback.length}/500
-          </div>
+          <div className="text-xs text-right text-muted-foreground">{localFeedback.length}/500</div>
           <DialogFooter>
             <Button onClick={handleSubmit}>Enviar Feedback</Button>
           </DialogFooter>
@@ -281,9 +344,10 @@ const Producao = () => {
     );
   };
 
-  // Render Card Component
-  const MusicCard = ({ music, isPool = false }: { music: Musica, isPool?: boolean }) => {
+  const MusicCard = ({ music }: { music: Musica }) => {
     const phaseInfo = getPhaseInfo(music.estado);
+    const userCanAct = canUserAction(music);
+    const displayUser = music.responsavel || music.criador;
 
     return (
       <Card className="overflow-hidden hover:shadow-md transition-all flex flex-col h-full border-l-4" style={{ borderLeftColor: phaseInfo.color.split(' ')[1].replace('text-', 'var(--') }}>
@@ -291,11 +355,9 @@ const Producao = () => {
           <div className="flex justify-between items-start">
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2 mb-2">
-                {/* CURRENT STATUS - More prominent */}
                 <Badge variant="default" className="text-sm font-bold">
                   {getStatusLabel(music.estado)}
                 </Badge>
-                {/* PHASE BADGE - Less prominent */}
                 <Badge variant="outline" className={cn("text-[10px] font-medium", phaseInfo.color)}>
                   {phaseInfo.label}
                 </Badge>
@@ -303,18 +365,16 @@ const Producao = () => {
               <CardTitle className="text-lg leading-tight">{music.titulo}</CardTitle>
               <p className="text-sm text-muted-foreground">{music.turma?.nome} • {music.turma?.estabelecimento}</p>
             </div>
-            {/* CURRENT RESPONSAVEL in top-right */}
-            {music.responsavel && (
-              <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-background px-2 py-1 rounded-full border" title={`Responsável atual: ${music.responsavel.nome}`}>
+            {displayUser && (
+              <div className="flex items-center gap-1 text-[10px] text-muted-foreground bg-background px-2 py-1 rounded-full border shrink-0" title={`Criado por: ${displayUser.nome}`}>
                 <UserIcon className="w-3 h-3" />
-                {music.responsavel.nome.split(' ')[0]}
+                {displayUser.nome.split(' ')[0]}
               </div>
             )}
           </div>
         </CardHeader>
 
         <CardContent className="pt-4 space-y-4 flex-grow">
-          {/* Feedback Section if exists and meaningful */}
           {music.feedback && (
             <div className="bg-orange-500/10 border border-orange-500/20 p-3 rounded-md text-sm">
               <p className="font-semibold text-orange-600 flex items-center gap-1 mb-1">
@@ -325,49 +385,31 @@ const Producao = () => {
             </div>
           )}
 
-          {/* WORKFLOW HISTORY - All States */}
+          {/* Workflow */}
           <div className="space-y-1 pt-2 border-t border-dashed">
-            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Workflow History</div>
-
-            {/* Helper function to check if state is completed */}
+            <div className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-2">Workflow</div>
             {(() => {
               const currentStateIndex = ESTADOS.indexOf(music.estado);
-              const isStateCompleted = (stateIndex: number) => stateIndex < currentStateIndex;
-              const isStateCurrent = (stateIndex: number) => stateIndex === currentStateIndex;
-
-              // Define workflow states with their labels and who completed them
-              const workflowStates = [
-                { label: 'Criação', completedBy: music.criador?.nome, states: ['gravação', 'edição'] },
-                { label: 'Mistura', completedBy: music.misturado_por?.nome, states: ['pool_mistura', 'mistura_wip'] },
-                { label: 'Revisão', completedBy: music.revisto_por?.nome, states: ['pool_feedback', 'feedback_wip'] },
+              const workflowSteps = [
+                { label: 'Criação',     completedBy: music.criador?.nome,       states: ['gravação', 'edição'] },
+                { label: 'Mistura',     completedBy: music.misturado_por?.nome, states: ['pool_mistura', 'mistura_wip'] },
+                { label: 'Revisão',     completedBy: music.revisto_por?.nome,   states: ['pool_feedback', 'feedback_wip'] },
                 { label: 'Finalização', completedBy: music.finalizado_por?.nome, states: ['pool_finalização', 'finalização_wip'] },
-                { label: 'Concluído', completedBy: music.finalizado_por?.nome, states: ['concluído'] }
+                { label: 'Concluído',   completedBy: music.finalizado_por?.nome, states: ['concluído'] },
               ];
 
-              return workflowStates.map((step, idx) => {
-                const stepStateIndices = step.states.map(s => ESTADOS.indexOf(s));
-                const isCompleted = stepStateIndices.some(i => isStateCompleted(i));
-                const isCurrent = stepStateIndices.some(i => isStateCurrent(i));
-
+              return workflowSteps.map((step, idx) => {
+                const indices = step.states.map(s => ESTADOS.indexOf(s));
+                const isCompleted = indices.some(i => i < currentStateIndex);
+                const isCurrent   = indices.some(i => i === currentStateIndex);
                 return (
-                  <div key={idx} className={cn(
-                    "flex justify-between items-center text-xs py-1 px-2 rounded",
-                    isCurrent && "bg-primary/10 border border-primary/30"
-                  )}>
-                    <span className={cn(
-                      "flex items-center gap-1 font-medium",
-                      isCompleted && "text-green-600",
-                      isCurrent && "text-primary font-bold",
-                      !isCompleted && !isCurrent && "text-muted-foreground/50"
-                    )}>
+                  <div key={idx} className={cn("flex justify-between items-center text-xs py-1 px-2 rounded", isCurrent && "bg-primary/10 border border-primary/30")}>
+                    <span className={cn("flex items-center gap-1 font-medium", isCompleted && "text-green-600", isCurrent && "text-primary font-bold", !isCompleted && !isCurrent && "text-muted-foreground/50")}>
                       <Circle className={cn("w-2 h-2", isCompleted && "fill-current")} />
                       {step.label}
                       {isCurrent && <span className="text-[10px] ml-1">(atual)</span>}
                     </span>
-                    <span className={cn(
-                      "text-muted-foreground text-[11px]",
-                      isCompleted && "font-medium"
-                    )}>
+                    <span className={cn("text-muted-foreground text-[11px]", isCompleted && "font-medium")}>
                       {isCompleted ? step.completedBy?.split(' ')[0] || '✓' : '-'}
                     </span>
                   </div>
@@ -376,42 +418,52 @@ const Producao = () => {
             })()}
           </div>
 
-          <div className="flex items-center justify-between text-xs text-muted-foreground mt-4 pt-2 border-t">
+          <div className="flex items-center text-xs text-muted-foreground mt-4 pt-2 border-t">
             <span className="flex items-center gap-1">
               <Clock className="w-3 h-3" />
-              {format(parseISO(music.criado_em), "d MMM", { locale: pt })}
+              {format(parseISO(music.criado_em), "d MMM yyyy", { locale: pt })}
             </span>
           </div>
         </CardContent>
 
-        <CardFooter className="pt-0 pb-4 flex justify-end gap-2 bg-muted/10 mt-auto pt-4">
-          {isPool ? (
-            <Button size="sm" onClick={() => acceptTaskMutation.mutate(music.id)} className="w-full sm:w-auto">
-              <CheckCircle2 className="w-4 h-4 mr-2" />
-              Aceitar Tarefa
-            </Button>
-          ) : (
-            <>
-              {/* Logic for action buttons based on state */}
-              {music.estado === 'feedback_wip' ? (
-                <FeedbackDialog
-                  music={music}
-                  onSubmit={(feedback) => submitFeedback(music.id, feedback)}
-                />
-              ) : (
-                music.estado !== 'concluído' && (
-                  <Button size="sm" onClick={() => handleAdvance(music)} className="w-full sm:w-auto">
-                    <PlayCircle className="w-4 h-4 mr-2" />
-                    {getActionLabel(music.estado)}
-                  </Button>
-                )
-              )}
-            </>
+        <CardFooter className="pb-4 flex justify-end gap-2 bg-muted/10 mt-auto pt-4">
+          {music.estado !== 'concluído' && userCanAct && (
+            music.estado === 'feedback_wip' ? (
+              <FeedbackDialog music={music} onSubmit={(feedback) => submitFeedback(music.id, feedback)} />
+            ) : DIRECT_ADVANCE_STATES.includes(music.estado) ? (
+              <Button size="sm" onClick={() => advancePhaseMutation.mutate({ id: music.id })} disabled={advancePhaseMutation.isPending}>
+                <PlayCircle className="w-4 h-4 mr-2" />
+                {getActionLabel(music.estado)}
+              </Button>
+            ) : WORKLOG_STATES.includes(music.estado) ? (
+              <Button size="sm" onClick={() => handleAdvance(music)}>
+                <PlayCircle className="w-4 h-4 mr-2" />
+                {getActionLabel(music.estado)}
+              </Button>
+            ) : null
           )}
         </CardFooter>
       </Card>
     );
   };
+
+  const EmptyState = ({ message, sub }: { message: string; sub: string }) => (
+    <div className="text-center py-12 bg-muted/20 rounded-lg border-2 border-dashed">
+      <ListMusic className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
+      <h3 className="mt-4 text-lg font-medium">{message}</h3>
+      <p className="text-muted-foreground">{sub}</p>
+    </div>
+  );
+
+  const getEmptyMessage = () => {
+    if (isCoordinator) return { message: 'Nenhuma música para rever', sub: 'Quando houver músicas aguardando feedback aparecerão aqui.' };
+    if (profile === 'produtor') return { message: 'Nenhuma música em laboratório', sub: 'Aguarda que os mentores enviem músicas para mistura.' };
+    return { message: 'Não tens músicas em andamento', sub: 'Cria uma nova música para começar.' };
+  };
+
+  const emptyMsg = getEmptyMessage();
+
+  // ─── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
@@ -419,17 +471,12 @@ const Producao = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold">Produção Musical</h1>
-          <p className="text-muted-foreground mt-1">
-            Gestão do fluxo de trabalho de produção musical.
-          </p>
+          <p className="text-muted-foreground mt-1">Gestão do fluxo de trabalho de produção musical.</p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant={viewCompleted ? "default" : "outline"}
-            onClick={() => setViewCompleted(!viewCompleted)}
-          >
+          <Button variant={viewCompleted ? "default" : "outline"} onClick={() => setViewCompleted(!viewCompleted)}>
             <Archive className="h-4 w-4 mr-2" />
-            Arquivo ({completedMusicas.length})
+            Concluídas ({completedMusicas.length})
           </Button>
           <Dialog open={isNewMusicOpen} onOpenChange={setIsNewMusicOpen}>
             <DialogTrigger asChild>
@@ -455,18 +502,11 @@ const Producao = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="turma">Turma / Artista</Label>
-                  <Select
-                    value={newMusicData.turma_id}
-                    onValueChange={(val) => setNewMusicData({ ...newMusicData, turma_id: val })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecionar turma" />
-                    </SelectTrigger>
+                  <Select value={newMusicData.turma_id} onValueChange={(val) => setNewMusicData({ ...newMusicData, turma_id: val })}>
+                    <SelectTrigger><SelectValue placeholder="Selecionar turma" /></SelectTrigger>
                     <SelectContent>
                       {turmas.map((t) => (
-                        <SelectItem key={t.id} value={String(t.id)}>
-                          {t.display_name}
-                        </SelectItem>
+                        <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -482,107 +522,117 @@ const Producao = () => {
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={handleSubmit} disabled={createMusicMutation.isPending}>
-                  Criar Música
-                </Button>
+                <Button onClick={handleSubmit} disabled={createMusicMutation.isPending}>Criar Música</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-
+      {/* Content */}
       {viewCompleted ? (
         <div className="mt-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-semibold">Músicas Concluídas</h2>
-            <Button variant="ghost" size="sm" onClick={() => setViewCompleted(false)}>
-              Voltar
-            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setViewCompleted(false)}>Voltar</Button>
           </div>
           {completedMusicas.length === 0 ? (
-            <div className="text-center py-12 bg-muted/20 rounded-lg border-2 border-dashed">
-              <CheckCircle2 className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
-              <h3 className="mt-4 text-lg font-medium">Nenhuma música concluída</h3>
-              <p className="text-muted-foreground">
-                As músicas finalizadas aparecerão aqui.
-              </p>
-            </div>
+            <EmptyState message="Nenhuma música concluída" sub="As músicas finalizadas aparecerão aqui." />
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {completedMusicas.map(music => (
-                <MusicCard key={music.id} music={music} />
-              ))}
+              {completedMusicas.map(music => <MusicCard key={music.id} music={music} />)}
             </div>
           )}
         </div>
-      ) : (
-        <Tabs defaultValue="my_work" className="w-full">
-          <TabsList className={`grid w-full ${isCoordinator ? 'grid-cols-3 lg:w-[600px]' : 'grid-cols-2 lg:w-[400px]'}`}>
-            <TabsTrigger value="my_work">Minhas Tarefas ({myWorkMusicas.length})</TabsTrigger>
-            <TabsTrigger value="pool">Disponíveis ({poolMusicas.length})</TabsTrigger>
-            {isCoordinator && (
-              <TabsTrigger value="all">Todas as Músicas ({allActiveMusicas.length})</TabsTrigger>
-            )}
+
+      ) : isCoordinator ? (
+        /* Coordinator: feedback queue + god vision */
+        <Tabs defaultValue="feedback" className="w-full">
+          <TabsList className="grid grid-cols-2 lg:w-[400px]">
+            <TabsTrigger value="feedback">Para Feedback ({visibleMusicas.length})</TabsTrigger>
+            <TabsTrigger value="all">Todas ({activeMusicas.length})</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="my_work" className="mt-6 space-y-4">
-            {myWorkMusicas.length === 0 ? (
-              <div className="text-center py-12 bg-muted/20 rounded-lg border-2 border-dashed">
-                <ListMusic className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
-                <h3 className="mt-4 text-lg font-medium">Não tens tarefas ativas</h3>
-                <p className="text-muted-foreground">
-                  Cria uma nova música ou aceita uma tarefa da pool.
-                </p>
-              </div>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {myWorkMusicas.map(music => (
-                  <MusicCard key={music.id} music={music} />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="pool" className="mt-6 space-y-4">
-            {poolMusicas.length === 0 ? (
+          <TabsContent value="feedback" className="mt-6">
+            {visibleMusicas.length === 0 ? (
               <div className="text-center py-12 bg-muted/20 rounded-lg border-2 border-dashed">
                 <CheckCircle2 className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
-                <h3 className="mt-4 text-lg font-medium">Tudo limpo!</h3>
-                <p className="text-muted-foreground">
-                  Não existem tarefas pendentes para o teu perfil neste momento.
-                </p>
+                <h3 className="mt-4 text-lg font-medium">Tudo em dia!</h3>
+                <p className="text-muted-foreground">Não há músicas a aguardar feedback.</p>
               </div>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {poolMusicas.map(music => (
-                  <MusicCard key={music.id} music={music} isPool={true} />
-                ))}
+                {visibleMusicas.map(music => <MusicCard key={music.id} music={music} />)}
               </div>
             )}
           </TabsContent>
-
-          {isCoordinator && (
-            <TabsContent value="all" className="mt-6 space-y-4">
-              {allActiveMusicas.length === 0 ? (
-                <div className="text-center py-12 bg-muted/20 rounded-lg border-2 border-dashed">
-                  <ListMusic className="h-12 w-12 mx-auto text-muted-foreground opacity-50" />
-                  <h3 className="mt-4 text-lg font-medium">Nenhuma música ativa</h3>
-                  <p className="text-muted-foreground">
-                    Não existem músicas em andamento neste momento.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {allActiveMusicas.map(music => (
-                    <MusicCard key={music.id} music={music} />
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-          )}
+          <TabsContent value="all" className="mt-6">
+            {activeMusicas.length === 0 ? (
+              <EmptyState message="Nenhuma música ativa" sub="Não existem músicas em andamento neste momento." />
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {activeMusicas.map(music => <MusicCard key={music.id} music={music} />)}
+              </div>
+            )}
+          </TabsContent>
         </Tabs>
+
+      ) : (
+        /* Mentor / Produtor: single panel */
+        isLoading ? (
+          <div className="text-center py-12 text-muted-foreground">A carregar...</div>
+        ) : visibleMusicas.length === 0 ? (
+          <EmptyState message={emptyMsg.message} sub={emptyMsg.sub} />
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mt-2">
+            {visibleMusicas.map(music => <MusicCard key={music.id} music={music} />)}
+          </div>
+        )
       )}
+
+      {/* WorkLog Modal — intercepts phase completion to record work time */}
+      <Dialog open={workLogModal.open} onOpenChange={(open) => !open && setWorkLogModal({ open: false, music: null })}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle className="font-display">Registar Sessão de Trabalho</DialogTitle>
+            <DialogDescription>
+              <span className="font-medium">"{workLogModal.music?.titulo}"</span>
+              {workLogModal.music && ` — ${getActionLabel(workLogModal.music.estado)}`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="wl-date">Data</Label>
+                <Input id="wl-date" type="date" value={workLogForm.date}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, date: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="wl-start">Início</Label>
+                <Input id="wl-start" type="time" value={workLogForm.hora_inicio}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, hora_inicio: e.target.value })} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="wl-end">Fim</Label>
+                <Input id="wl-end" type="time" value={workLogForm.hora_fim}
+                  onChange={(e) => setWorkLogForm({ ...workLogForm, hora_fim: e.target.value })} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="wl-obs">Notas (opcional)</Label>
+              <Textarea id="wl-obs" placeholder="O que foi feito nesta sessão..." rows={3}
+                value={workLogForm.observacoes}
+                onChange={(e) => setWorkLogForm({ ...workLogForm, observacoes: e.target.value })} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWorkLogModal({ open: false, music: null })}>Cancelar</Button>
+            <Button onClick={handleWorkLogConfirm} disabled={advancePhaseMutation.isPending || createWorkLogMutation.isPending}>
+              <PlayCircle className="w-4 h-4 mr-2" />
+              Registar & Avançar Fase
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

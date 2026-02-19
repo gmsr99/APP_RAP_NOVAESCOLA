@@ -158,56 +158,65 @@ async def get_aula_by_id(aula_id: int):
 
 # Modelos Pydantic para validação
 from typing import Optional
-
-class AulaCreate(BaseModel):
-    turma_id: int
-    data_hora: str  # YYYY-MM-DD HH:MM
-    duracao_minutos: int = 90
-    mentor_id: Optional[int] = None
-    local: Optional[str] = None
-    tema: Optional[str] = None
-    observacoes: Optional[str] = None
-    tipo: str = "pratica_escrita"
-    atividade_id: Optional[int] = None
-    equipamento_id: Optional[str] = None
+from models.sqlmodel_models import AulaCreate, AulaUpdate
 
 @app.post("/api/aulas", tags=["Aulas"])
 async def create_aula(aula: AulaCreate):
     """
-    Cria uma nova aula via API.
+    Cria uma nova aula via API (regular ou trabalho autónomo).
+    """
+    nova_aula = aula_service.criar_aula(
+        turma_id=aula.turma_id,
+        data_hora=aula.data_hora,
+        tipo=aula.tipo,
+        duracao_minutos=aula.duracao_minutos,
+        mentor_id=aula.mentor_id,
+        local=aula.local,
+        tema=aula.tema,
+        objetivos=None,
+        observacoes=aula.observacoes,
+        atividade_id=aula.atividade_id,
+        equipamento_id=aula.equipamento_id,
+        is_autonomous=aula.is_autonomous,
+        is_realized=aula.is_realized,
+        tipo_atividade=aula.tipo_atividade,
+        responsavel_user_id=aula.responsavel_user_id,
+        musica_id=aula.musica_id,
+    )
+    if nova_aula is None:
+        raise HTTPException(
+            status_code=500,
+            detail="Erro ao criar aula. Verifica se a migração 001_trabalho_autonomo.sql foi executada no Supabase."
+        )
+    return nova_aula
+
+
+class AulaRecorrenteCreate(BaseModel):
+    data_hora: str
+    duracao_minutos: int = 120
+    tipo_atividade: str
+    responsavel_user_id: str
+    observacoes: Optional[str] = None
+    semanas: int = 4
+
+
+@app.post("/api/aulas/recorrentes", tags=["Aulas"])
+async def create_aulas_recorrentes(payload: AulaRecorrenteCreate):
+    """
+    Cria N sessões de trabalho autónomo com recorrência semanal.
     """
     try:
-        nova_aula = aula_service.criar_aula(
-            turma_id=aula.turma_id,
-            data_hora=aula.data_hora,
-            tipo=aula.tipo,
-            duracao_minutos=aula.duracao_minutos,
-            mentor_id=aula.mentor_id,
-            local=aula.local,
-            tema=aula.tema,
-            objetivos=None,
-            observacoes=aula.observacoes,
-            atividade_id=aula.atividade_id,
-            equipamento_id=aula.equipamento_id
+        resultados = aula_service.criar_aulas_recorrentes(
+            data_hora=payload.data_hora,
+            duracao_minutos=payload.duracao_minutos,
+            tipo_atividade=payload.tipo_atividade,
+            responsavel_user_id=payload.responsavel_user_id,
+            observacoes=payload.observacoes,
+            semanas=payload.semanas,
         )
-        if nova_aula:
-            return nova_aula
-        raise HTTPException(status_code=500, detail="Erro ao criar aula")
+        return {"criadas": len(resultados), "sessoes": resultados}
     except Exception as e:
-        return {"error": str(e)}
-
-class AulaUpdate(BaseModel):
-    turma_id: Optional[int] = None
-    mentor_id: Optional[int] = None
-    data_hora: Optional[str] = None
-    duracao_minutos: Optional[int] = None
-    local: Optional[str] = None
-    tema: Optional[str] = None
-    observacoes: Optional[str] = None
-    tipo: Optional[str] = None
-    estado: Optional[str] = None
-    atividade_id: Optional[int] = None
-    equipamento_id: Optional[str] = None
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/aulas/{aula_id}", tags=["Aulas"])
 async def update_aula(aula_id: int, aula: AulaUpdate):
@@ -216,7 +225,7 @@ async def update_aula(aula_id: int, aula: AulaUpdate):
     """
     try:
         # Filtrar campos None
-        dados = {k: v for k, v in aula.dict().items() if v is not None}
+        dados = {k: v for k, v in aula.model_dump().items() if v is not None}
         sucesso = aula_service.atualizar_aula(aula_id, dados)
         
         if sucesso:

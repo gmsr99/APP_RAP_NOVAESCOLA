@@ -64,6 +64,7 @@ PyJWT==2.8.0
 # SQLAlchemy facilita trabalhar com a BD usando objetos Python
 # Comentado por agora, vamos usar SQL puro inicialmente
 # sqlalchemy==2.0.23
+sqlmodel==0.0.24
 
 # Logging Avançado - OPCIONAL para versões futuras
 # --------------------------------------------------

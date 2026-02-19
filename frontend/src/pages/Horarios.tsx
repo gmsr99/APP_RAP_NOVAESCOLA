@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,6 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Plus,
   MapPin,
@@ -35,14 +38,13 @@ import {
   Trash2,
   Save,
   Filter,
-  Info
+  Briefcase,
 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
-import { sessions, users, equipment } from '@/data/mockData';
 import { api } from '@/services/api';
-import type { AulaAPI, Turma, AulaCreate } from '@/types';
+import type { AulaAPI, Turma, AulaCreate, PublicProfileEquipa } from '@/types';
 import {
   format,
   startOfWeek,
@@ -55,12 +57,11 @@ import {
   endOfMonth,
   addMonths,
   subMonths,
-  isSameMonth,
   getDay
 } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { Session, SessionStatus } from '@/types';
+import { SessionStatus } from '@/types';
 import { useProfile } from '@/contexts/ProfileContext';
 import { computeEventLayout } from '@/lib/eventLayout';
 import { addMinutes } from 'date-fns';
@@ -72,6 +73,10 @@ const statusColors: Record<SessionStatus, string> = {
   confirmada: 'bg-[#4EA380] text-white border-[#4EA380]',
   recusada: 'bg-[#A35339] text-white border-[#A35339]',
 };
+
+// Estilos para eventos autónomos
+const autonomousPlannedClass = 'bg-muted/60 text-muted-foreground border-muted-foreground/40 border-dashed opacity-80';
+const autonomousRealizedClass = 'bg-[#4EA380]/20 text-[#2d7a5c] border-[#4EA380] border-solid';
 
 // Removed 'rascunho' to hide from legend
 const statusLabels: Record<string, string> = {
@@ -136,6 +141,13 @@ const Horarios = () => {
     enabled: !!apiUrl,
   });
 
+  // Fetch Equipa (para dropdown do formulário autónomo)
+  const { data: equipa } = useQuery({
+    queryKey: ['equipa'],
+    queryFn: () => api.get<PublicProfileEquipa[]>('/api/equipa'),
+    enabled: !!apiUrl,
+  });
+
   const [formData, setFormData] = useState<Partial<AulaCreate>>({
     duracao_minutos: 120,
     tipo: 'ensaio',
@@ -143,6 +155,27 @@ const Horarios = () => {
     equipamento_id: '',
     observacoes: ''
   });
+
+  // Estado do formulário de Trabalho Autónomo
+  const [modalTab, setModalTab] = useState<'aula' | 'autonomo'>('aula');
+  const [autonomousForm, setAutonomousForm] = useState({
+    responsavel_user_id: '',
+    date: '',
+    hora_inicio: '',
+    hora_fim: '',
+    tipo_atividade: 'Produção Musical',
+    repetir_semanalmente: false,
+    semanas: 4,
+    observacoes: '',
+  });
+
+  const TIPOS_ATIVIDADE = [
+    'Produção Musical',
+    'Preparação Aulas',
+    'Edição/Captura',
+    'Reunião',
+    'Manutenção',
+  ];
 
   // Helper to get activities for selected discipline
   const [selectedDisciplinaId, setSelectedDisciplinaId] = useState<number | null>(null);
@@ -182,9 +215,10 @@ const Horarios = () => {
 
     // Filter by "My Classes"
     if (filterMode === 'mine' && user) {
-      // Assuming we can match by user_id or similar. 
-      // The API returns mentor_user_id (UUID) which should match user.id
-      filtered = filtered.filter(a => a.mentor_user_id === user.id);
+      filtered = filtered.filter(a =>
+        a.mentor_user_id === user.id ||
+        (a.is_autonomous && a.responsavel_user_id === user.id)
+      );
     }
 
     return filtered;
@@ -218,9 +252,6 @@ const Horarios = () => {
     }
     return `${format(weekStart, "d MMM", { locale: pt })} - ${format(weekEnd, "d MMM yyyy", { locale: pt })}`;
   };
-
-  const mentors = users.filter(u => u.role === 'mentor');
-  const availableEquipment = equipment.filter(e => e.status === 'disponivel');
 
   const createSessionMutation = useMutation({
     mutationFn: (data: AulaCreate) => api.post('/api/aulas', data),
@@ -256,14 +287,49 @@ const Horarios = () => {
     onError: () => toast.error('Erro ao remover sessão.'),
   });
 
+  const createAutonomousMutation = useMutation({
+    mutationFn: (data: { payload: AulaCreate; semanas: number }) => {
+      if (data.semanas > 1) {
+        return api.post('/api/aulas/recorrentes', {
+          data_hora: data.payload.data_hora,
+          duracao_minutos: data.payload.duracao_minutos,
+          tipo_atividade: data.payload.tipo_atividade,
+          responsavel_user_id: data.payload.responsavel_user_id,
+          observacoes: data.payload.observacoes,
+          semanas: data.semanas,
+        });
+      }
+      return api.post('/api/aulas', data.payload);
+    },
+    onSuccess: (_res, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['aulas'] });
+      setIsDialogOpen(false);
+      resetForm();
+      const count = vars.semanas > 1 ? `${vars.semanas} sessões criadas!` : 'Sessão criada!';
+      toast.success(`Trabalho Autónomo agendado — ${count}`);
+    },
+    onError: () => toast.error('Erro ao criar sessão autónoma.'),
+  });
+
   const resetForm = () => {
     setEditingSession(null);
+    setModalTab('aula');
     setFormData({
       duracao_minutos: 120,
       tipo: 'ensaio',
       atividade_id: null,
       equipamento_id: '',
       observacoes: ''
+    });
+    setAutonomousForm({
+      responsavel_user_id: '',
+      date: '',
+      hora_inicio: '',
+      hora_fim: '',
+      tipo_atividade: 'Produção Musical',
+      repetir_semanalmente: false,
+      semanas: 4,
+      observacoes: '',
     });
     setSelectedDisciplinaId(null);
   };
@@ -298,6 +364,35 @@ const Horarios = () => {
   };
 
   const handleSave = () => {
+    if (modalTab === 'autonomo') {
+      if (!autonomousForm.responsavel_user_id || !autonomousForm.date || !autonomousForm.hora_inicio || !autonomousForm.hora_fim) {
+        toast.error('Preenche todos os campos obrigatórios.');
+        return;
+      }
+      const [hStart, mStart] = autonomousForm.hora_inicio.split(':').map(Number);
+      const [hEnd, mEnd] = autonomousForm.hora_fim.split(':').map(Number);
+      const duracao = (hEnd * 60 + mEnd) - (hStart * 60 + mStart);
+      if (duracao <= 0) {
+        toast.error('A hora de fim tem de ser posterior à hora de início.');
+        return;
+      }
+      const payload: AulaCreate = {
+        data_hora: `${autonomousForm.date} ${autonomousForm.hora_inicio}`,
+        duracao_minutos: duracao,
+        tipo: 'trabalho_autonomo',
+        is_autonomous: true,
+        tipo_atividade: autonomousForm.tipo_atividade,
+        responsavel_user_id: autonomousForm.responsavel_user_id,
+        observacoes: autonomousForm.observacoes || '',
+      };
+      createAutonomousMutation.mutate({
+        payload,
+        semanas: autonomousForm.repetir_semanalmente ? autonomousForm.semanas : 1,
+      });
+      return;
+    }
+
+    // Aba "Aula / Evento"
     const dateStr = (document.getElementById('date') as HTMLInputElement)?.value;
     const timeStr = (document.getElementById('time') as HTMLInputElement)?.value;
 
@@ -364,186 +459,396 @@ const Horarios = () => {
                 Nova Sessão
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px] bg-card">
+            <DialogContent className="sm:max-w-[540px] bg-card">
               <DialogHeader>
                 <DialogTitle className="font-display">
-                  {editingSession ? 'Editar Sessão' : 'Criar Nova Sessão'}
+                  {editingSession ? 'Editar Sessão' : 'Novo Agendamento'}
                 </DialogTitle>
                 <DialogDescription>
                   {editingSession
                     ? 'Altere os detalhes da sessão existente.'
-                    : 'Preenche os detalhes da sessão. O mentor será notificado para confirmar.'}
+                    : 'Agenda uma aula com turma ou um bloco de trabalho interno.'}
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="date">Data</Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      defaultValue={editingSession ? format(new Date(editingSession.data_hora), 'yyyy-MM-dd') : ''}
-                    />
+
+              {/* Tabs — apenas em modo de criação */}
+              {!editingSession && (
+                <Tabs value={modalTab} onValueChange={(v) => setModalTab(v as 'aula' | 'autonomo')} className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="aula">Aula / Evento</TabsTrigger>
+                    <TabsTrigger value="autonomo" className="flex items-center gap-1">
+                      <Briefcase className="h-3.5 w-3.5" />
+                      Trabalho Autónomo
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {/* ── Tab: Aula / Evento ── */}
+                  <TabsContent value="aula">
+                    <div className="grid gap-4 py-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="date">Data</Label>
+                          <Input id="date" type="date" />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="time">Hora de início</Label>
+                          <Input id="time" type="time" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="duration">Duração (min)</Label>
+                          <Input
+                            id="duration"
+                            type="number"
+                            value={formData.duracao_minutos}
+                            onChange={(e) => setFormData({ ...formData, duracao_minutos: Number(e.target.value) })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="mentor">Mentor</Label>
+                          <Select
+                            value={formData.mentor_id ? String(formData.mentor_id) : undefined}
+                            onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v) })}
+                          >
+                            <SelectTrigger id="mentor">
+                              <SelectValue placeholder="Selecionar mentor" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover">
+                              {mentoresApi?.map((mentor) => (
+                                <SelectItem key={mentor.id} value={String(mentor.id)}>
+                                  {mentor.nome}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="turma">Turma</Label>
+                        <Select
+                          value={formData.turma_id ? String(formData.turma_id) : undefined}
+                          onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
+                        >
+                          <SelectTrigger id="turma">
+                            <SelectValue placeholder="Selecionar Turma" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            {turmas?.map((t) => (
+                              <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="location">Local</Label>
+                          <Input
+                            id="location"
+                            placeholder="Ex: Sala de Música"
+                            value={formData.local || ''}
+                            onChange={(e) => setFormData({ ...formData, local: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="theme">Tema</Label>
+                          <Input
+                            id="theme"
+                            placeholder="Ex: Sessão Regular"
+                            value={formData.tema || ''}
+                            onChange={(e) => setFormData({ ...formData, tema: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="disciplina">Disciplina</Label>
+                          <Select
+                            value={selectedDisciplinaId ? String(selectedDisciplinaId) : undefined}
+                            onValueChange={(v) => {
+                              setSelectedDisciplinaId(Number(v));
+                              setFormData({ ...formData, atividade_id: null });
+                            }}
+                          >
+                            <SelectTrigger id="disciplina">
+                              <SelectValue placeholder="Selecione..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {curriculo?.map((d: any) => (
+                                <SelectItem key={d.id} value={String(d.id)}>{d.disciplina}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="atividade">Atividade</Label>
+                          <Select
+                            disabled={!selectedDisciplinaId}
+                            value={formData.atividade_id ? String(formData.atividade_id) : undefined}
+                            onValueChange={(v) => setFormData({ ...formData, atividade_id: Number(v) })}
+                          >
+                            <SelectTrigger id="atividade">
+                              <SelectValue placeholder="Selecione..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {availableActivities.map((algo: any) => (
+                                <SelectItem key={algo.id} value={String(algo.id)}>{algo.nome}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="equipamento">Kit de Material</Label>
+                        <Select
+                          value={formData.equipamento_id || undefined}
+                          onValueChange={(v) => setFormData({ ...formData, equipamento_id: v })}
+                        >
+                          <SelectTrigger id="equipamento">
+                            <SelectValue placeholder="Selecione equipamento..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Nenhum</SelectItem>
+                            {equipamentos?.map((eq: any) => (
+                              <SelectItem key={eq.id} value={eq.id}>{eq.name} ({eq.status})</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="obs">Observações</Label>
+                        <Input
+                          id="obs"
+                          placeholder="Notas adicionais..."
+                          value={formData.observacoes || ''}
+                          onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+
+                  {/* ── Tab: Trabalho Autónomo ── */}
+                  <TabsContent value="autonomo">
+                    <div className="grid gap-4 py-4">
+                      {/* Quem */}
+                      <div className="space-y-2">
+                        <Label htmlFor="autonomo-quem">Quem</Label>
+                        <Select
+                          value={autonomousForm.responsavel_user_id}
+                          onValueChange={(v) => setAutonomousForm({ ...autonomousForm, responsavel_user_id: v })}
+                        >
+                          <SelectTrigger id="autonomo-quem">
+                            <SelectValue placeholder="Selecionar membro da equipa" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            {equipa?.map((p) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.full_name}
+                                <span className="ml-2 text-xs text-muted-foreground capitalize">({p.role})</span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Quando */}
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="space-y-2">
+                          <Label htmlFor="auto-date">Data</Label>
+                          <Input
+                            id="auto-date"
+                            type="date"
+                            value={autonomousForm.date}
+                            onChange={(e) => setAutonomousForm({ ...autonomousForm, date: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="auto-start">Início</Label>
+                          <Input
+                            id="auto-start"
+                            type="time"
+                            value={autonomousForm.hora_inicio}
+                            onChange={(e) => setAutonomousForm({ ...autonomousForm, hora_inicio: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="auto-end">Fim</Label>
+                          <Input
+                            id="auto-end"
+                            type="time"
+                            value={autonomousForm.hora_fim}
+                            onChange={(e) => setAutonomousForm({ ...autonomousForm, hora_fim: e.target.value })}
+                          />
+                        </div>
+                      </div>
+
+                      {/* O Quê */}
+                      <div className="space-y-2">
+                        <Label htmlFor="auto-tipo">Tipo de Atividade</Label>
+                        <Select
+                          value={autonomousForm.tipo_atividade}
+                          onValueChange={(v) => setAutonomousForm({ ...autonomousForm, tipo_atividade: v })}
+                        >
+                          <SelectTrigger id="auto-tipo">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            {TIPOS_ATIVIDADE.map((t) => (
+                              <SelectItem key={t} value={t}>{t}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Recorrência */}
+                      <div className="space-y-3 rounded-md border border-dashed border-border p-3">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            id="auto-recorr"
+                            checked={autonomousForm.repetir_semanalmente}
+                            onCheckedChange={(v) =>
+                              setAutonomousForm({ ...autonomousForm, repetir_semanalmente: !!v })
+                            }
+                          />
+                          <Label htmlFor="auto-recorr" className="cursor-pointer font-normal">
+                            Repetir semanalmente
+                          </Label>
+                        </div>
+                        {autonomousForm.repetir_semanalmente && (
+                          <div className="flex items-center gap-2 pl-6">
+                            <Label htmlFor="auto-semanas" className="text-sm text-muted-foreground whitespace-nowrap">
+                              Nº de semanas:
+                            </Label>
+                            <Input
+                              id="auto-semanas"
+                              type="number"
+                              min={2}
+                              max={52}
+                              className="w-20"
+                              value={autonomousForm.semanas}
+                              onChange={(e) =>
+                                setAutonomousForm({ ...autonomousForm, semanas: Number(e.target.value) })
+                              }
+                            />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Observações */}
+                      <div className="space-y-2">
+                        <Label htmlFor="auto-obs">Observações (opcional)</Label>
+                        <Textarea
+                          id="auto-obs"
+                          placeholder="Notas sobre este bloco de trabalho..."
+                          rows={2}
+                          value={autonomousForm.observacoes}
+                          onChange={(e) => setAutonomousForm({ ...autonomousForm, observacoes: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              )}
+
+              {/* Formulário de edição (sem tabs) */}
+              {editingSession && (
+                <div className="grid gap-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="date">Data</Label>
+                      <Input
+                        id="date"
+                        type="date"
+                        defaultValue={format(new Date(editingSession.data_hora), 'yyyy-MM-dd')}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="time">Hora de início</Label>
+                      <Input
+                        id="time"
+                        type="time"
+                        defaultValue={format(new Date(editingSession.data_hora), 'HH:mm')}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="duration">Duração (min)</Label>
+                      <Input
+                        id="duration"
+                        type="number"
+                        value={formData.duracao_minutos}
+                        onChange={(e) => setFormData({ ...formData, duracao_minutos: Number(e.target.value) })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mentor">Mentor</Label>
+                      <Select
+                        value={formData.mentor_id ? String(formData.mentor_id) : undefined}
+                        onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v) })}
+                      >
+                        <SelectTrigger id="mentor">
+                          <SelectValue placeholder="Selecionar mentor" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover">
+                          {mentoresApi?.map((mentor) => (
+                            <SelectItem key={mentor.id} value={String(mentor.id)}>{mentor.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="time">Hora de início</Label>
-                    <Input
-                      id="time"
-                      type="time"
-                      defaultValue={editingSession ? format(new Date(editingSession.data_hora), 'HH:mm') : ''}
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="duration">Duração (min)</Label>
-                    <Input
-                      id="duration"
-                      type="number"
-                      value={formData.duracao_minutos}
-                      onChange={(e) => setFormData({ ...formData, duracao_minutos: Number(e.target.value) })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="mentor">Mentor</Label>
+                    <Label htmlFor="turma">Turma</Label>
                     <Select
-                      value={formData.mentor_id ? String(formData.mentor_id) : undefined}
-                      onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v) })}
+                      value={formData.turma_id ? String(formData.turma_id) : undefined}
+                      onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
                     >
-                      <SelectTrigger id="mentor">
-                        <SelectValue placeholder="Selecionar mentor" />
+                      <SelectTrigger id="turma">
+                        <SelectValue placeholder="Selecionar Turma" />
                       </SelectTrigger>
                       <SelectContent className="bg-popover">
-                        {mentoresApi?.map((mentor) => (
-                          <SelectItem key={mentor.id} value={String(mentor.id)}>
-                            {mentor.nome}
-                          </SelectItem>
-                        )) || (
-                            <div className="p-2 text-sm text-muted-foreground">Carregando...</div>
-                          )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Turma Dropdown */}
-                <div className="space-y-2">
-                  <Label htmlFor="turma">Turma</Label>
-                  <Select
-                    value={formData.turma_id ? String(formData.turma_id) : undefined}
-                    onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
-                  >
-                    <SelectTrigger id="turma">
-                      <SelectValue placeholder="Selecionar Turma" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-popover">
-                      {turmas?.map((t) => (
-                        <SelectItem key={t.id} value={String(t.id)}>
-                          {t.display_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="location">Local</Label>
-                    <Input
-                      id="location"
-                      placeholder="Ex: Sala de Música"
-                      value={formData.local || ''}
-                      onChange={(e) => setFormData({ ...formData, local: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="theme">Tema</Label>
-                    <Input
-                      id="theme"
-                      placeholder="Ex: Sessão Regular"
-                      value={formData.tema || ''}
-                      onChange={(e) => setFormData({ ...formData, tema: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                {/* Disciplina & Atividade */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="disciplina">Disciplina</Label>
-                    <Select
-                      value={selectedDisciplinaId ? String(selectedDisciplinaId) : undefined}
-                      onValueChange={(v) => {
-                        const id = Number(v);
-                        setSelectedDisciplinaId(id);
-                        setFormData({ ...formData, atividade_id: null }); // Reset activity
-                      }}
-                    >
-                      <SelectTrigger id="disciplina">
-                        <SelectValue placeholder="Selecione..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {curriculo?.map((d: any) => (
-                          <SelectItem key={d.id} value={String(d.id)}>{d.disciplina}</SelectItem>
+                        {turmas?.map((t) => (
+                          <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="location">Local</Label>
+                      <Input
+                        id="location"
+                        placeholder="Ex: Sala de Música"
+                        value={formData.local || ''}
+                        onChange={(e) => setFormData({ ...formData, local: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="theme">Tema</Label>
+                      <Input
+                        id="theme"
+                        placeholder="Ex: Sessão Regular"
+                        value={formData.tema || ''}
+                        onChange={(e) => setFormData({ ...formData, tema: e.target.value })}
+                      />
+                    </div>
+                  </div>
                   <div className="space-y-2">
-                    <Label htmlFor="atividade">Atividade</Label>
-                    <Select
-                      disabled={!selectedDisciplinaId}
-                      value={formData.atividade_id ? String(formData.atividade_id) : undefined}
-                      onValueChange={(v) => setFormData({ ...formData, atividade_id: Number(v) })}
-                    >
-                      <SelectTrigger id="atividade">
-                        <SelectValue placeholder="Selecione..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableActivities.map((algo: any) => (
-                          <SelectItem key={algo.id} value={String(algo.id)}>{algo.nome}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Label htmlFor="obs">Observações</Label>
+                    <Input
+                      id="obs"
+                      placeholder="Notas adicionais..."
+                      value={formData.observacoes || ''}
+                      onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                    />
                   </div>
                 </div>
+              )}
 
-                {/* Equipamento */}
-                <div className="space-y-2">
-                  <Label htmlFor="equipamento">Kit de Material</Label>
-                  <Select
-                    value={formData.equipamento_id || undefined}
-                    onValueChange={(v) => setFormData({ ...formData, equipamento_id: v })}
-                  >
-                    <SelectTrigger id="equipamento">
-                      <SelectValue placeholder="Selecione equipamento..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {equipamentos?.map((eq: any) => (
-                        <SelectItem key={eq.id} value={eq.id}>{eq.name} ({eq.status})</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Observações */}
-                <div className="space-y-2">
-                  <Label htmlFor="obs">Observações</Label>
-                  <Input
-                    id="obs"
-                    placeholder="Notas adicionais..."
-                    value={formData.observacoes || ''}
-                    onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
-                  />
-                </div>
-              </div>
               <DialogFooter className="flex sm:justify-between w-full">
                 {editingSession ? (
-                  <Button
-                    variant="destructive"
-                    onClick={handleDelete}
-                  >
+                  <Button variant="destructive" onClick={handleDelete}>
                     <Trash2 className="h-4 w-4 mr-2" />
                     Apagar
                   </Button>
@@ -552,9 +857,12 @@ const Horarios = () => {
                   <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Cancelar
                   </Button>
-                  <Button onClick={handleSave}>
+                  <Button
+                    onClick={handleSave}
+                    disabled={createSessionMutation.isPending || createAutonomousMutation.isPending || updateSessionMutation.isPending}
+                  >
                     <Save className="h-4 w-4 mr-2" />
-                    {editingSession ? 'Atualizar' : 'Criar Sessão'}
+                    {editingSession ? 'Atualizar' : modalTab === 'autonomo' ? 'Agendar Trabalho' : 'Criar Sessão'}
                   </Button>
                 </div>
               </DialogFooter>
@@ -653,13 +961,19 @@ const Horarios = () => {
       <div className="flex flex-wrap gap-4">
         {Object.entries(statusLabels).map(([status, label]) => (
           <div key={status} className="flex items-center gap-2">
-            <div className={cn(
-              'w-3 h-3 rounded-full',
-              statusDots[status as SessionStatus]
-            )} />
+            <div className={cn('w-3 h-3 rounded-full', statusDots[status as SessionStatus])} />
             <span className="text-sm text-muted-foreground">{label}</span>
           </div>
         ))}
+        {/* Legenda — Trabalho Autónomo */}
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-sm border-2 border-dashed border-muted-foreground/60 bg-muted/50" />
+          <span className="text-sm text-muted-foreground">Trabalho Planeado</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-sm border-2 border-[#4EA380] bg-[#4EA380]/20" />
+          <span className="text-sm text-muted-foreground">Trabalho Realizado</span>
+        </div>
       </div>
 
       {/* ... Calendar Views (using aulasApi) ... */}
@@ -709,45 +1023,71 @@ const Horarios = () => {
                         Sem sessões
                       </p>
                     ) : (
-                      layoutEvents.map((event) => (
-                        <div
-                          key={event.id}
-                          onClick={() => openDetailView(event)}
-                          style={{
-                            top: event.top,
-                            height: event.height,
-                            left: event.left,
-                            width: event.width,
-                            position: 'absolute',
-                            zIndex: event.zIndex || 10
-                          }}
-                          className={cn(
-                            'p-1 text-[10px] leading-tight rounded-md border cursor-pointer hover:opacity-90 transition-opacity overflow-hidden flex flex-col',
-                            statusColors[event.estado as SessionStatus] || 'bg-secondary'
-                          )}
-                          title={`${format(event.start, 'HH:mm')} - ${event.turma_nome}`}
-                        >
-                          <div className="font-bold flex justify-between items-center">
-                            {format(event.start, 'HH:mm')}
-                            {profile === 'coordenador' && (
-                              <Edit2
-                                className="h-3 w-3 opacity-50 hover:opacity-100 cursor-pointer"
-                                onClick={(e) => { e.stopPropagation(); handleOpenEdit(event); }}
-                              />
+                      layoutEvents.map((event) => {
+                        const isAutonomous = event.is_autonomous;
+                        const isRealized = event.is_realized;
+                        const eventClass = isAutonomous
+                          ? (isRealized ? autonomousRealizedClass : autonomousPlannedClass)
+                          : (statusColors[event.estado as SessionStatus] || 'bg-secondary');
+                        const zIdx = isRealized ? 20 : isAutonomous ? 5 : (event.zIndex || 10);
+
+                        return (
+                          <div
+                            key={event.id}
+                            onClick={() => openDetailView(event)}
+                            style={{
+                              top: event.top,
+                              height: event.height,
+                              left: event.left,
+                              width: event.width,
+                              position: 'absolute',
+                              zIndex: zIdx,
+                            }}
+                            className={cn(
+                              'p-1 text-[10px] leading-tight rounded-md border cursor-pointer hover:opacity-90 transition-opacity overflow-hidden flex flex-col',
+                              eventClass
+                            )}
+                            title={isAutonomous
+                              ? `${format(event.start, 'HH:mm')} — ${event.tipo_atividade ?? 'Trabalho Autónomo'}`
+                              : `${format(event.start, 'HH:mm')} - ${event.turma_nome}`
+                            }
+                          >
+                            <div className="font-bold flex justify-between items-center">
+                              <span>{format(event.start, 'HH:mm')} – {format(event.end, 'HH:mm')}</span>
+                              {profile === 'coordenador' && !isAutonomous && (
+                                <Edit2
+                                  className="h-3 w-3 opacity-50 hover:opacity-100 cursor-pointer"
+                                  onClick={(e) => { e.stopPropagation(); handleOpenEdit(event); }}
+                                />
+                              )}
+                            </div>
+                            {isAutonomous ? (
+                              <>
+                                <div className="truncate font-semibold text-[10px] flex items-center gap-1">
+                                  <Briefcase className="h-2 w-2 flex-shrink-0" />
+                                  {event.tipo_atividade ?? 'Trabalho Autónomo'}
+                                </div>
+                                {isRealized && (
+                                  <div className="text-[9px] mt-0.5 opacity-80">✓ Realizado</div>
+                                )}
+                              </>
+                            ) : (
+                              <>
+                                <div className="truncate font-semibold text-[10px]">
+                                  {event.turma_nome}
+                                  <span className="opacity-75 font-normal ml-1">
+                                    ({event.estabelecimento_nome})
+                                  </span>
+                                </div>
+                                <div className="truncate opacity-90 text-[9px] mt-0.5 flex items-center gap-1">
+                                  <User className="h-2 w-2" />
+                                  {event.mentor_nome?.split(' ')[0] ?? 'S/ Mentor'}
+                                </div>
+                              </>
                             )}
                           </div>
-                          <div className="truncate font-semibold text-[10px]">
-                            {event.turma_nome}
-                            <span className="opacity-75 font-normal ml-1">
-                              ({event.estabelecimento_nome})
-                            </span>
-                          </div>
-                          <div className="truncate opacity-90 text-[9px] mt-0.5 flex items-center gap-1">
-                            <User className="h-2 w-2" />
-                            {event.mentor_nome?.split(' ')[0] ?? 'S/ Mentor'}
-                          </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -964,9 +1304,14 @@ const Horarios = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-2 bg-secondary/30 rounded-md">
                   <p className="text-xs text-muted-foreground font-medium mb-1 flex items-center gap-1">
-                    <User className="w-3 h-3" /> Mentor
+                    <User className="w-3 h-3" />
+                    {viewSession.is_autonomous ? 'Membro da Equipa' : 'Mentor'}
                   </p>
-                  <p className="text-sm font-semibold">{viewSession.mentor_nome || 'Não atribuído'}</p>
+                  <p className="text-sm font-semibold">
+                    {viewSession.is_autonomous
+                      ? (equipa?.find(p => p.id === viewSession.responsavel_user_id)?.full_name ?? viewSession.responsavel_user_id ?? 'Não atribuído')
+                      : (viewSession.mentor_nome || 'Não atribuído')}
+                  </p>
                 </div>
                 <div className="p-2 bg-secondary/30 rounded-md">
                   <p className="text-xs text-muted-foreground font-medium mb-1 flex items-center gap-1">

@@ -105,22 +105,28 @@ export interface AulaAPI {
   id: number;
   tipo: string;
   data_hora: string;
-  duracao_minutos: number; // Added
+  duracao_minutos: number;
   estado: string;
   tema: string | null;
-  local: string | null; // Added
-  observacoes: string | null; // Added
-  turma_nome: string;
-  turma_id: number; // Added
+  local: string | null;
+  observacoes: string | null;
+  turma_nome: string | null;
+  turma_id: number | null;
   mentor_nome: string | null;
-  mentor_id: number | null; // Added
-  mentor_user_id: string; // Added for filtering
-  estabelecimento_nome: string; // Renamed from instituicao_nome
+  mentor_id: number | null;
+  mentor_user_id: string | null;
+  estabelecimento_nome: string | null;
   atividade_nome?: string;
   atividade_id?: number;
   disciplina_nome?: string;
   equipamento_id?: string;
   equipamento_nome?: string;
+  // Trabalho Autónomo
+  is_autonomous?: boolean;
+  is_realized?: boolean;
+  tipo_atividade?: string | null;
+  responsavel_user_id?: string | null;
+  musica_id?: number | null;
 }
 
 export interface Turma {
@@ -137,7 +143,7 @@ export interface Estabelecimento { // Renamed form Instituicao
 }
 
 export interface AulaCreate {
-  turma_id: number;
+  turma_id?: number | null;
   data_hora: string;
   duracao_minutos: number;
   mentor_id?: number | null;
@@ -147,4 +153,17 @@ export interface AulaCreate {
   tipo: string;
   atividade_id?: number | null;
   equipamento_id?: string | null;
+  is_autonomous?: boolean;
+  is_realized?: boolean;
+  tipo_atividade?: string | null;
+  responsavel_user_id?: string | null;
+  musica_id?: number | null;
+}
+
+export interface PublicProfileEquipa {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  avatar_url?: string;
 }

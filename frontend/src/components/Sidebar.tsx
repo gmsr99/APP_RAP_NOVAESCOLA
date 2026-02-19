@@ -22,7 +22,7 @@ import { useState } from 'react';
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, profiles: ['coordenador', 'mentor', 'produtor', 'mentor_produtor'] },
-  { name: 'Horários Aulas', href: '/horarios', icon: Calendar, profiles: ['coordenador', 'mentor', 'mentor_produtor'] },
+  { name: 'Horários Aulas', href: '/horarios', icon: Calendar, profiles: ['coordenador', 'mentor', 'produtor', 'mentor_produtor'] },
   { name: 'Produção Musical', href: '/producao', icon: Music, profiles: ['coordenador', 'mentor', 'produtor', 'mentor_produtor'] },
   { name: 'Estúdio', href: '/estudio', icon: Mic2, profiles: ['coordenador', 'mentor', 'produtor', 'mentor_produtor'] },
   { name: 'Registos', href: '/registos', icon: ClipboardList, profiles: ['coordenador', 'mentor', 'mentor_produtor'] },
