@@ -43,7 +43,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from "@/components/ui/badge";
 import {
-  Book, School, Layers, Calendar, Edit2, Plus, Trash2, Save, Users, Building2
+  Book, School, Layers, Calendar, Edit2, Plus, Trash2, Save, Users, Building2, X
 } from "lucide-react";
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -95,6 +95,7 @@ const Wiki = () => {
   const [editingTurma, setEditingTurma] = useState<Turma | null>(null);
   const [newTurmaName, setNewTurmaName] = useState('');
   const [selectedEstabId, setSelectedEstabId] = useState<string>('');
+  const [alunosNomes, setAlunosNomes] = useState<string[]>([]);
 
   // State for Curriculum
   const [isActivityDialogOpen, setIsActivityDialogOpen] = useState(false);
@@ -245,19 +246,44 @@ const Wiki = () => {
     setEditingTurma(null);
     setNewTurmaName('');
     setSelectedEstabId('');
+    setAlunosNomes([]);
     setIsTurmaDialogOpen(true);
   };
 
-  const openEditTurma = (turma: Turma) => {
+  const openEditTurma = async (turma: Turma) => {
     setEditingTurma(turma);
     setNewTurmaName(turma.nome);
     setSelectedEstabId(turma.estabelecimento_id.toString());
+    try {
+      const res = await api.get(`/api/turmas/${turma.id}/alunos`);
+      setAlunosNomes(res.data.map((a: any) => a.nome));
+    } catch {
+      setAlunosNomes([]);
+    }
     setIsTurmaDialogOpen(true);
   };
 
-  const handleSaveTurma = () => {
+  const handleSaveTurma = async () => {
     if (!newTurmaName || !selectedEstabId) return;
-    saveTurmaMutation.mutate({ nome: newTurmaName, estabelecimento_id: selectedEstabId });
+
+    const saveAlunos = async (turmaId: number) => {
+      const filteredNomes = alunosNomes.filter(n => n.trim());
+      try {
+        await api.put(`/api/turmas/${turmaId}/alunos`, { nomes: filteredNomes });
+      } catch {
+        toast.error('Erro ao guardar alunos.');
+      }
+    };
+
+    saveTurmaMutation.mutate(
+      { nome: newTurmaName, estabelecimento_id: selectedEstabId },
+      {
+        onSuccess: async (response) => {
+          const turmaId = editingTurma?.id || response?.data?.id;
+          if (turmaId) await saveAlunos(turmaId);
+        },
+      }
+    );
   };
 
   const openNewActivity = (disciplinaId: number) => {
@@ -483,6 +509,49 @@ const Wiki = () => {
                       value={newTurmaName}
                       onChange={(e) => setNewTurmaName(e.target.value)}
                     />
+                  </div>
+
+                  {/* Lista de Alunos */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="font-medium">Alunos</Label>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() => setAlunosNomes(prev => [...prev, ''])}
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-1" />
+                        Adicionar
+                      </Button>
+                    </div>
+                    {alunosNomes.length === 0 && (
+                      <p className="text-sm text-muted-foreground">Nenhum aluno registado.</p>
+                    )}
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                      {alunosNomes.map((nome, i) => (
+                        <div key={i} className="flex gap-2">
+                          <Input
+                            placeholder={`Aluno ${i + 1}`}
+                            value={nome}
+                            onChange={e => {
+                              const updated = [...alunosNomes];
+                              updated[i] = e.target.value;
+                              setAlunosNomes(updated);
+                            }}
+                            className="text-sm"
+                          />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            type="button"
+                            onClick={() => setAlunosNomes(prev => prev.filter((_, idx) => idx !== i))}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
                 <DialogFooter className="flex sm:justify-between w-full">

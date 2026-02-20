@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Union
 
 from sqlmodel import Session, select
 
+from database.connection import get_db_connection
 from database.database import engine
 from models.sqlmodel_models import (
     Aula,
@@ -31,6 +32,7 @@ ESTADO_RECUSADA = "recusada"
 ESTADO_EM_CURSO = "em_curso"
 ESTADO_CONCLUIDA = "concluida"
 ESTADO_CANCELADA = "cancelada"
+ESTADO_TERMINADA = "terminada"
 
 ESTADOS_VALIDOS = [
     ESTADO_RASCUNHO,
@@ -40,6 +42,7 @@ ESTADOS_VALIDOS = [
     ESTADO_EM_CURSO,
     ESTADO_CONCLUIDA,
     ESTADO_CANCELADA,
+    ESTADO_TERMINADA,
 ]
 
 TIPOS_AULA = [
@@ -50,6 +53,57 @@ TIPOS_AULA = [
     "ensaio",
     "showcase",
 ]
+
+
+def _resolver_atividade(atividade_id):
+    """Resolve atividade_id → (atividade_nome, disciplina_nome) via raw SQL."""
+    if not atividade_id:
+        return None, None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT a.nome, d.nome
+            FROM atividades a
+            LEFT JOIN disciplinas d ON a.disciplina_id = d.id
+            WHERE a.id = %s
+        """, (atividade_id,))
+        row = cur.fetchone()
+        if row:
+            return row[0], row[1]
+        return None, None
+    except Exception:
+        return None, None
+    finally:
+        if 'cur' in locals() and cur:
+            cur.close()
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+def _resolver_atividades_bulk(atividade_ids):
+    """Resolve multiple atividade_ids at once → {id: (atividade_nome, disciplina_nome)}."""
+    ids = [aid for aid in atividade_ids if aid is not None]
+    if not ids:
+        return {}
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        placeholders = ','.join(['%s'] * len(ids))
+        cur.execute(f"""
+            SELECT a.id, a.nome, d.nome
+            FROM atividades a
+            LEFT JOIN disciplinas d ON a.disciplina_id = d.id
+            WHERE a.id IN ({placeholders})
+        """, ids)
+        return {row[0]: (row[1], row[2]) for row in cur.fetchall()}
+    except Exception:
+        return {}
+    finally:
+        if 'cur' in locals() and cur:
+            cur.close()
+        if 'conn' in locals() and conn:
+            conn.close()
 
 
 def _parse_data_hora(data_hora: Union[str, datetime]) -> datetime:
@@ -95,7 +149,6 @@ def criar_aula(
     projeto_id=None,
     observacoes=None,
     atividade_id=None,
-    equipamento_id=None,
     is_autonomous=False,
     is_realized=False,
     tipo_atividade=None,
@@ -135,7 +188,6 @@ def criar_aula(
                 objetivos=objetivos,
                 observacoes=observacoes,
                 atividade_id=atividade_id,
-                equipamento_id=equipamento_id,
                 is_autonomous=is_autonomous,
                 is_realized=is_realized,
                 tipo_atividade=tipo_atividade,
@@ -161,7 +213,7 @@ def criar_aula(
                             tipo="session_created",
                             titulo="Nova Sessão Atribuída",
                             mensagem=f"Foi-lhe atribuída uma nova sessão a {data_hora_dt}.",
-                            link="/dashboard",
+                            link="/horarios",
                             metadados={"aula_id": nova_aula.id},
                         )
             except Exception as e:
@@ -222,8 +274,12 @@ def listar_aulas_por_estado(estado, limite=50):
             )
             rows = session.exec(statement).all()
 
+        # Resolver nomes de atividade/disciplina em bulk
+        atividade_map = _resolver_atividades_bulk([a.atividade_id for a, *_ in rows])
+
         aulas: List[Dict[str, Any]] = []
         for aula, turma, estabelecimento, mentor in rows:
+            atv_nome, disc_nome = atividade_map.get(aula.atividade_id, (None, None))
             payload = {
                 "id": aula.id,
                 "tipo": aula.tipo,
@@ -241,18 +297,20 @@ def listar_aulas_por_estado(estado, limite=50):
                 "mentor_id": mentor.id if mentor else None,
                 "mentor_user_id": str(mentor.user_id) if mentor and mentor.user_id else None,
                 "estabelecimento_nome": estabelecimento.nome if estabelecimento else None,
+                "estabelecimento_sigla": estabelecimento.sigla if estabelecimento else None,
                 "atualizado_em": aula.atualizado_em,
                 "projeto_nome": None,
                 "atividade_id": aula.atividade_id,
-                "atividade_nome": None,
-                "disciplina_nome": None,
-                "equipamento_id": str(aula.equipamento_id) if aula.equipamento_id else None,
+                "atividade_nome": atv_nome,
+                "disciplina_nome": disc_nome,
                 "equipamento_nome": None,
                 "is_autonomous": aula.is_autonomous,
                 "is_realized": aula.is_realized,
                 "tipo_atividade": aula.tipo_atividade,
                 "responsavel_user_id": aula.responsavel_user_id,
                 "musica_id": aula.musica_id,
+                "avaliacao": aula.avaliacao,
+                "obs_termino": aula.obs_termino,
             }
             aulas.append(AulaListItem.model_validate(payload).model_dump())
 
@@ -323,7 +381,7 @@ def atribuir_mentor(aula_id, mentor_id):
                                 f"Foi-lhe atribuída a sessão de '{aula_data['turma_nome']}' "
                                 f"a {aula_data['data_hora']}."
                             ),
-                            link="/dashboard",
+                            link="/horarios",
                             metadados={"aula_id": aula_id},
                         )
         except Exception as e:
@@ -402,6 +460,78 @@ def mudar_estado_aula(aula_id, novo_estado, observacao=None):
         return False
 
 
+def terminar_aula(aula_id, avaliacao, obs_termino=None):
+    """Marca uma sessão presencial confirmada como terminada, com avaliação."""
+    if not 1 <= avaliacao <= 5:
+        print("❌ Avaliação deve estar entre 1 e 5.")
+        return {"ok": False, "erro": "Avaliação deve estar entre 1 e 5."}
+
+    try:
+        with Session(engine) as session:
+            aula = session.get(Aula, aula_id)
+            if not aula:
+                return {"ok": False, "erro": "Sessão não encontrada."}
+
+            if aula.estado != ESTADO_CONFIRMADA:
+                return {"ok": False, "erro": f"Só sessões confirmadas podem ser terminadas (estado actual: '{aula.estado}')."}
+
+            if aula.is_autonomous:
+                return {"ok": False, "erro": "Trabalho autónomo não pode ser terminado desta forma."}
+
+            if aula.data_hora > datetime.utcnow():
+                return {"ok": False, "erro": "A sessão ainda não começou."}
+
+            estado_anterior = aula.estado
+            nota = (
+                f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] "
+                f"Estado: '{estado_anterior}' → '{ESTADO_TERMINADA}'"
+                f" | Avaliação: {avaliacao}/5"
+            )
+            if obs_termino:
+                nota += f" | {obs_termino}"
+
+            aula.estado = ESTADO_TERMINADA
+            aula.avaliacao = avaliacao
+            aula.obs_termino = obs_termino
+            aula.observacoes = (
+                f"{aula.observacoes}\n{nota}" if aula.observacoes else nota
+            )
+            aula.atualizado_em = datetime.utcnow()
+
+            session.add(aula)
+            session.commit()
+
+        print(f"✅ Sessão #{aula_id} terminada (avaliação: {avaliacao}/5)")
+
+        # Notificar coordenadores
+        try:
+            from services import notification_service, profile_service
+
+            perfis = profile_service.listar_perfis()
+            coordenadores_ids = [p["id"] for p in perfis if p.get("role") == "coordenador"]
+
+            aula_info = obter_aula_por_id(aula_id)
+            mentor_nome = aula_info["mentor_nome"] if aula_info else "Um mentor"
+
+            for coord_id in coordenadores_ids:
+                notification_service.criar_notificacao(
+                    user_id=coord_id,
+                    tipo="session_terminada",
+                    titulo="Sessão Terminada",
+                    mensagem=f"{mentor_nome} terminou a sessão com avaliação {avaliacao}/5.",
+                    link="/horarios",
+                    metadados={"aula_id": aula_id},
+                )
+        except Exception as e:
+            print(f"⚠️ Erro ao enviar notificação: {e}")
+
+        return {"ok": True}
+
+    except Exception as e:
+        print(f"❌ Erro ao terminar sessão: {e}")
+        return {"ok": False, "erro": str(e)}
+
+
 def obter_aula_por_id(aula_id):
     try:
         with Session(engine) as session:
@@ -421,6 +551,7 @@ def obter_aula_por_id(aula_id):
             return None
 
         aula, turma, estabelecimento, mentor, projeto = row
+        atv_nome, disc_nome = _resolver_atividade(aula.atividade_id)
         payload = {
             "id": aula.id,
             "tipo": aula.tipo,
@@ -439,17 +570,19 @@ def obter_aula_por_id(aula_id):
             "mentor_id": mentor.id if mentor else None,
             "mentor_user_id": str(mentor.user_id) if mentor and mentor.user_id else None,
             "estabelecimento_nome": estabelecimento.nome if estabelecimento else None,
+            "estabelecimento_sigla": estabelecimento.sigla if estabelecimento else None,
             "projeto_nome": projeto.nome if projeto else None,
-            "atividade_nome": None,
+            "atividade_nome": atv_nome,
             "atividade_id": aula.atividade_id,
-            "disciplina_nome": None,
+            "disciplina_nome": disc_nome,
             "equipamento_nome": None,
-            "equipamento_id": str(aula.equipamento_id) if aula.equipamento_id else None,
             "is_autonomous": aula.is_autonomous,
             "is_realized": aula.is_realized,
             "tipo_atividade": aula.tipo_atividade,
             "responsavel_user_id": aula.responsavel_user_id,
             "musica_id": aula.musica_id,
+            "avaliacao": aula.avaliacao,
+            "obs_termino": aula.obs_termino,
         }
         return AulaListItem.model_validate(payload).model_dump()
 
@@ -472,8 +605,12 @@ def listar_todas_aulas(limite=100):
             )
             rows = session.exec(statement).all()
 
+        # Resolver nomes de atividade/disciplina em bulk
+        atividade_map = _resolver_atividades_bulk([a.atividade_id for a, *_ in rows])
+
         aulas: List[Dict[str, Any]] = []
         for aula, turma, estabelecimento, mentor in rows:
+            atv_nome, disc_nome = atividade_map.get(aula.atividade_id, (None, None))
             payload = {
                 "id": aula.id,
                 "tipo": aula.tipo,
@@ -492,17 +629,19 @@ def listar_todas_aulas(limite=100):
                 "mentor_id": mentor.id if mentor else None,
                 "mentor_user_id": str(mentor.user_id) if mentor and mentor.user_id else None,
                 "estabelecimento_nome": estabelecimento.nome if estabelecimento else None,
+                "estabelecimento_sigla": estabelecimento.sigla if estabelecimento else None,
                 "projeto_nome": None,
                 "atividade_id": aula.atividade_id,
-                "atividade_nome": None,
-                "equipamento_id": str(aula.equipamento_id) if aula.equipamento_id else None,
+                "atividade_nome": atv_nome,
                 "equipamento_nome": None,
-                "disciplina_nome": None,
+                "disciplina_nome": disc_nome,
                 "is_autonomous": aula.is_autonomous,
                 "is_realized": aula.is_realized,
                 "tipo_atividade": aula.tipo_atividade,
                 "responsavel_user_id": aula.responsavel_user_id,
                 "musica_id": aula.musica_id,
+                "avaliacao": aula.avaliacao,
+                "obs_termino": aula.obs_termino,
             }
             aulas.append(AulaListItem.model_validate(payload).model_dump())
 
@@ -553,7 +692,6 @@ def atualizar_aula(aula_id, dados):
                 "objetivos",
                 "observacoes",
                 "atividade_id",
-                "equipamento_id",
                 "estado",
             }
 
@@ -586,7 +724,7 @@ def atualizar_aula(aula_id, dados):
                                 "O horário da sessão foi alterado. "
                                 "Por favor confirme a nova hora."
                             ),
-                            link="/dashboard",
+                            link="/horarios",
                             metadados={"aula_id": aula_id},
                         )
             except Exception as e:

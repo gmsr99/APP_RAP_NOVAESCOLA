@@ -16,7 +16,9 @@ import Equipa from "./pages/Equipa";
 import Equipamento from "./pages/Equipamento";
 import Formacao from "./pages/Formacao";
 import Chat from "./pages/Chat";
+import MySpace from "./pages/MySpace";
 import Login from "./pages/Login";
+import UpdatePassword from "./pages/UpdatePassword";
 
 import NotFound from "./pages/NotFound";
 import Wiki from "./pages/Wiki";
@@ -34,6 +36,7 @@ const App = () => (
             <Sonner />
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/update-password" element={<UpdatePassword />} />
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/horarios" element={
@@ -48,6 +51,7 @@ const App = () => (
                 <Route path="/equipamento" element={<Equipamento />} />
                 <Route path="/formacao" element={<Formacao />} />
                 <Route path="/chat" element={<Chat />} />
+                <Route path="/myspace" element={<MySpace />} />
 
                 <Route path="/wiki" element={<Wiki />} />
               </Route>

@@ -13,10 +13,11 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Check, Trash2, Bell, Info, CheckCircle, XCircle, Calendar } from 'lucide-react';
+import { Check, Trash2, Bell, Info, CheckCircle, XCircle, Calendar, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Notification } from '@/types';
 import { useProfile } from '@/contexts/ProfileContext';
+import { useNavigate } from 'react-router-dom';
 
 interface NotificationSidebarProps {
     open: boolean;
@@ -25,8 +26,8 @@ interface NotificationSidebarProps {
 
 export function NotificationSidebar({ open, onOpenChange }: NotificationSidebarProps) {
     const queryClient = useQueryClient();
-    const { user } = useProfile(); // Assuming we can get current user ID here or context
-    // In a real app, user.id would be available. For prototype, we might need a fallback or prop.
+    const { user } = useProfile();
+    const navigate = useNavigate();
 
     const { data: notifications = [] } = useQuery<Notification[]>({
         queryKey: ['notifications', 'current-user'],
@@ -78,6 +79,9 @@ export function NotificationSidebar({ open, onOpenChange }: NotificationSidebarP
             case 'session_created': return <Calendar className="h-5 w-5 text-blue-500" />;
             case 'session_confirmed': return <CheckCircle className="h-5 w-5 text-green-500" />;
             case 'session_rejected': return <XCircle className="h-5 w-5 text-red-500" />;
+            case 'session_terminada': return <CheckCircle className="h-5 w-5 text-gray-500" />;
+            case 'session_updated': return <Calendar className="h-5 w-5 text-orange-500" />;
+            case 'chat_unread': return <MessageCircle className="h-5 w-5 text-blue-500" />;
             default: return <Info className="h-5 w-5 text-gray-500" />;
         }
     };
@@ -106,8 +110,16 @@ export function NotificationSidebar({ open, onOpenChange }: NotificationSidebarP
                                     className={cn(
                                         "p-4 rounded-lg border transition-colors relative group",
                                         notif.read ? "bg-background border-border" : "bg-muted/30 border-primary/20",
-                                        "hover:bg-muted/50"
+                                        "hover:bg-muted/50",
+                                        notif.link && "cursor-pointer"
                                     )}
+                                    onClick={() => {
+                                        if (notif.link) {
+                                            if (!notif.read) markReadMutation.mutate(notif.id);
+                                            onOpenChange(false);
+                                            navigate(notif.link);
+                                        }
+                                    }}
                                 >
                                     <div className="flex gap-3">
                                         <div className="mt-1 shrink-0">
@@ -128,7 +140,7 @@ export function NotificationSidebar({ open, onOpenChange }: NotificationSidebarP
                                         </div>
                                     </div>
 
-                                    <div className="flex justify-end gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex justify-end gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
                                         {!notif.read && (
                                             <Button
                                                 variant="ghost"

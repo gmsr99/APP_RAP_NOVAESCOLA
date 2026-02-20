@@ -1,89 +1,74 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
 import {
   Package,
-  Search,
-  MoreVertical,
   CheckCircle2,
   Clock,
-  AlertTriangle,
-  Plus,
-  Loader2
+  Loader2,
+  Layers,
 } from 'lucide-react';
-import { sessions } from '@/data/mockData';
-import { Equipment, EquipmentStatus } from '@/types';
-import { cn } from '@/lib/utils';
-import { api } from '@/services/api';
+import { api } from '@/lib/api';
+import type { KitCategoria } from '@/types';
+import { format, parseISO, addMinutes, isAfter } from 'date-fns';
+import { pt } from 'date-fns/locale';
 
-// Normalize DB status to keys
-const getStatusConfig = (status: string) => {
-  const normalized = status.toLowerCase();
-  if (normalized === 'disponivel') return { label: 'Disponível', icon: CheckCircle2, color: 'text-success bg-success/10' };
-  if (normalized === 'em uso' || normalized === 'em_uso') return { label: 'Em uso', icon: Clock, color: 'text-warning bg-warning/10' };
-  if (normalized === 'manutencao') return { label: 'Manutenção', icon: AlertTriangle, color: 'text-destructive bg-destructive/10' };
-  return { label: status, icon: Package, color: 'text-muted-foreground bg-secondary' };
-};
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+interface Ocupacao {
+  aula_id: number;
+  data_hora: string;
+  duracao_minutos: number;
+  turma_nome: string | null;
+  estabelecimento_nome: string | null;
+}
+
+interface ItemComOcupacao {
+  id: number;
+  nome: string;
+  ocupacoes: Ocupacao[];
+  ocupadoAgora: boolean;
+}
+
+// ─── Component ──────────────────────────────────────────────────────────────
 
 const Equipamento = () => {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-
-  const { data: equipmentList, isLoading, error } = useQuery({
-    queryKey: ['equipamento'],
-    queryFn: () => api.get<Equipment[]>('/api/equipamento'),
+  // Fetch categories with items
+  const { data: categorias, isLoading } = useQuery<KitCategoria[]>({
+    queryKey: ['equipamento-categorias'],
+    queryFn: async () => {
+      const res = await api.get('/api/equipamento/categorias');
+      return res.data;
+    },
   });
 
-  const equipment = equipmentList || [];
-
-  const filteredEquipment = equipment.filter(eq => {
-    const matchesSearch = eq.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      eq.type.toLowerCase().includes(searchTerm.toLowerCase());
-
-    // Normalize status for filtering
-    const eqStatus = eq.status.toLowerCase();
-    const filter = statusFilter.toLowerCase();
-
-    const matchesStatus = filter === 'all' ||
-      (filter === 'disponivel' && eqStatus === 'disponivel') ||
-      (filter === 'em_uso' && (eqStatus === 'em uso' || eqStatus === 'em_uso')) ||
-      (filter === 'manutencao' && eqStatus === 'manutencao');
-
-    return matchesSearch && matchesStatus;
+  // Fetch all sessions that have equipment assigned (for occupation info)
+  const { data: todasAulas } = useQuery<any[]>({
+    queryKey: ['aulas-para-equipamento'],
+    queryFn: async () => {
+      const res = await api.get('/api/aulas');
+      return res.data;
+    },
   });
 
-  const getSessionForEquipment = (sessionId?: string) => {
-    if (!sessionId) return null;
-    return sessions.find(s => s.id === sessionId);
+  // For each category, build item occupation info
+  const buildItemsWithOcupacao = (cat: KitCategoria): ItemComOcupacao[] => {
+    return cat.itens.map(item => {
+      // We'd need per-item occupation data. For now, show basic info.
+      return {
+        id: item.id,
+        nome: item.nome,
+        ocupacoes: [],
+        ocupadoAgora: false,
+      };
+    });
   };
-
-  const getStats = (list: Equipment[]) => {
-    return {
-      total: list.length,
-      disponivel: list.filter(e => e.status.toLowerCase() === 'disponivel').length,
-      em_uso: list.filter(e => ['em uso', 'em_uso'].includes(e.status.toLowerCase())).length,
-      manutencao: list.filter(e => e.status.toLowerCase() === 'manutencao').length,
-    };
-  };
-
-  const stats = getStats(equipment);
 
   if (isLoading) {
     return (
@@ -93,209 +78,94 @@ const Equipamento = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-4 text-center text-destructive">
-        Erro ao carregar equipamento. Tenta novamente mais tarde.
-      </div>
-    );
-  }
+  const cats = categorias || [];
+  const totalItens = cats.reduce((acc, c) => acc + c.itens.length, 0);
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-display font-bold">Gestão de Equipamento</h1>
-          <p className="text-muted-foreground mt-1">
-            Controla o inventário e disponibilidade de equipamento.
-          </p>
-        </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Equipamento
-        </Button>
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-display font-bold">Gestão de Equipamento</h1>
+        <p className="text-muted-foreground mt-1">
+          Kits de material organizados por categoria.
+        </p>
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 rounded-lg bg-primary/10">
-              <Package className="h-6 w-6 text-primary" />
+              <Layers className="h-6 w-6 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold font-display">{stats.total}</p>
-              <p className="text-sm text-muted-foreground">Total</p>
+              <p className="text-2xl font-bold font-display">{cats.length}</p>
+              <p className="text-sm text-muted-foreground">Categorias</p>
             </div>
           </CardContent>
         </Card>
-
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 rounded-lg bg-success/10">
-              <CheckCircle2 className="h-6 w-6 text-success" />
+              <Package className="h-6 w-6 text-success" />
             </div>
             <div>
-              <p className="text-2xl font-bold font-display">{stats.disponivel}</p>
-              <p className="text-sm text-muted-foreground">Disponível</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 rounded-lg bg-warning/10">
-              <Clock className="h-6 w-6 text-warning" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold font-display">{stats.em_uso}</p>
-              <p className="text-sm text-muted-foreground">Em uso</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="p-3 rounded-lg bg-destructive/10">
-              <AlertTriangle className="h-6 w-6 text-destructive" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold font-display">{stats.manutencao}</p>
-              <p className="text-sm text-muted-foreground">Manutenção</p>
+              <p className="text-2xl font-bold font-display">{totalItens}</p>
+              <p className="text-sm text-muted-foreground">Itens no total</p>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Pesquisar equipamento..."
-            className="pl-10"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-        <div className="flex gap-2">
-          <Button
-            variant={statusFilter === 'all' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setStatusFilter('all')}
-          >
-            Todos
-          </Button>
-          <Button
-            variant={statusFilter === 'disponivel' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setStatusFilter('disponivel')}
-          >
-            Disponível
-          </Button>
-          <Button
-            variant={statusFilter === 'em_uso' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setStatusFilter('em_uso')}
-          >
-            Em uso
-          </Button>
-          <Button
-            variant={statusFilter === 'manutencao' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setStatusFilter('manutencao')}
-          >
-            Manutenção
-          </Button>
-        </div>
-      </div>
-
-      {/* Equipment Table */}
+      {/* Categories */}
       <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Equipamento</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Último responsável</TableHead>
-                <TableHead>Sessão associada</TableHead>
-                <TableHead className="w-[50px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredEquipment.map((eq) => {
-                const status = getStatusConfig(eq.status);
-                const StatusIcon = status.icon;
-                const session = getSessionForEquipment(eq.assignedToSession);
-
-                return (
-                  <TableRow key={eq.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-secondary">
-                          <Package className="h-4 w-4 text-muted-foreground" />
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Kits de Material
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {cats.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">
+              Nenhuma categoria de equipamento encontrada.
+            </p>
+          ) : (
+            <Accordion type="multiple" className="w-full" defaultValue={cats.map(c => String(c.id))}>
+              {cats.map(cat => (
+                <AccordionItem key={cat.id} value={String(cat.id)}>
+                  <AccordionTrigger className="hover:no-underline">
+                    <div className="flex items-center gap-3">
+                      <Layers className="h-4 w-4 text-primary" />
+                      <span className="font-medium text-lg">{cat.nome}</span>
+                      <Badge variant="secondary" className="ml-2">
+                        {cat.itens.length} {cat.itens.length === 1 ? 'item' : 'itens'}
+                      </Badge>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent>
+                    <div className="space-y-2 pl-7">
+                      {cat.itens.map(item => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-medium">{item.nome}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-xs text-success">
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                            Disponível
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium">{eq.name}</p>
-                          {eq.notes && (
-                            <p className="text-xs text-muted-foreground">{eq.notes}</p>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline">{eq.type}</Badge>
-                    </TableCell>
-                    <TableCell>
-                      <div className={cn(
-                        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',
-                        status.color
-                      )}>
-                        <StatusIcon className="h-3.5 w-3.5" />
-                        {status.label}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {eq.lastResponsible ? (
-                        <span>{eq.lastResponsible.name}</span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {session ? (
-                        <span className="text-sm">
-                          {session.institution.split(' ').slice(0, 2).join(' ')} - {session.startTime}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-popover">
-                          <DropdownMenuItem>Editar</DropdownMenuItem>
-                          <DropdownMenuItem>Marcar como disponível</DropdownMenuItem>
-                          <DropdownMenuItem>Marcar em manutenção</DropdownMenuItem>
-                          <DropdownMenuItem className="text-destructive">
-                            Remover
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+                      ))}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -39,6 +39,8 @@ import {
   Save,
   Filter,
   Briefcase,
+  Star,
+  CheckCircle2,
 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -72,6 +74,7 @@ const statusColors: Record<SessionStatus, string> = {
   pendente: 'bg-[#3399cd] text-white border-[#3399cd]',
   confirmada: 'bg-[#4EA380] text-white border-[#4EA380]',
   recusada: 'bg-[#A35339] text-white border-[#A35339]',
+  terminada: 'bg-[#6B7280] text-white border-[#6B7280]',
 };
 
 // Estilos para eventos autónomos
@@ -83,12 +86,31 @@ const statusLabels: Record<string, string> = {
   pendente: 'Pendente',
   confirmada: 'Confirmada',
   recusada: 'Recusada',
+  terminada: 'Terminada',
 };
 
 const statusDots: Record<string, string> = {
   pendente: 'bg-[#3399cd]',
   confirmada: 'bg-[#4EA380]',
   recusada: 'bg-[#A35339]',
+  terminada: 'bg-[#6B7280]',
+};
+
+/** Inline component to show equipment items for a session */
+const EquipamentoView = ({ aulaId }: { aulaId: number }) => {
+  const { data } = useQuery<{ id: number; nome: string; categoria_nome: string }[]>({
+    queryKey: ['aula-equipamento', aulaId],
+    queryFn: () => api.get(`/api/aulas/${aulaId}/equipamento`).then((r: any) => r.data ?? r),
+  });
+  if (!data || data.length === 0) return <p className="text-sm">Nenhum</p>;
+  return (
+    <div className="space-y-0.5">
+      <p className="text-xs font-medium text-muted-foreground">{data[0].categoria_nome}</p>
+      {data.map(item => (
+        <p key={item.id} className="text-sm">• {item.nome}</p>
+      ))}
+    </div>
+  );
 };
 
 const Horarios = () => {
@@ -102,6 +124,12 @@ const Horarios = () => {
   const [editingSession, setEditingSession] = useState<AulaAPI | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [viewSession, setViewSession] = useState<AulaAPI | null>(null);
+
+  // Estado "Terminar sessão"
+  const [isTerminarOpen, setIsTerminarOpen] = useState(false);
+  const [terminarSessionId, setTerminarSessionId] = useState<number | null>(null);
+  const [terminarRating, setTerminarRating] = useState(0);
+  const [terminarObs, setTerminarObs] = useState('');
 
   const queryClient = useQueryClient();
 
@@ -134,12 +162,15 @@ const Horarios = () => {
     enabled: !!apiUrl,
   });
 
-  // Fetch Equipamento
-  const { data: equipamentos } = useQuery({
-    queryKey: ['equipamento'],
-    queryFn: () => api.get<any[]>('/api/equipamento'),
+  // Fetch Equipamento (categorias com itens)
+  const { data: kitCategorias } = useQuery<{ id: number; nome: string; itens: { id: number; nome: string }[] }[]>({
+    queryKey: ['equipamento-categorias'],
+    queryFn: () => api.get('/api/equipamento/categorias').then((r: any) => r.data ?? r),
     enabled: !!apiUrl,
   });
+
+  const [selectedKitCatId, setSelectedKitCatId] = useState<string>('');
+  const [checkedItemIds, setCheckedItemIds] = useState<Set<number>>(new Set());
 
   // Fetch Equipa (para dropdown do formulário autónomo)
   const { data: equipa } = useQuery({
@@ -152,7 +183,6 @@ const Horarios = () => {
     duracao_minutos: 120,
     tipo: 'ensaio',
     atividade_id: null,
-    equipamento_id: '',
     observacoes: ''
   });
 
@@ -253,9 +283,18 @@ const Horarios = () => {
     return `${format(weekStart, "d MMM", { locale: pt })} - ${format(weekEnd, "d MMM yyyy", { locale: pt })}`;
   };
 
+  const saveEquipamento = async (aulaId: number) => {
+    const itemIds = Array.from(checkedItemIds);
+    if (itemIds.length > 0) {
+      await api.put(`/api/aulas/${aulaId}/equipamento`, { item_ids: itemIds });
+    }
+  };
+
   const createSessionMutation = useMutation({
     mutationFn: (data: AulaCreate) => api.post('/api/aulas', data),
-    onSuccess: () => {
+    onSuccess: async (response: any) => {
+      const aulaId = response?.data?.id ?? response?.id;
+      if (aulaId) await saveEquipamento(aulaId);
       queryClient.invalidateQueries({ queryKey: ['aulas'] });
       setIsDialogOpen(false);
       resetForm();
@@ -267,7 +306,8 @@ const Horarios = () => {
   const updateSessionMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<AulaCreate> }) =>
       api.put(`/api/aulas/${id}`, data),
-    onSuccess: () => {
+    onSuccess: async (_: any, variables: { id: number; data: Partial<AulaCreate> }) => {
+      await saveEquipamento(variables.id);
       queryClient.invalidateQueries({ queryKey: ['aulas'] });
       setIsDialogOpen(false);
       resetForm();
@@ -285,6 +325,50 @@ const Horarios = () => {
       toast.success('Sessão removida com sucesso!');
     },
     onError: () => toast.error('Erro ao remover sessão.'),
+  });
+
+  const terminarMutation = useMutation({
+    mutationFn: ({ id, avaliacao, obs_termino }: { id: number; avaliacao: number; obs_termino?: string }) =>
+      api.post(`/api/aulas/${id}/terminar`, { avaliacao, obs_termino }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['aulas'] });
+      setIsTerminarOpen(false);
+      setTerminarRating(0);
+      setTerminarObs('');
+      setTerminarSessionId(null);
+      toast.success('Sessão terminada com sucesso!');
+    },
+    onError: () => toast.error('Erro ao terminar sessão.'),
+  });
+
+  const openTerminarModal = (sessionId: number) => {
+    setTerminarSessionId(sessionId);
+    setTerminarRating(0);
+    setTerminarObs('');
+    setIsTerminarOpen(true);
+  };
+
+  const handleSubmitTerminar = () => {
+    if (!terminarSessionId || terminarRating < 1) {
+      toast.error('Seleciona uma avaliação (1 a 5 estrelas).');
+      return;
+    }
+    terminarMutation.mutate({
+      id: terminarSessionId,
+      avaliacao: terminarRating,
+      obs_termino: terminarObs || undefined,
+    });
+  };
+
+  const confirmMutation = useMutation({
+    mutationFn: (id: number) => api.post(`/api/aulas/${id}/confirm`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['aulas'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      setIsDetailOpen(false);
+      toast.success('Sessão confirmada com sucesso!');
+    },
+    onError: () => toast.error('Erro ao confirmar sessão.'),
   });
 
   const createAutonomousMutation = useMutation({
@@ -314,11 +398,12 @@ const Horarios = () => {
   const resetForm = () => {
     setEditingSession(null);
     setModalTab('aula');
+    setSelectedKitCatId('');
+    setCheckedItemIds(new Set());
     setFormData({
       duracao_minutos: 120,
       tipo: 'ensaio',
       atividade_id: null,
-      equipamento_id: '',
       observacoes: ''
     });
     setAutonomousForm({
@@ -339,7 +424,7 @@ const Horarios = () => {
     setIsDialogOpen(true);
   };
 
-  const handleOpenEdit = (session: AulaAPI) => {
+  const handleOpenEdit = async (session: AulaAPI) => {
     setEditingSession(session);
     setFormData({
       turma_id: session.turma_id,
@@ -350,7 +435,6 @@ const Horarios = () => {
       tipo: session.tipo,
       observacoes: session.observacoes,
       atividade_id: session.atividade_id,
-      equipamento_id: session.equipamento_id
     });
 
     // Find discipline for the activity to populate dropdown
@@ -360,6 +444,23 @@ const Horarios = () => {
         setSelectedDisciplinaId(disc.id);
       }
     }
+
+    // Load session's equipment
+    try {
+      const res = await api.get(`/api/aulas/${session.id}/equipamento`);
+      const items: { id: number; categoria_id: number }[] = res.data;
+      if (items.length > 0) {
+        setSelectedKitCatId(String(items[0].categoria_id));
+        setCheckedItemIds(new Set(items.map(i => i.id)));
+      } else {
+        setSelectedKitCatId('');
+        setCheckedItemIds(new Set());
+      }
+    } catch {
+      setSelectedKitCatId('');
+      setCheckedItemIds(new Set());
+    }
+
     setIsDialogOpen(true);
   };
 
@@ -414,11 +515,10 @@ const Horarios = () => {
       duracao_minutos: Number(formData.duracao_minutos),
       mentor_id: formData.mentor_id ? Number(formData.mentor_id) : null,
       local: formData.local,
-      tema: formData.tema || 'Sessão Regular',
+      tema: formData.tema || '',
       tipo: formData.tipo || 'plano_aula',
       observacoes: formData.observacoes || '',
       atividade_id: formData.atividade_id,
-      equipamento_id: formData.equipamento_id
     };
 
     if (editingSession) {
@@ -542,26 +642,6 @@ const Horarios = () => {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="location">Local</Label>
-                          <Input
-                            id="location"
-                            placeholder="Ex: Sala de Música"
-                            value={formData.local || ''}
-                            onChange={(e) => setFormData({ ...formData, local: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="theme">Tema</Label>
-                          <Input
-                            id="theme"
-                            placeholder="Ex: Sessão Regular"
-                            value={formData.tema || ''}
-                            onChange={(e) => setFormData({ ...formData, tema: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
                           <Label htmlFor="disciplina">Disciplina</Label>
                           <Select
                             value={selectedDisciplinaId ? String(selectedDisciplinaId) : undefined}
@@ -598,22 +678,77 @@ const Horarios = () => {
                           </Select>
                         </div>
                       </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="location">Local</Label>
+                          <Input
+                            id="location"
+                            placeholder="Ex: Sala de Música"
+                            value={formData.local || ''}
+                            onChange={(e) => setFormData({ ...formData, local: e.target.value })}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="nSessao">Nº Sessão</Label>
+                          <Input
+                            id="nSessao"
+                            type="number"
+                            placeholder="Ex: 1"
+                            value={formData.tema || ''}
+                            onChange={(e) => setFormData({ ...formData, tema: e.target.value })}
+                          />
+                        </div>
+                      </div>
                       <div className="space-y-2">
                         <Label htmlFor="equipamento">Kit de Material</Label>
                         <Select
-                          value={formData.equipamento_id || undefined}
-                          onValueChange={(v) => setFormData({ ...formData, equipamento_id: v })}
+                          value={selectedKitCatId}
+                          onValueChange={(v) => {
+                            setSelectedKitCatId(v);
+                            if (v === 'none' || !v) {
+                              setCheckedItemIds(new Set());
+                            } else {
+                              const cat = kitCategorias?.find(c => String(c.id) === v);
+                              if (cat) setCheckedItemIds(new Set(cat.itens.map(i => i.id)));
+                            }
+                          }}
                         >
                           <SelectTrigger id="equipamento">
-                            <SelectValue placeholder="Selecione equipamento..." />
+                            <SelectValue placeholder="Selecione kit..." />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">Nenhum</SelectItem>
-                            {equipamentos?.map((eq: any) => (
-                              <SelectItem key={eq.id} value={eq.id}>{eq.name} ({eq.status})</SelectItem>
+                            {kitCategorias?.map(cat => (
+                              <SelectItem key={cat.id} value={String(cat.id)}>{cat.nome}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        {selectedKitCatId && selectedKitCatId !== 'none' && (() => {
+                          const cat = kitCategorias?.find(c => String(c.id) === selectedKitCatId);
+                          if (!cat) return null;
+                          return (
+                            <div className="space-y-1.5 pl-1 pt-1">
+                              {cat.itens.map(item => (
+                                <label key={item.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={checkedItemIds.has(item.id)}
+                                    onChange={() => {
+                                      setCheckedItemIds(prev => {
+                                        const next = new Set(prev);
+                                        if (next.has(item.id)) next.delete(item.id);
+                                        else next.add(item.id);
+                                        return next;
+                                      });
+                                    }}
+                                    className="rounded border-border"
+                                  />
+                                  {item.nome}
+                                </label>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="obs">Observações</Label>
@@ -825,10 +960,11 @@ const Horarios = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="theme">Tema</Label>
+                      <Label htmlFor="nSessao">Nº Sessão</Label>
                       <Input
-                        id="theme"
-                        placeholder="Ex: Sessão Regular"
+                        id="nSessao"
+                        type="number"
+                        placeholder="Ex: 1"
                         value={formData.tema || ''}
                         onChange={(e) => setFormData({ ...formData, tema: e.target.value })}
                       />
@@ -1295,7 +1431,7 @@ const Horarios = () => {
                     <span className="text-sm">{viewSession.atividade_nome || '-'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-sm font-semibold">Tema:</span>
+                    <span className="text-sm font-semibold">Nº Sessão:</span>
                     <span className="text-sm">{viewSession.tema || '-'}</span>
                   </div>
                 </div>
@@ -1317,9 +1453,30 @@ const Horarios = () => {
                   <p className="text-xs text-muted-foreground font-medium mb-1 flex items-center gap-1">
                     <Package className="w-3 h-3" /> Material
                   </p>
-                  <p className="text-sm">{viewSession.equipamento_nome || 'Nenhum'}</p>
+                  <EquipamentoView aulaId={viewSession.id} />
                 </div>
               </div>
+
+              {/* Avaliação (sessões terminadas) */}
+              {viewSession.estado === 'terminada' && viewSession.avaliacao && (
+                <div className="mt-2">
+                  <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Avaliação da Sessão</p>
+                  <div className="p-2 bg-secondary/30 rounded-md space-y-2">
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map(n => (
+                        <Star
+                          key={n}
+                          className={cn('h-5 w-5', n <= viewSession.avaliacao! ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30')}
+                        />
+                      ))}
+                      <span className="text-sm text-muted-foreground ml-2">{viewSession.avaliacao}/5</span>
+                    </div>
+                    {viewSession.obs_termino && (
+                      <p className="text-sm italic text-muted-foreground">{viewSession.obs_termino}</p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {viewSession.observacoes && (
                 <div className="mt-2">
@@ -1332,6 +1489,27 @@ const Horarios = () => {
             </div>
           )}
           <DialogFooter>
+            {/* Botão Confirmar — sessões pendentes */}
+            {viewSession && viewSession.estado === 'pendente' && (
+              <Button
+                onClick={() => confirmMutation.mutate(viewSession.id)}
+                disabled={confirmMutation.isPending}
+                className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                {confirmMutation.isPending ? 'A confirmar...' : 'Confirmar Sessão'}
+              </Button>
+            )}
+            {/* Botão Terminar — sessões confirmadas presenciais cuja hora já passou */}
+            {viewSession && viewSession.estado === 'confirmada' && !viewSession.is_autonomous && new Date(viewSession.data_hora) <= new Date() && (
+              <Button
+                onClick={() => { setIsDetailOpen(false); openTerminarModal(viewSession.id); }}
+                className="w-full sm:w-auto bg-[#6B7280] hover:bg-[#555e68] text-white"
+              >
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                Terminar Sessão
+              </Button>
+            )}
             {profile === 'coordenador' && viewSession && (
               <Button onClick={() => { setIsDetailOpen(false); handleOpenEdit(viewSession); }} variant="outline" className="w-full sm:w-auto">
                 <Edit2 className="w-4 h-4 mr-2" />
@@ -1339,6 +1517,60 @@ const Horarios = () => {
               </Button>
             )}
             <Button onClick={() => setIsDetailOpen(false)}>Fechar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* TERMINAR SESSÃO MODAL */}
+      <Dialog open={isTerminarOpen} onOpenChange={setIsTerminarOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-[#6B7280]" />
+              Terminar Sessão
+            </DialogTitle>
+            <DialogDescription>
+              Avalia a sessão e adiciona observações opcionais.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-5 py-2">
+            <div className="space-y-2">
+              <Label className="font-medium">Avaliação desta Sessão</Label>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <Star
+                    key={n}
+                    className={cn(
+                      'h-8 w-8 cursor-pointer transition-colors',
+                      n <= terminarRating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30 hover:text-yellow-300'
+                    )}
+                    onClick={() => setTerminarRating(n)}
+                  />
+                ))}
+                {terminarRating > 0 && (
+                  <span className="text-sm text-muted-foreground ml-2">{terminarRating}/5</span>
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="font-medium">Observações</Label>
+              <Textarea
+                placeholder="Como correu a sessão? Notas relevantes..."
+                value={terminarObs}
+                onChange={e => setTerminarObs(e.target.value)}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={handleSubmitTerminar}
+              disabled={terminarRating < 1 || terminarMutation.isPending}
+              className="bg-[#6B7280] hover:bg-[#555e68] text-white"
+            >
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Submeter
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

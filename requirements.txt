@@ -56,7 +56,7 @@ uvicorn[standard]==0.24.0
 
 # Autenticação (validar JWT do Supabase)
 # ---------------------------------------
-PyJWT==2.8.0
+PyJWT==2.10.1
 
 
 # ORM (Object-Relational Mapping) - OPCIONAL para versões futuras
@@ -72,4 +72,4 @@ sqlmodel==0.0.24
 # Útil para debugging e monitorização
 # loguru==0.7.2
 supabase>=2.12.0
-httpx==0.24.1
+httpx==0.28.1

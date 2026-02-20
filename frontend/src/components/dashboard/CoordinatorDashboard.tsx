@@ -1,21 +1,32 @@
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Calendar,
   MapPin,
   Users,
   AlertTriangle,
-  Music,
-  Package,
   Plus,
   ArrowRight,
-  Clock
+  Clock,
+  Star,
+  CheckCircle2
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 const statusColors: Record<string, string> = {
@@ -23,6 +34,7 @@ const statusColors: Record<string, string> = {
   pendente: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-900',
   confirmada: 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-200 dark:border-green-900',
   recusada: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900',
+  terminada: 'bg-[#6B7280] text-white border-[#6B7280]',
 };
 
 const statusLabels: Record<string, string> = {
@@ -30,9 +42,17 @@ const statusLabels: Record<string, string> = {
   pendente: 'Pendente',
   confirmada: 'Confirmada',
   recusada: 'Recusada',
+  terminada: 'Terminada',
 };
 
 export function CoordinatorDashboard() {
+  const queryClient = useQueryClient();
+
+  const [isTerminarOpen, setIsTerminarOpen] = useState(false);
+  const [terminarSessionId, setTerminarSessionId] = useState<number | null>(null);
+  const [terminarRating, setTerminarRating] = useState(0);
+  const [terminarObs, setTerminarObs] = useState('');
+
   const { data: sessions = [] } = useQuery({
     queryKey: ['aulas'],
     queryFn: async () => {
@@ -49,6 +69,33 @@ export function CoordinatorDashboard() {
     }
   });
 
+  const terminarMutation = useMutation({
+    mutationFn: async ({ id, avaliacao, obs_termino }: { id: number; avaliacao: number; obs_termino?: string }) => {
+      const res = await api.post(`/api/aulas/${id}/terminar`, { avaliacao, obs_termino: obs_termino || undefined });
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['aulas'] });
+      setIsTerminarOpen(false);
+      setTerminarSessionId(null);
+      setTerminarRating(0);
+      setTerminarObs('');
+    }
+  });
+
+  const openTerminarModal = (sessionId: number) => {
+    setTerminarSessionId(sessionId);
+    setTerminarRating(0);
+    setTerminarObs('');
+    setIsTerminarOpen(true);
+  };
+
+  const handleSubmitTerminar = () => {
+    if (!terminarSessionId || terminarRating < 1) return;
+    terminarMutation.mutate({ id: terminarSessionId, avaliacao: terminarRating, obs_termino: terminarObs });
+  };
+
+  const now = new Date();
   const pendingSessions = sessions.filter((s: any) => s.estado === 'pendente');
   const todaySessions = sessions.filter((s: any) =>
     format(new Date(s.data_hora), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
@@ -208,9 +255,17 @@ export function CoordinatorDashboard() {
                         </p>
                       </div>
                     </div>
-                    <Badge className={statusColors[session.estado] || statusColors.confirmada}>
-                      {statusLabels[session.estado] || session.estado}
-                    </Badge>
+                    <div className="flex items-center gap-2">
+                      {session.estado === 'confirmada' && !session.is_autonomous && new Date(session.data_hora) < now && (
+                        <Button size="sm" variant="outline" onClick={() => openTerminarModal(session.id)}>
+                          <CheckCircle2 className="h-4 w-4 mr-1" />
+                          Terminar
+                        </Button>
+                      )}
+                      <Badge className={statusColors[session.estado] || statusColors.confirmada}>
+                        {statusLabels[session.estado] || session.estado}
+                      </Badge>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -218,6 +273,49 @@ export function CoordinatorDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Terminar Sessão Dialog */}
+      <Dialog open={isTerminarOpen} onOpenChange={setIsTerminarOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Terminar Sessão</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Avaliação</Label>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4, 5].map(n => (
+                  <Star
+                    key={n}
+                    className={cn(
+                      'h-7 w-7 cursor-pointer transition-colors',
+                      n <= terminarRating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'
+                    )}
+                    onClick={() => setTerminarRating(n)}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Observações</Label>
+              <Textarea
+                value={terminarObs}
+                onChange={e => setTerminarObs(e.target.value)}
+                placeholder="Observações sobre a sessão..."
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={handleSubmitTerminar}
+              disabled={terminarRating < 1 || terminarMutation.isPending}
+            >
+              {terminarMutation.isPending ? 'A submeter...' : 'Submeter'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

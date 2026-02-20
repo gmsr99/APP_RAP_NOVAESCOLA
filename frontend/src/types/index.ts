@@ -10,7 +10,7 @@ export interface User {
 }
 
 // Sessions / Classes
-export type SessionStatus = 'rascunho' | 'pendente' | 'confirmada' | 'recusada';
+export type SessionStatus = 'rascunho' | 'pendente' | 'confirmada' | 'recusada' | 'terminada';
 
 export interface PublicProfile {
   id: string;
@@ -64,16 +64,22 @@ export interface Music {
 }
 
 // Equipment
-export type EquipmentStatus = 'Disponivel' | 'Em uso' | 'Manutencao' | 'disponivel' | 'em_uso' | 'manutencao';
+export interface KitItem {
+  id: number;
+  nome: string;
+}
 
-export interface Equipment {
-  id: string;
-  name: string;
-  type: string;
-  status: EquipmentStatus;
-  lastResponsible?: User;
-  assignedToSession?: string;
-  notes?: string;
+export interface KitCategoria {
+  id: number;
+  nome: string;
+  itens: KitItem[];
+}
+
+export interface AulaEquipItem {
+  id: number;
+  nome: string;
+  categoria_id: number;
+  categoria_nome: string;
 }
 
 // Notifications
@@ -119,7 +125,6 @@ export interface AulaAPI {
   atividade_nome?: string;
   atividade_id?: number;
   disciplina_nome?: string;
-  equipamento_id?: string;
   equipamento_nome?: string;
   // Trabalho Autónomo
   is_autonomous?: boolean;
@@ -152,7 +157,6 @@ export interface AulaCreate {
   observacoes?: string;
   tipo: string;
   atividade_id?: number | null;
-  equipamento_id?: string | null;
   is_autonomous?: boolean;
   is_realized?: boolean;
   tipo_atividade?: string | null;
@@ -166,4 +170,25 @@ export interface PublicProfileEquipa {
   full_name: string;
   role: string;
   avatar_url?: string;
+}
+
+// Chat
+export interface ChatChannel {
+  id: string;
+  name: string;
+  type: 'channel' | 'dm';
+  created_at: string;
+}
+
+export interface ChatMessage {
+  id: number;
+  channel_id: string;
+  sender_id: string;
+  content: string;
+  created_at: string;
+}
+
+export interface ChatChannelWithMeta extends ChatChannel {
+  unread_count: number;
+  dm_partner?: PublicProfile;
 }

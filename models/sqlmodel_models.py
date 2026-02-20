@@ -62,7 +62,7 @@ class Aula(SQLModel, table=True):
     objetivos: Optional[str] = None
     observacoes: Optional[str] = None
     atividade_id: Optional[int] = None
-    equipamento_id: Optional[str] = None
+
     criado_em: Optional[datetime] = None
     atualizado_em: Optional[datetime] = None
     # Campos para Trabalho Autónomo (Fase 1)
@@ -71,6 +71,9 @@ class Aula(SQLModel, table=True):
     tipo_atividade: Optional[str] = None
     responsavel_user_id: Optional[str] = None
     musica_id: Optional[int] = None
+    # Campos para estado "Terminada"
+    avaliacao: Optional[int] = None
+    obs_termino: Optional[str] = None
 
     turma: Optional[Turma] = Relationship(back_populates="aulas")
     mentor: Optional[Mentor] = Relationship(back_populates="aulas")
@@ -109,7 +112,7 @@ class AulaCreate(SQLModel):
     observacoes: Optional[str] = None
     tipo: str = "pratica_escrita"
     atividade_id: Optional[int] = None
-    equipamento_id: Optional[str] = None
+
     objetivos: Optional[str] = None
     projeto_id: Optional[int] = None
     is_autonomous: bool = False
@@ -130,7 +133,7 @@ class AulaUpdate(SQLModel):
     tipo: Optional[str] = None
     estado: Optional[str] = None
     atividade_id: Optional[int] = None
-    equipamento_id: Optional[str] = None
+
     objetivos: Optional[str] = None
     projeto_id: Optional[int] = None
     is_autonomous: Optional[bool] = None
@@ -154,7 +157,7 @@ class AulaRead(SQLModel):
     objetivos: Optional[str] = None
     observacoes: Optional[str] = None
     atividade_id: Optional[int] = None
-    equipamento_id: Optional[str] = None
+
     criado_em: Optional[datetime] = None
     atualizado_em: Optional[datetime] = None
     is_autonomous: bool = False
@@ -162,6 +165,8 @@ class AulaRead(SQLModel):
     tipo_atividade: Optional[str] = None
     responsavel_user_id: Optional[str] = None
     musica_id: Optional[int] = None
+    avaliacao: Optional[int] = None
+    obs_termino: Optional[str] = None
 
 
 class AulaListItem(SQLModel):
@@ -182,14 +187,17 @@ class AulaListItem(SQLModel):
     mentor_nome: Optional[str] = None
     mentor_user_id: Optional[str] = None
     estabelecimento_nome: Optional[str] = None
+    estabelecimento_sigla: Optional[str] = None
     projeto_nome: Optional[str] = None
     atividade_id: Optional[int] = None
     atividade_nome: Optional[str] = None
     disciplina_nome: Optional[str] = None
-    equipamento_id: Optional[str] = None
+
     equipamento_nome: Optional[str] = None
     is_autonomous: bool = False
     is_realized: bool = False
     tipo_atividade: Optional[str] = None
     responsavel_user_id: Optional[str] = None
     musica_id: Optional[int] = None
+    avaliacao: Optional[int] = None
+    obs_termino: Optional[str] = None

@@ -1,16 +1,26 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ProfileSwitcher } from '@/components/ProfileSwitcher';
 import { NotificationSidebar } from '@/components/notifications/NotificationSidebar';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { LogOut, Bell } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { LogOut, Bell, UserCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
 export function Header() {
   const { user, isAuthenticated } = useProfile();
   const { signOut } = useAuth();
+  const navigate = useNavigate();
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
 
   // Fetch unread count
@@ -50,14 +60,36 @@ export function Header() {
             <p className="text-sm font-medium leading-none">{user.name}</p>
             <p className="text-xs text-muted-foreground capitalize mt-1">{user.role}</p>
           </div>
-          <div className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-medium">
-            {user.name.charAt(0)}
-          </div>
-          {isAuthenticated && (
-            <Button variant="ghost" size="icon" onClick={() => signOut()} title="Sair">
-              <LogOut className="h-4 w-4" />
-            </Button>
-          )}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="h-9 w-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-medium cursor-pointer hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2">
+                {user.avatar ? (
+                  <img src={user.avatar} alt={user.name} className="h-9 w-9 rounded-full object-cover" />
+                ) : (
+                  user.name.charAt(0)
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuLabel>
+                <p className="text-sm font-medium">{user.name}</p>
+                <p className="text-xs text-muted-foreground font-normal">{user.email}</p>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/myspace')} className="cursor-pointer">
+                <UserCircle className="mr-2 h-4 w-4" />
+                A minha Conta
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {isAuthenticated && (
+                <DropdownMenuItem onClick={() => signOut()} className="cursor-pointer text-destructive focus:text-destructive">
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sair
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </header>

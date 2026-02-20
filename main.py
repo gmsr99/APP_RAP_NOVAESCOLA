@@ -20,7 +20,7 @@ import uvicorn
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import os
 
 # Carregar variáveis de ambiente
@@ -28,7 +28,7 @@ load_dotenv()
 
 # Importações dos nossos módulos de serviço
 from services import aula_service
-from auth import get_current_user_optional
+from auth import get_current_user_optional, get_current_user_required
 
 # -----------------------------------------------------------------------------
 # 1. CRIAÇÃO E CONFIGURAÇÃO DA APLICAÇÃO FASTAPI
@@ -143,6 +143,12 @@ async def get_todas_aulas():
         # Em produção, seria melhor ter um tratamento de erros mais robusto
         return {"error": str(e)}
 
+@app.get("/api/aulas/registaveis", tags=["Registos"])
+async def get_sessoes_registaveis(user=Depends(get_current_user_required)):
+    """Sessões confirmadas/realizadas do user ainda sem registo."""
+    user_id = user.get("sub")
+    return registo_service.listar_sessoes_registaveis(user_id)
+
 @app.get("/api/aulas/{aula_id}", tags=["Aulas"])
 async def get_aula_by_id(aula_id: int):
     """
@@ -176,7 +182,6 @@ async def create_aula(aula: AulaCreate):
         objetivos=None,
         observacoes=aula.observacoes,
         atividade_id=aula.atividade_id,
-        equipamento_id=aula.equipamento_id,
         is_autonomous=aula.is_autonomous,
         is_realized=aula.is_realized,
         tipo_atividade=aula.tipo_atividade,
@@ -273,6 +278,18 @@ async def reject_aula(aula_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class TerminarPayload(BaseModel):
+    avaliacao: int = Field(ge=1, le=5)
+    obs_termino: Optional[str] = None
+
+@app.post("/api/aulas/{aula_id}/terminar", tags=["Aulas"])
+async def terminar_aula(aula_id: int, payload: TerminarPayload, user=Depends(get_current_user_required)):
+    """Marca sessão como terminada com avaliação (1-5) e observações."""
+    resultado = aula_service.terminar_aula(aula_id, payload.avaliacao, payload.obs_termino)
+    if resultado.get("ok"):
+        return {"message": "Sessão terminada com sucesso"}
+    raise HTTPException(status_code=400, detail=resultado.get("erro", "Erro ao terminar sessão"))
+
 # --- Rotas para Notificações ---
 
 from auth import get_current_user_required
@@ -324,7 +341,7 @@ async def delete_notification(id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 # --- Rotas para Turmas/Estabelecimentos ---
-from services import turma_service, profile_service, estudio_service, notification_service
+from services import turma_service, profile_service, estudio_service, notification_service, registo_service, aluno_service
 
 @app.get("/api/equipa", tags=["Core"])
 async def get_equipa():
@@ -332,13 +349,69 @@ async def get_equipa():
     return profile_service.listar_perfis()
 
 
+# --- Rota para Perfil / Avatar ---
+
+class AvatarPayload(BaseModel):
+    avatar_url: str
+
+@app.patch("/api/profile/avatar", tags=["Core"])
+async def update_avatar(payload: AvatarPayload, user=Depends(get_current_user_required)):
+    """Atualiza avatar_url na tabela profiles."""
+    from db import get_db_connection
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE profiles SET avatar_url = %s WHERE id = %s",
+            (payload.avatar_url, user["sub"])
+        )
+        conn.commit()
+        cur.close()
+        return {"ok": True}
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
 # --- Rotas para Equipamento ---
 from services import equipment_service
 
-@app.get("/api/equipamento", tags=["Core"])
-async def get_equipamento():
-    """Lista todo o equipamento."""
-    return equipment_service.listar_equipamento()
+@app.get("/api/equipamento/categorias", tags=["Equipamento"])
+async def get_categorias_equipamento():
+    """Lista categorias de equipamento com os seus itens."""
+    return equipment_service.listar_categorias()
+
+@app.get("/api/aulas/{aula_id}/equipamento", tags=["Equipamento"])
+async def get_equipamento_sessao(aula_id: int):
+    """Lista itens de equipamento atribuídos a uma sessão."""
+    return equipment_service.listar_equipamento_sessao(aula_id)
+
+class EquipamentoAtribuir(BaseModel):
+    item_ids: list[int]
+
+@app.put("/api/aulas/{aula_id}/equipamento", tags=["Equipamento"])
+async def put_equipamento_sessao(aula_id: int, payload: EquipamentoAtribuir):
+    """Atribui itens de equipamento a uma sessão."""
+    sucesso = equipment_service.atribuir_equipamento_sessao(aula_id, payload.item_ids)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao atribuir equipamento")
+    return {"message": "Equipamento atribuído"}
+
+class ConflitosVerificar(BaseModel):
+    item_ids: list[int]
+    data_hora: str
+    duracao_minutos: int
+    excluir_aula_id: Optional[int] = None
+
+@app.post("/api/equipamento/verificar-conflitos", tags=["Equipamento"])
+async def verificar_conflitos_equipamento(payload: ConflitosVerificar):
+    """Verifica conflitos temporais de equipamento."""
+    conflitos = equipment_service.verificar_conflitos(
+        payload.item_ids, payload.data_hora, payload.duracao_minutos, payload.excluir_aula_id
+    )
+    return {"conflitos": conflitos, "tem_conflitos": len(conflitos) > 0}
 
 
 
@@ -391,6 +464,22 @@ async def delete_turma(id: int):
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar turma")
     return {"message": "Turma apagada"}
+
+class AlunosUpdate(BaseModel):
+    nomes: list[str]
+
+@app.get("/api/turmas/{turma_id}/alunos", tags=["Core"])
+async def get_alunos_turma(turma_id: int):
+    """Lista os alunos de uma turma."""
+    return aluno_service.listar_alunos_por_turma(turma_id)
+
+@app.put("/api/turmas/{turma_id}/alunos", tags=["Core"])
+async def update_alunos_turma(turma_id: int, payload: AlunosUpdate):
+    """Substitui a lista de alunos de uma turma."""
+    sucesso = aluno_service.definir_alunos_turma(turma_id, payload.nomes)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao atualizar alunos")
+    return {"message": "Alunos atualizados"}
 
 @app.get("/api/mentores", tags=["Core"])
 async def get_mentores():
@@ -466,6 +555,65 @@ async def arquivar_musica(musica_id: int):
     if not sucesso:
         raise HTTPException(status_code=400, detail=mensagem)
     return {"message": mensagem}
+
+# -----------------------------------------------------------------------------
+# Endpoints de Registos de Sessão
+# -----------------------------------------------------------------------------
+
+@app.get("/api/registos", tags=["Registos"])
+async def get_registos(user=Depends(get_current_user_required)):
+    """Lista registos do user autenticado."""
+    user_id = user.get("sub")
+    return registo_service.listar_registos(user_id)
+
+@app.get("/api/registos/todos", tags=["Registos"])
+async def get_todos_registos(user=Depends(get_current_user_required)):
+    """Lista todos os registos (para coordenadores)."""
+    return registo_service.listar_registos()
+
+class RegistoCreate(BaseModel):
+    aula_id: int
+    numero_sessao: Optional[str] = None
+    objetivos_gerais: Optional[str] = None
+    sumario: Optional[str] = None
+    participantes: Optional[list] = None
+    atividade: Optional[str] = None
+    data_registo: Optional[str] = None
+    local_registo: Optional[str] = None
+    horario: Optional[str] = None
+    tecnicos: Optional[str] = None
+
+@app.post("/api/registos", tags=["Registos"])
+async def create_registo(registo: RegistoCreate, user=Depends(get_current_user_required)):
+    """Cria um registo de sessão."""
+    user_id = user.get("sub")
+    resultado = registo_service.criar_registo(
+        aula_id=registo.aula_id,
+        user_id=user_id,
+        numero_sessao=registo.numero_sessao,
+        objetivos_gerais=registo.objetivos_gerais,
+        sumario=registo.sumario,
+        participantes=registo.participantes,
+        atividade=registo.atividade,
+        data_registo=registo.data_registo,
+        local_registo=registo.local_registo,
+        horario=registo.horario,
+        tecnicos=registo.tecnicos,
+    )
+    if not resultado:
+        raise HTTPException(status_code=500, detail="Erro ao criar registo. Verifica se a migração 002_registos.sql foi executada.")
+    return resultado
+
+@app.delete("/api/registos/{registo_id}", tags=["Registos"])
+async def delete_registo(registo_id: int, user=Depends(get_current_user_required)):
+    """Apaga um registo (devolve sessão ao dropdown)."""
+    user_id = user.get("sub")
+    sucesso = registo_service.apagar_registo(registo_id, user_id)
+    if not sucesso:
+        raise HTTPException(status_code=404, detail="Registo não encontrado ou erro ao apagar")
+    return {"message": "Registo apagado com sucesso"}
+
+# -----------------------------------------------------------------------------
 
 @app.patch("/api/musicas/{musica_id}/desarquivar", tags=["Producao"])
 async def desarquivar_musica(musica_id: int):
@@ -580,6 +728,40 @@ async def delete_atividade(id: int):
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar atividade")
     return {"message": "Atividade removida"}
+
+# -----------------------------------------------------------------------------
+# Endpoints de Chat
+# -----------------------------------------------------------------------------
+from services import chat_service
+
+class ChatNotifyPayload(BaseModel):
+    channel_id: str
+
+@app.post("/api/chat/notify", tags=["Chat"])
+async def chat_notify(payload: ChatNotifyPayload, user=Depends(get_current_user_required)):
+    """Cria notificacao singleton para membros do canal (exceto sender)."""
+    sender_id = user.get("sub")
+    chat_service.notificar_mensagem_chat(payload.channel_id, sender_id)
+    return {"ok": True}
+
+@app.post("/api/chat/mark-read", tags=["Chat"])
+async def chat_mark_read(user=Depends(get_current_user_required)):
+    """Marca a notificacao chat_unread como lida para o user."""
+    user_id = user.get("sub")
+    chat_service.marcar_chat_notificacao_lida(user_id)
+    return {"ok": True}
+
+class DMPayload(BaseModel):
+    other_user_id: str
+
+@app.post("/api/chat/dm", tags=["Chat"])
+async def get_or_create_dm(payload: DMPayload, user=Depends(get_current_user_required)):
+    """Obtem ou cria um canal DM entre o user e outro."""
+    user_id = user.get("sub")
+    result = chat_service.obter_ou_criar_dm(user_id, payload.other_user_id)
+    if not result:
+        raise HTTPException(status_code=500, detail="Erro ao criar DM")
+    return result
 
 # -----------------------------------------------------------------------------
 # 3. PONTO DE ENTRADA PARA ARRANCAR O SERVIDOR

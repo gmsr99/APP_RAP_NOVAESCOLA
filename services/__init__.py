@@ -32,9 +32,15 @@ if __name__ == "__main__":
 # Importar services para facilitar uso
 from . import aula_service
 from . import confirmacao_service
+from . import registo_service
+from . import aluno_service
+from . import chat_service
 
 # Permitir importação direta
 __all__ = [
     'aula_service',
-    'confirmacao_service'
+    'confirmacao_service',
+    'registo_service',
+    'aluno_service',
+    'chat_service',
 ]
