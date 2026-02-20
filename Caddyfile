@@ -1,0 +1,22 @@
+srv1180212.hstgr.cloud {
+    reverse_proxy backend:8000
+    
+    # Handle preflight CORS requests globally
+    @options {
+        method OPTIONS
+    }
+    respond @options 204
+    
+    # Headers
+    header {
+        Cache-Control "no-cache, no-store, must-revalidate"
+        Pragma "no-cache"
+        Expires "0"
+        
+        # Access-Control headers for the frontend to be able to use the API
+        Access-Control-Allow-Origin "https://app-rap-novaescola.vercel.app"
+        Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        Access-Control-Allow-Headers "Origin, Content-Type, Accept, Authorization, X-Requested-With"
+        Access-Control-Max-Age "3600"
+    }
+}

@@ -4,8 +4,24 @@ services:
   backend:
     build: .
     container_name: rapnova_backend
-    ports:
-      - "8000:8000"
     restart: always
     env_file:
       - .env
+
+  caddy:
+    image: caddy:latest
+    container_name: caddy_proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+
+volumes:
+  caddy_data:
+  caddy_config:
