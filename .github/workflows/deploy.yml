@@ -1,0 +1,32 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }} # Optional, remove if your key has no passphrase
+          port: ${{ secrets.VPS_PORT || '22' }}
+          script: |
+            # Navigate to the project directory
+            # Make sure this path matches the location of your project on the VPS
+            cd /path/to/your/project/APP_RAP_NOVAESCOLA
+            
+            # Pull latest changes from git
+            git fetch --all
+            git reset --hard origin/main
+            
+            # Rebuild and restart the container
+            docker-compose down
+            docker-compose up -d --build
