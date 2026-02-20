@@ -20,13 +20,12 @@ jobs:
           port: ${{ secrets.VPS_PORT || '22' }}
           script: |
             # Navigate to the project directory
-            # Make sure this path matches the location of your project on the VPS
-            cd /path/to/your/project/APP_RAP_NOVAESCOLA
+            cd /root/app_rap_nova_escola
             
             # Pull latest changes from git
             git fetch --all
             git reset --hard origin/main
             
             # Rebuild and restart the container
-            docker-compose down
-            docker-compose up -d --build
+            docker compose down
+            docker compose up -d --build
