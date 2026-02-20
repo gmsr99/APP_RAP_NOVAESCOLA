@@ -14,7 +14,7 @@ srv1180212.hstgr.cloud {
         Expires "0"
         
         # Access-Control headers for the frontend to be able to use the API
-        Access-Control-Allow-Origin "https://app-rap-novaescola.vercel.app"
+        Access-Control-Allow-Origin "{http.request.header.Origin}"
         Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
         Access-Control-Allow-Headers "Origin, Content-Type, Accept, Authorization, X-Requested-With"
         Access-Control-Max-Age "3600"
