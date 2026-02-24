@@ -54,7 +54,7 @@ origins = [
 # Isto é crucial para que o frontend possa comunicar com o backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"], # Permitir todas as origens na API (o caddy trata de restringir publicamente)
     allow_credentials=True,
     allow_methods=["*"],  # Permite todos os métodos (GET, POST, PUT, etc)
     allow_headers=["*"],  # Permite todos os cabeçalhos
