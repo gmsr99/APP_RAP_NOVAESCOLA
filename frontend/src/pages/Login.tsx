@@ -32,9 +32,9 @@ export default function Login() {
     setLoading(true);
 
     try {
-      if (isSignUp && role === 'coordenador') {
+      if (isSignUp && (role === 'coordenador' || role === 'direcao')) {
         if (token !== 'RNE2026') {
-          throw new Error('Token de validação inválido para Coordenador.');
+          throw new Error('Token de validação inválido.');
         }
       }
 
@@ -102,11 +102,12 @@ export default function Login() {
                       <SelectItem value="produtor">Produtor</SelectItem>
                       <SelectItem value="mentor_produtor">Mentor & Produtor</SelectItem>
                       <SelectItem value="coordenador">Coordenador</SelectItem>
+                      <SelectItem value="direcao">Direção</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                {role === 'coordenador' && (
+                {(role === 'coordenador' || role === 'direcao') && (
                   <div className="space-y-2">
                     <Label htmlFor="token" className="text-primary font-bold">Token de Validação</Label>
                     <Input
@@ -117,7 +118,7 @@ export default function Login() {
                       onChange={(e) => setToken(e.target.value)}
                       required
                     />
-                    <p className="text-xs text-muted-foreground">Necessário para criar conta de Coordenador.</p>
+                    <p className="text-xs text-muted-foreground">Necessário para criar conta de {role === 'direcao' ? 'Direção' : 'Coordenador'}.</p>
                   </div>
                 )}
               </>

@@ -260,7 +260,7 @@ def _check_session_permission(user: dict, aula_info: dict):
     # Check if user is coordinator
     perfis = profile_service.listar_perfis()
     user_profile = next((p for p in perfis if p.get("id") == user_id), None)
-    if user_profile and user_profile.get("role") == "coordenador":
+    if user_profile and user_profile.get("role") in ("coordenador", "direcao"):
         return True
     # For regular sessions: check if user is the assigned mentor
     if not aula_info.get("is_autonomous"):
@@ -622,6 +622,25 @@ async def get_todos_registos(user=Depends(get_current_user_required)):
     """Lista todos os registos (para coordenadores)."""
     return registo_service.listar_registos()
 
+@app.get("/api/registos/export", tags=["Registos"])
+async def export_registos(
+    data_inicio: str,
+    data_fim: str,
+    user_ids: Optional[str] = None,
+    estabelecimento_ids: Optional[str] = None,
+    user=Depends(get_current_user_required),
+):
+    """Exporta registos filtrados (para direção/coordenadores)."""
+    from services import profile_service
+    user_id = user.get("sub")
+    perfis = profile_service.listar_perfis()
+    user_profile = next((p for p in perfis if p.get("id") == user_id), None)
+    if not user_profile or user_profile.get("role") not in ("coordenador", "direcao"):
+        raise HTTPException(status_code=403, detail="Sem permissão para exportar registos.")
+    user_id_list = [uid.strip() for uid in user_ids.split(",")] if user_ids else None
+    estab_id_list = [int(eid.strip()) for eid in estabelecimento_ids.split(",")] if estabelecimento_ids else None
+    return registo_service.listar_registos_export(data_inicio, data_fim, user_id_list, estab_id_list)
+
 class RegistoCreate(BaseModel):
     aula_id: int
     numero_sessao: Optional[str] = None
@@ -730,7 +749,7 @@ async def get_my_mentor(user=Depends(get_current_user_required)):
     user_id = user.get("sub")
     mentor = turma_service.obter_mentor_por_user_id(user_id)
     if not mentor:
-        raise HTTPException(status_code=404, detail="Mentor não encontrado para este utilizador.")
+        return {"id": None, "latitude": None, "longitude": None, "morada": None}
     return mentor
 
 

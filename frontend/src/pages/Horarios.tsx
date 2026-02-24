@@ -125,6 +125,7 @@ const EquipamentoView = ({ aulaId }: { aulaId: number }) => {
 
 const Horarios = () => {
   const { profile } = useProfile();
+  const isAdmin = profile === 'coordenador' || profile === 'direcao';
   const { user } = useAuth(); // Get current user
   const [filterMode, setFilterMode] = useState<'all' | 'mine'>(profile === 'mentor' ? 'mine' : 'all');
   const [currentWeek, setCurrentWeek] = useState(new Date());
@@ -565,9 +566,19 @@ const Horarios = () => {
     // Aba "Aula / Evento"
     const dateStr = (document.getElementById('date') as HTMLInputElement)?.value;
     const timeStr = (document.getElementById('time') as HTMLInputElement)?.value;
+    const timeEndStr = (document.getElementById('time-end') as HTMLInputElement)?.value;
 
-    if (!dateStr || !timeStr) {
-      toast.error("Data e Hora são obrigatórios");
+    if (!dateStr || !timeStr || !timeEndStr) {
+      toast.error("Data, Hora de início e Hora de fim são obrigatórios");
+      return;
+    }
+
+    // Calculate duration from start and end times
+    const [startH, startM] = timeStr.split(':').map(Number);
+    const [endH, endM] = timeEndStr.split(':').map(Number);
+    const duracao = (endH * 60 + endM) - (startH * 60 + startM);
+    if (duracao <= 0) {
+      toast.error("A hora de fim deve ser posterior à hora de início");
       return;
     }
 
@@ -581,7 +592,7 @@ const Horarios = () => {
     const payload: AulaCreate = {
       turma_id: Number(formData.turma_id),
       data_hora: finalDateTime,
-      duracao_minutos: Number(formData.duracao_minutos),
+      duracao_minutos: duracao,
       mentor_id: formData.mentor_id ? Number(formData.mentor_id) : null,
       local: formData.local,
       tema: formData.tema || '',
@@ -620,7 +631,7 @@ const Horarios = () => {
             Gere sessões e acompanha confirmações.
           </p>
         </div>
-        {profile === 'coordenador' && (
+        {isAdmin && (
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={handleOpenCreate}>
@@ -654,42 +665,35 @@ const Horarios = () => {
                   {/* ── Tab: Aula / Evento ── */}
                   <TabsContent value="aula">
                     <div className="grid gap-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="date">Data</Label>
+                        <Input id="date" type="date" />
+                      </div>
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="date">Data</Label>
-                          <Input id="date" type="date" />
-                        </div>
                         <div className="space-y-2">
                           <Label htmlFor="time">Hora de início</Label>
                           <Input id="time" type="time" />
                         </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="time-end">Hora de fim</Label>
+                          <Input id="time-end" type="time" />
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="duration">Duração (min)</Label>
-                          <Input
-                            id="duration"
-                            type="number"
-                            value={formData.duracao_minutos}
-                            onChange={(e) => setFormData({ ...formData, duracao_minutos: Number(e.target.value) })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="turma">Turma</Label>
-                          <Select
-                            value={formData.turma_id ? String(formData.turma_id) : undefined}
-                            onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
-                          >
-                            <SelectTrigger id="turma">
-                              <SelectValue placeholder="Selecionar Turma" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-popover">
-                              {turmas?.map((t) => (
-                                <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="turma">Turma</Label>
+                        <Select
+                          value={formData.turma_id ? String(formData.turma_id) : undefined}
+                          onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
+                        >
+                          <SelectTrigger id="turma">
+                            <SelectValue placeholder="Selecionar Turma" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            {turmas?.map((t) => (
+                              <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="mentor">Mentor</Label>
@@ -962,15 +966,15 @@ const Horarios = () => {
               {/* Formulário de edição (sem tabs) */}
               {editingSession && (
                 <div className="grid gap-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="date">Data</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      defaultValue={format(new Date(editingSession.data_hora), 'yyyy-MM-dd')}
+                    />
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="date">Data</Label>
-                      <Input
-                        id="date"
-                        type="date"
-                        defaultValue={format(new Date(editingSession.data_hora), 'yyyy-MM-dd')}
-                      />
-                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="time">Hora de início</Label>
                       <Input
@@ -979,33 +983,30 @@ const Horarios = () => {
                         defaultValue={format(new Date(editingSession.data_hora), 'HH:mm')}
                       />
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="duration">Duração (min)</Label>
+                      <Label htmlFor="time-end">Hora de fim</Label>
                       <Input
-                        id="duration"
-                        type="number"
-                        value={formData.duracao_minutos}
-                        onChange={(e) => setFormData({ ...formData, duracao_minutos: Number(e.target.value) })}
+                        id="time-end"
+                        type="time"
+                        defaultValue={format(addMinutes(new Date(editingSession.data_hora), editingSession.duracao_minutos), 'HH:mm')}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="turma">Turma</Label>
-                      <Select
-                        value={formData.turma_id ? String(formData.turma_id) : undefined}
-                        onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
-                      >
-                        <SelectTrigger id="turma">
-                          <SelectValue placeholder="Selecionar Turma" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-popover">
-                          {turmas?.map((t) => (
-                            <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="turma">Turma</Label>
+                    <Select
+                      value={formData.turma_id ? String(formData.turma_id) : undefined}
+                      onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
+                    >
+                      <SelectTrigger id="turma">
+                        <SelectValue placeholder="Selecionar Turma" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover">
+                        {turmas?.map((t) => (
+                          <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="mentor">Mentor</Label>
@@ -1228,10 +1229,10 @@ const Horarios = () => {
                     </p>
                   </div>
                   <div className="bg-card rounded-b-lg relative border border-t-0 border-border h-[800px] overflow-hidden">
-                    {/* Grid lines for hours (optional, simplified) */}
+                    {/* Grid lines for hours 07:00–21:00 (14 hours) */}
                     <div className="absolute inset-0 pointer-events-none">
-                      {Array.from({ length: 24 }).map((_, i) => (
-                        <div key={i} className="border-t border-border/20 h-[4.16%] w-full" />
+                      {Array.from({ length: 14 }).map((_, i) => (
+                        <div key={i} className="border-t border-border/20 w-full" style={{ height: `${100 / 14}%` }} />
                       ))}
                     </div>
 
@@ -1271,7 +1272,7 @@ const Horarios = () => {
                           >
                             <div className="font-bold flex justify-between items-center">
                               <span>{format(event.start, 'HH:mm')} – {format(event.end, 'HH:mm')}</span>
-                              {profile === 'coordenador' && !isAutonomous && (
+                              {isAdmin && !isAutonomous && (
                                 <Edit2
                                   className="h-3 w-3 opacity-50 hover:opacity-100 cursor-pointer"
                                   onClick={(e) => { e.stopPropagation(); handleOpenEdit(event); }}
@@ -1446,7 +1447,7 @@ const Horarios = () => {
                           </div>
                         </div>
                       </div>
-                      {profile === 'coordenador' && (
+                      {isAdmin && (
                         <div className="flex gap-2">
                           <Button variant="outline" size="sm" onClick={() => handleOpenEdit(session)}>
                             <Edit2 className="h-3 w-3 mr-1" />
@@ -1600,7 +1601,7 @@ const Horarios = () => {
               const isOwnSession = viewSession.is_autonomous
                 ? viewSession.responsavel_user_id === user?.id
                 : viewSession.mentor_user_id === user?.id;
-              const isOtherUser = profile === 'coordenador' && !isOwnSession;
+              const isOtherUser = isAdmin && !isOwnSession;
 
               const handleWithConfirmation = (action: () => void) => {
                 if (isOtherUser) {
@@ -1621,7 +1622,7 @@ const Horarios = () => {
                 <>
                   {/* Botão Confirmar — sessões pendentes (mentor atribuído ou coordenador) */}
                   {viewSession.estado === 'pendente' && !viewSession.is_autonomous &&
-                    (profile === 'coordenador' || isOwnSession) && (
+                    (isAdmin || isOwnSession) && (
                     <Button
                       onClick={() => handleWithConfirmation(() => confirmMutation.mutate(viewSession.id))}
                       disabled={confirmMutation.isPending}
@@ -1633,7 +1634,7 @@ const Horarios = () => {
                   )}
                   {/* Botão Marcar como Realizado — trabalho autónomo planeado (responsável ou coordenador) */}
                   {viewSession.is_autonomous && !viewSession.is_realized &&
-                    (profile === 'coordenador' || isOwnSession) && (
+                    (isAdmin || isOwnSession) && (
                     <Button
                       onClick={() => handleWithConfirmation(() => realizeMutation.mutate(viewSession.id))}
                       disabled={realizeMutation.isPending}
@@ -1645,7 +1646,7 @@ const Horarios = () => {
                   )}
                   {/* Botão Terminar — sessões confirmadas presenciais cuja hora já passou (mentor ou coordenador) */}
                   {viewSession.estado === 'confirmada' && !viewSession.is_autonomous && new Date(viewSession.data_hora) <= new Date() &&
-                    (profile === 'coordenador' || isOwnSession) && (
+                    (isAdmin || isOwnSession) && (
                     <Button
                       onClick={() => handleWithConfirmation(() => { setIsDetailOpen(false); openTerminarModal(viewSession.id); })}
                       className={greyClass}
@@ -1654,7 +1655,7 @@ const Horarios = () => {
                       Terminar Sessão
                     </Button>
                   )}
-                  {profile === 'coordenador' && (
+                  {isAdmin && (
                     <Button onClick={() => { setIsDetailOpen(false); handleOpenEdit(viewSession); }} variant="outline" className="w-full sm:w-auto">
                       <Edit2 className="w-4 h-4 mr-2" />
                       Editar Sessão

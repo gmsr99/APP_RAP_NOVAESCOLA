@@ -93,15 +93,21 @@ export function computeEventLayout<T extends CalendarEvent>(events: T[]): (T & L
         for (const event of cluster) {
             const colIndex = (event as any).__colIndex;
 
-            // Calculate top and height based on 00:00 - 24:00 (1440 minutes)
-            // Or we can make this configurable. For now assume 24h.
+            // Calculate top and height based on 07:00 - 21:00 (840 minutes)
+            const START_HOUR = 7;
+            const END_HOUR = 21;
+            const TOTAL_MINUTES = (END_HOUR - START_HOUR) * 60; // 840
             const startOfDayTime = startOfDay(event.start);
-            const startMinutes = differenceInMinutes(event.start, startOfDayTime);
+            const startMinutes = differenceInMinutes(event.start, startOfDayTime) - START_HOUR * 60;
             const durationMinutes = differenceInMinutes(event.end, event.start);
 
-            // Top: (minutes from midnight) / 1440 * 100
-            const top = (startMinutes / 1440) * 100;
-            const height = (durationMinutes / 1440) * 100;
+            // Clamp to visible range
+            const clampedStart = Math.max(0, startMinutes);
+            const clampedEnd = Math.min(TOTAL_MINUTES, startMinutes + durationMinutes);
+            const clampedDuration = Math.max(0, clampedEnd - clampedStart);
+
+            const top = (clampedStart / TOTAL_MINUTES) * 100;
+            const height = (clampedDuration / TOTAL_MINUTES) * 100;
 
             layoutEvents.push({
                 ...event,

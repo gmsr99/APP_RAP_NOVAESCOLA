@@ -261,6 +261,101 @@ def criar_registo(
         return None
 
 
+def listar_registos_export(
+    data_inicio: str,
+    data_fim: str,
+    user_ids: Optional[List[str]] = None,
+    estabelecimento_ids: Optional[List[int]] = None,
+) -> List[Dict[str, Any]]:
+    """Lista registos para exportação com filtros de data, users e estabelecimentos."""
+    conditions = [
+        "r.data_registo IS NOT NULL",
+        "r.data_registo != ''",
+        "TO_DATE(r.data_registo, 'DD/MM/YYYY') >= TO_DATE(:data_inicio, 'YYYY-MM-DD')",
+        "TO_DATE(r.data_registo, 'DD/MM/YYYY') <= TO_DATE(:data_fim, 'YYYY-MM-DD')",
+    ]
+    params: Dict[str, Any] = {"data_inicio": data_inicio, "data_fim": data_fim}
+
+    if user_ids:
+        conditions.append("r.user_id = ANY(:user_ids)")
+        params["user_ids"] = user_ids
+    if estabelecimento_ids:
+        conditions.append("e.id = ANY(:estab_ids)")
+        params["estab_ids"] = estabelecimento_ids
+
+    where = "WHERE " + " AND ".join(conditions)
+
+    sql = text(f"""
+        SELECT
+            r.data_registo,
+            r.atividade,
+            r.kms_percorridos,
+            r.horario,
+            a.data_hora,
+            a.duracao_minutos,
+            a.is_autonomous,
+            a.tipo_atividade,
+            t.nome          AS turma_nome,
+            e.nome          AS estabelecimento_nome,
+            p.full_name     AS pessoa
+        FROM registos r
+        JOIN aulas a              ON r.aula_id = a.id
+        LEFT JOIN turmas t        ON a.turma_id = t.id
+        LEFT JOIN estabelecimentos e ON t.estabelecimento_id = e.id
+        LEFT JOIN mentores m      ON a.mentor_id = m.id
+        LEFT JOIN profiles p      ON r.user_id = CAST(p.id AS TEXT)
+        {where}
+        ORDER BY r.data_registo ASC, p.full_name ASC
+    """)
+
+    try:
+        with Session(engine) as session:
+            rows = session.exec(sql, params=params).all()
+
+        result = []
+        for row in rows:
+            # Extract start/end times from horario field or from data_hora + duracao
+            hora_inicio = ""
+            hora_fim = ""
+            duracao_horas = ""
+            if row.horario:
+                # horario format: "Das XXhXXm às XXhXXm"
+                import re
+                match = re.findall(r'(\d{1,2})h(\d{2})', row.horario)
+                if len(match) >= 2:
+                    hora_inicio = f"{int(match[0][0]):02d}:{match[0][1]}"
+                    hora_fim = f"{int(match[1][0]):02d}:{match[1][1]}"
+            if not hora_inicio and row.data_hora:
+                dt = row.data_hora if isinstance(row.data_hora, datetime) else datetime.fromisoformat(str(row.data_hora))
+                hora_inicio = dt.strftime("%H:%M")
+                if row.duracao_minutos:
+                    from datetime import timedelta
+                    end = dt + timedelta(minutes=row.duracao_minutos)
+                    hora_fim = end.strftime("%H:%M")
+            if row.duracao_minutos:
+                h = row.duracao_minutos / 60
+                duracao_horas = f"{h:.1f}"
+
+            atividade = row.atividade or row.tipo_atividade or ""
+
+            result.append({
+                "data": row.data_registo or "",
+                "pessoa": row.pessoa or "",
+                "inicio": hora_inicio,
+                "fim": hora_fim,
+                "horas": duracao_horas,
+                "kms": float(row.kms_percorridos) if row.kms_percorridos is not None else "",
+                "o_que": atividade,
+                "onde": row.estabelecimento_nome or "",
+                "turma": row.turma_nome or "",
+            })
+        return result
+
+    except Exception as e:
+        print(f"❌ Erro ao exportar registos: {e}")
+        return []
+
+
 def apagar_registo(registo_id: int, user_id: str) -> bool:
     """Apaga um registo (apenas se pertence ao user)."""
     sql = text("""

@@ -32,6 +32,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
+import * as XLSX from 'xlsx';
 import {
   ClipboardList,
   Calendar,
@@ -45,6 +48,7 @@ import {
   X,
   Music2,
   User as UserIcon,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { format, parseISO, addMinutes } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -324,7 +328,7 @@ const Registos = () => {
     },
   });
 
-  const isCoord = profile === 'coordenador';
+  const isCoord = profile === 'coordenador' || profile === 'direcao';
 
   const { data: todosRegistos = [] } = useQuery({
     queryKey: ['registos-todos'],
@@ -334,6 +338,88 @@ const Registos = () => {
     },
     enabled: isCoord,
   });
+
+  // ─── Export XLS (Direção) ───────────────────────────────────────────────
+
+  const isDirecao = profile === 'direcao';
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportDataInicio, setExportDataInicio] = useState('');
+  const [exportDataFim, setExportDataFim] = useState('');
+  const [exportAllUsers, setExportAllUsers] = useState(true);
+  const [exportSelectedUsers, setExportSelectedUsers] = useState<string[]>([]);
+  const [exportAllEstabs, setExportAllEstabs] = useState(true);
+  const [exportSelectedEstabs, setExportSelectedEstabs] = useState<number[]>([]);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const { data: equipaList = [] } = useQuery<{ id: string; full_name: string }[]>({
+    queryKey: ['equipa-export'],
+    queryFn: async () => {
+      const res = await api.get('/api/equipa');
+      return (res.data as any[]).map((p: any) => ({ id: p.id, full_name: p.full_name }));
+    },
+    enabled: isDirecao && exportModalOpen,
+  });
+
+  const { data: estabList = [] } = useQuery<{ id: number; nome: string }[]>({
+    queryKey: ['estabelecimentos-export'],
+    queryFn: async () => {
+      const res = await api.get('/api/estabelecimentos');
+      return (res.data as any[]).map((e: any) => ({ id: e.id, nome: e.nome }));
+    },
+    enabled: isDirecao && exportModalOpen,
+  });
+
+  const handleExportXls = async () => {
+    if (!exportDataInicio || !exportDataFim) {
+      toast({ title: 'Erro', description: 'Preenche as datas de início e fim.', variant: 'destructive' });
+      return;
+    }
+    setExportLoading(true);
+    try {
+      const params = new URLSearchParams({
+        data_inicio: exportDataInicio,
+        data_fim: exportDataFim,
+      });
+      if (!exportAllUsers && exportSelectedUsers.length > 0) {
+        params.set('user_ids', exportSelectedUsers.join(','));
+      }
+      if (!exportAllEstabs && exportSelectedEstabs.length > 0) {
+        params.set('estabelecimento_ids', exportSelectedEstabs.join(','));
+      }
+      const res = await api.get(`/api/registos/export?${params.toString()}`);
+      const data = res.data as any[];
+
+      if (data.length === 0) {
+        toast({ title: 'Sem resultados', description: 'Nenhum registo encontrado com os filtros selecionados.' });
+        setExportLoading(false);
+        return;
+      }
+
+      const rows = data.map((r: any) => ({
+        'DATA': r.data || '',
+        'PESSOA': r.pessoa || '',
+        'INÍCIO': r.inicio || '',
+        'FIM': r.fim || '',
+        'HORAS': r.horas || '',
+        'KMS': r.kms ?? '',
+        'O QUÊ': r.o_que || '',
+        'ONDE?': r.onde || '',
+        'TURMA?': r.turma || '',
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Registos');
+      XLSX.writeFile(wb, `registos_${exportDataInicio}_${exportDataFim}.xlsx`);
+
+      toast({ title: 'Exportado', description: `${data.length} registos exportados com sucesso.` });
+      setExportModalOpen(false);
+    } catch (err) {
+      toast({ title: 'Erro', description: 'Falha ao exportar registos.', variant: 'destructive' });
+    } finally {
+      setExportLoading(false);
+    }
+  };
 
   // ─── Mutations ──────────────────────────────────────────────────────────
 
@@ -650,9 +736,17 @@ const Registos = () => {
           />
         </TabsContent>
 
-        {/* Tab 2 — Todos os Registos (coordenador) */}
+        {/* Tab 2 — Todos os Registos (coordenador/direção) */}
         {isCoord && (
           <TabsContent value="todos">
+            {isDirecao && (
+              <div className="flex justify-end mb-4">
+                <Button variant="outline" onClick={() => setExportModalOpen(true)}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  Exportar Registos
+                </Button>
+              </div>
+            )}
             <TodosRegistosAccordion
               registos={todosRegistos}
               onReExport={handleReExportPdf}
@@ -660,6 +754,115 @@ const Registos = () => {
           </TabsContent>
         )}
       </Tabs>
+
+      {/* ─── Modal: Export XLS ──────────────────────────────────────────── */}
+      <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-primary" />
+              Exportar Registos
+            </DialogTitle>
+            <DialogDescription>
+              Define os filtros e exporta os registos em formato Excel.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 py-2">
+            {/* Date range */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Data Início</Label>
+                <Input type="date" value={exportDataInicio} onChange={e => setExportDataInicio(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Data Fim</Label>
+                <Input type="date" value={exportDataFim} onChange={e => setExportDataFim(e.target.value)} />
+              </div>
+            </div>
+
+            {/* Users filter */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Utilizadores</Label>
+              <div className="flex items-center gap-2 mb-2">
+                <Checkbox
+                  id="all-users"
+                  checked={exportAllUsers}
+                  onCheckedChange={(checked) => {
+                    setExportAllUsers(!!checked);
+                    if (checked) setExportSelectedUsers([]);
+                  }}
+                />
+                <label htmlFor="all-users" className="text-sm cursor-pointer">Todos</label>
+              </div>
+              {!exportAllUsers && (
+                <ScrollArea className="h-36 border rounded-md p-2">
+                  <div className="space-y-1">
+                    {equipaList.map(u => (
+                      <div key={u.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`user-${u.id}`}
+                          checked={exportSelectedUsers.includes(u.id)}
+                          onCheckedChange={(checked) => {
+                            setExportSelectedUsers(prev =>
+                              checked ? [...prev, u.id] : prev.filter(id => id !== u.id)
+                            );
+                          }}
+                        />
+                        <label htmlFor={`user-${u.id}`} className="text-sm cursor-pointer">{u.full_name}</label>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+
+            {/* Establishments filter */}
+            <div className="space-y-2">
+              <Label className="text-xs text-muted-foreground">Estabelecimentos</Label>
+              <div className="flex items-center gap-2 mb-2">
+                <Checkbox
+                  id="all-estabs"
+                  checked={exportAllEstabs}
+                  onCheckedChange={(checked) => {
+                    setExportAllEstabs(!!checked);
+                    if (checked) setExportSelectedEstabs([]);
+                  }}
+                />
+                <label htmlFor="all-estabs" className="text-sm cursor-pointer">Todos</label>
+              </div>
+              {!exportAllEstabs && (
+                <ScrollArea className="h-36 border rounded-md p-2">
+                  <div className="space-y-1">
+                    {estabList.map(e => (
+                      <div key={e.id} className="flex items-center gap-2">
+                        <Checkbox
+                          id={`estab-${e.id}`}
+                          checked={exportSelectedEstabs.includes(e.id)}
+                          onCheckedChange={(checked) => {
+                            setExportSelectedEstabs(prev =>
+                              checked ? [...prev, e.id] : prev.filter(id => id !== e.id)
+                            );
+                          }}
+                        />
+                        <label htmlFor={`estab-${e.id}`} className="text-sm cursor-pointer">{e.nome}</label>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportModalOpen(false)}>Cancelar</Button>
+            <Button onClick={handleExportXls} disabled={exportLoading}>
+              <Download className="h-4 w-4 mr-2" />
+              {exportLoading ? 'A exportar...' : 'Exportar Excel'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ─── Modal: fill form + export PDF ─────────────────────────────── */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
