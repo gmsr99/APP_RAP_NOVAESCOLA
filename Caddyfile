@@ -1,22 +1,20 @@
 srv1180212.hstgr.cloud {
     reverse_proxy backend:8000
     
-    # Handle preflight CORS requests globally
-    @options {
-        method OPTIONS
-    }
-    respond @options 204
-    
-    # Headers
+    # Headers gerais (sem duplicar cors, o FastAPI trata disso em /api)
     header {
         Cache-Control "no-cache, no-store, must-revalidate"
         Pragma "no-cache"
         Expires "0"
-        
-        # Access-Control headers for the frontend to be able to use the API
-        Access-Control-Allow-Origin "{http.request.header.Origin}"
-        Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
-        Access-Control-Allow-Headers "Origin, Content-Type, Accept, Authorization, X-Requested-With"
-        Access-Control-Max-Age "3600"
+    }
+}
+
+# Configuração para o n8n
+n8n.srv1180212.hstgr.cloud {
+    # Aponta para o IP do host docker na gateway padrão onde a porta 5678 está exposta
+    reverse_proxy 172.17.0.1:5678 {
+        # Configurações recomendadas para WebSocket (usado pelo n8n)
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
     }
 }

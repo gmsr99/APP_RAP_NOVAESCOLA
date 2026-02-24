@@ -41,20 +41,20 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Definir as origens que podem fazer pedidos à nossa API
-# Durante o desenvolvimento, o servidor do React (Vite) corre em localhost:5173
+# Definir as origens estáticas que podem fazer pedidos à nossa API
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
+    "https://app-rap-novaescola.vercel.app"
 ]
 
 # Adicionar o middleware de CORS à aplicação
-# Isto é crucial para que o frontend possa comunicar com o backend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Permitir todas as origens na API (o caddy trata de restringir publicamente)
+    allow_origins=origins,
+    allow_origin_regex=r"https://app-rap-novaescola.*\.vercel\.app", # Permite branches de preview dinâmicos
     allow_credentials=True,
     allow_methods=["*"],  # Permite todos os métodos (GET, POST, PUT, etc)
     allow_headers=["*"],  # Permite todos os cabeçalhos
