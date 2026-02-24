@@ -65,10 +65,10 @@ def listar_estabelecimentos():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        cur.execute("SELECT id, nome, sigla FROM estabelecimentos ORDER BY nome;")
+        cur.execute("SELECT id, nome, sigla, morada, latitude, longitude FROM estabelecimentos ORDER BY nome;")
         resultados = cur.fetchall()
-        
-        return [{'id': r[0], 'nome': r[1], 'sigla': r[2] or ''} for r in resultados]
+
+        return [{'id': r[0], 'nome': r[1], 'sigla': r[2] or '', 'morada': r[3], 'latitude': r[4], 'longitude': r[5]} for r in resultados]
         
     except Exception as e:
         print(f"❌ Erro ao listar estabelecimentos: {e}")
@@ -79,24 +79,24 @@ def listar_estabelecimentos():
         if 'conn' in locals() and conn:
             conn.close()
 
-def criar_estabelecimento(nome: str, sigla: str = None):
+def criar_estabelecimento(nome: str, sigla: str = None, morada: str = None, latitude: float = None, longitude: float = None):
     """Cria um novo estabelecimento."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
         # Check if exists
         cur.execute("SELECT id FROM estabelecimentos WHERE nome = %s", (nome,))
         if cur.fetchone():
             return None # Already exists
-            
+
         cur.execute(
-            "INSERT INTO estabelecimentos (nome, sigla) VALUES (%s, %s) RETURNING id, nome, sigla",
-            (nome, sigla)
+            "INSERT INTO estabelecimentos (nome, sigla, morada, latitude, longitude) VALUES (%s, %s, %s, %s, %s) RETURNING id, nome, sigla",
+            (nome, sigla, morada, latitude, longitude)
         )
         nova_inst = cur.fetchone()
         conn.commit()
-        
+
         return {'id': nova_inst[0], 'nome': nova_inst[1], 'sigla': nova_inst[2]}
     except Exception as e:
         print(f"❌ Erro ao criar estabelecimento: {e}")
@@ -109,15 +109,15 @@ def criar_estabelecimento(nome: str, sigla: str = None):
         if 'conn' in locals() and conn:
             conn.close()
 
-def atualizar_estabelecimento(id: int, nome: str, sigla: str = None):
+def atualizar_estabelecimento(id: int, nome: str, sigla: str = None, morada: str = None, latitude: float = None, longitude: float = None):
     """Atualiza um estabelecimento existente."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
         cur.execute(
-            "UPDATE estabelecimentos SET nome = %s, sigla = %s WHERE id = %s",
-            (nome, sigla, id)
+            "UPDATE estabelecimentos SET nome = %s, sigla = %s, morada = %s, latitude = %s, longitude = %s WHERE id = %s",
+            (nome, sigla, morada, latitude, longitude, id)
         )
         conn.commit()
         return True
@@ -194,9 +194,9 @@ def listar_mentores():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT id, nome FROM mentores WHERE ativo = true ORDER BY nome")
+        cur.execute("SELECT id, nome, latitude, longitude FROM mentores WHERE ativo = true ORDER BY nome")
         mentores = cur.fetchall()
-        return [{'id': m[0], 'nome': m[1]} for m in mentores]
+        return [{'id': m[0], 'nome': m[1], 'latitude': m[2], 'longitude': m[3]} for m in mentores]
     except Exception as e:
         print(f"❌ Erro ao listar mentores: {e}")
         return []
@@ -268,12 +268,55 @@ def apagar_turma(id: int):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
         cur.execute("DELETE FROM turmas WHERE id = %s", (id,))
         conn.commit()
         return True
     except Exception as e:
         print(f"❌ Erro ao apagar turma: {e}")
+        if 'conn' in locals() and conn:
+            conn.rollback()
+        return False
+    finally:
+        if 'cur' in locals() and cur:
+            cur.close()
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+def obter_mentor_por_user_id(user_id: str):
+    """Obtém o mentor associado a um user_id do Supabase."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, nome, morada, latitude, longitude FROM mentores WHERE user_id = %s", (user_id,))
+        row = cur.fetchone()
+        if row:
+            return {'id': row[0], 'nome': row[1], 'morada': row[2], 'latitude': row[3], 'longitude': row[4]}
+        return None
+    except Exception as e:
+        print(f"❌ Erro ao obter mentor por user_id: {e}")
+        return None
+    finally:
+        if 'cur' in locals() and cur:
+            cur.close()
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+def atualizar_localizacao_mentor(mentor_id: int, morada: str, latitude: float, longitude: float):
+    """Atualiza a morada e coordenadas de um mentor."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE mentores SET morada = %s, latitude = %s, longitude = %s WHERE id = %s",
+            (morada, latitude, longitude, mentor_id)
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"❌ Erro ao atualizar localização do mentor: {e}")
         if 'conn' in locals() and conn:
             conn.rollback()
         return False

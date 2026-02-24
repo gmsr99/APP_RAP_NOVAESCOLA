@@ -54,7 +54,7 @@ const AUTONOMO = {
   tecnicos:       { x: 166, y: 579 },   // box {164,569,201,30}
   // Multi-line areas
   objetivos:      { x: 167, y: 555, maxWidth: 396 },   // box {165,484,400,83}
-  sumario:        { x: 167, y: 506, maxWidth: 396 },   // box {165,472,400,46}
+  sumario:        { x: 167, y: 470, maxWidth: 398 },   // box {165,362,398,120}
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

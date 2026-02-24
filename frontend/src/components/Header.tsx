@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ProfileSwitcher } from '@/components/ProfileSwitcher';
 import { NotificationSidebar } from '@/components/notifications/NotificationSidebar';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,10 +33,8 @@ export function Header() {
   });
 
   return (
-    <header className="flex items-center justify-between h-16 px-6 border-b border-border bg-card">
-      <ProfileSwitcher />
-
-      <div className="flex items-center gap-4 ml-auto">
+    <header className="flex items-center justify-end h-16 px-6 border-b border-border bg-card">
+      <div className="flex items-center gap-4">
         <Button
           variant="ghost"
           size="icon"

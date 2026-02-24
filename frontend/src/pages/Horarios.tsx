@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -125,6 +135,9 @@ const Horarios = () => {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [viewSession, setViewSession] = useState<AulaAPI | null>(null);
 
+  // Confirmação para ações em sessões de outros users
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+
   // Estado "Terminar sessão"
   const [isTerminarOpen, setIsTerminarOpen] = useState(false);
   const [terminarSessionId, setTerminarSessionId] = useState<number | null>(null);
@@ -148,12 +161,23 @@ const Horarios = () => {
   });
 
   // Fetch mentores for dropdown (Replacing mock data)
-  interface Mentor { id: number; nome: string; }
+  interface Mentor { id: number; nome: string; latitude: number | null; longitude: number | null; }
   const { data: mentoresApi } = useQuery({
     queryKey: ['mentores'],
     queryFn: () => api.get<Mentor[]>('/api/mentores'),
     enabled: !!apiUrl,
   });
+
+  // Fetch estabelecimentos (para coordenadas GPS)
+  interface EstabGeo { id: number; nome: string; latitude: number | null; longitude: number | null; }
+  const { data: estabelecimentos } = useQuery({
+    queryKey: ['estabelecimentos'],
+    queryFn: () => api.get<EstabGeo[]>('/api/estabelecimentos'),
+    enabled: !!apiUrl,
+  });
+
+  // Distâncias mentor→estabelecimento
+  const [mentorDistances, setMentorDistances] = useState<Record<string, number>>({});
 
   // Fetch Curriculo (Disciplinas + Atividades)
   const { data: curriculo } = useQuery({
@@ -213,6 +237,37 @@ const Horarios = () => {
   const availableActivities = selectedDisciplinaId
     ? curriculo?.find(d => d.id === selectedDisciplinaId)?.atividades || []
     : [];
+
+  // Calcular distâncias mentor→estabelecimento quando turma muda
+  const calcDistances = useCallback(async (turmaId: number) => {
+    if (!mentoresApi || !turmas || !estabelecimentos) return;
+    const turma = turmas.find(t => t.id === turmaId);
+    if (!turma) return;
+    const estab = estabelecimentos.find(e => e.id === turma.estabelecimento_id);
+    if (!estab?.latitude || !estab?.longitude) return;
+
+    for (const mentor of mentoresApi) {
+      if (!mentor.latitude || !mentor.longitude) continue;
+      const key = `${mentor.id}_${turma.estabelecimento_id}`;
+      if (mentorDistances[key] !== undefined) continue; // already cached
+
+      try {
+        const res = await api.get(`/api/distance?lat1=${mentor.latitude}&lng1=${mentor.longitude}&lat2=${estab.latitude}&lng2=${estab.longitude}`);
+        const data = res.data ?? res;
+        if (data.distance_km != null) {
+          setMentorDistances(prev => ({ ...prev, [key]: data.distance_km }));
+        }
+      } catch {
+        // ignore distance calculation errors
+      }
+    }
+  }, [mentoresApi, turmas, estabelecimentos, mentorDistances]);
+
+  useEffect(() => {
+    if (formData.turma_id) {
+      calcDistances(formData.turma_id);
+    }
+  }, [formData.turma_id, calcDistances]);
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
@@ -369,6 +424,20 @@ const Horarios = () => {
       toast.success('Sessão confirmada com sucesso!');
     },
     onError: () => toast.error('Erro ao confirmar sessão.'),
+  });
+
+  const realizeMutation = useMutation({
+    mutationFn: (id: number) => api.post(`/api/aulas/${id}/realize`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['aulas'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      setIsDetailOpen(false);
+      toast.success('Trabalho marcado como realizado!');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.detail || 'Erro ao marcar como realizado.';
+      toast.error(msg);
+    },
   });
 
   const createAutonomousMutation = useMutation({
@@ -606,37 +675,42 @@ const Horarios = () => {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="mentor">Mentor</Label>
+                          <Label htmlFor="turma">Turma</Label>
                           <Select
-                            value={formData.mentor_id ? String(formData.mentor_id) : undefined}
-                            onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v) })}
+                            value={formData.turma_id ? String(formData.turma_id) : undefined}
+                            onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
                           >
-                            <SelectTrigger id="mentor">
-                              <SelectValue placeholder="Selecionar mentor" />
+                            <SelectTrigger id="turma">
+                              <SelectValue placeholder="Selecionar Turma" />
                             </SelectTrigger>
                             <SelectContent className="bg-popover">
-                              {mentoresApi?.map((mentor) => (
-                                <SelectItem key={mentor.id} value={String(mentor.id)}>
-                                  {mentor.nome}
-                                </SelectItem>
+                              {turmas?.map((t) => (
+                                <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="turma">Turma</Label>
+                        <Label htmlFor="mentor">Mentor</Label>
                         <Select
-                          value={formData.turma_id ? String(formData.turma_id) : undefined}
-                          onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
+                          value={formData.mentor_id ? String(formData.mentor_id) : undefined}
+                          onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v) })}
                         >
-                          <SelectTrigger id="turma">
-                            <SelectValue placeholder="Selecionar Turma" />
+                          <SelectTrigger id="mentor">
+                            <SelectValue placeholder="Selecionar mentor" />
                           </SelectTrigger>
                           <SelectContent className="bg-popover">
-                            {turmas?.map((t) => (
-                              <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
-                            ))}
+                            {mentoresApi?.map((mentor) => {
+                              const turma = turmas?.find(t => t.id === formData.turma_id);
+                              const key = turma ? `${mentor.id}_${turma.estabelecimento_id}` : '';
+                              const dist = mentorDistances[key];
+                              return (
+                                <SelectItem key={mentor.id} value={String(mentor.id)}>
+                                  {mentor.nome}{dist != null ? ` (${dist} km)` : ''}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                       </div>
@@ -917,35 +991,42 @@ const Horarios = () => {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="mentor">Mentor</Label>
+                      <Label htmlFor="turma">Turma</Label>
                       <Select
-                        value={formData.mentor_id ? String(formData.mentor_id) : undefined}
-                        onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v) })}
+                        value={formData.turma_id ? String(formData.turma_id) : undefined}
+                        onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
                       >
-                        <SelectTrigger id="mentor">
-                          <SelectValue placeholder="Selecionar mentor" />
+                        <SelectTrigger id="turma">
+                          <SelectValue placeholder="Selecionar Turma" />
                         </SelectTrigger>
                         <SelectContent className="bg-popover">
-                          {mentoresApi?.map((mentor) => (
-                            <SelectItem key={mentor.id} value={String(mentor.id)}>{mentor.nome}</SelectItem>
+                          {turmas?.map((t) => (
+                            <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="turma">Turma</Label>
+                    <Label htmlFor="mentor">Mentor</Label>
                     <Select
-                      value={formData.turma_id ? String(formData.turma_id) : undefined}
-                      onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
+                      value={formData.mentor_id ? String(formData.mentor_id) : undefined}
+                      onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v) })}
                     >
-                      <SelectTrigger id="turma">
-                        <SelectValue placeholder="Selecionar Turma" />
+                      <SelectTrigger id="mentor">
+                        <SelectValue placeholder="Selecionar mentor" />
                       </SelectTrigger>
                       <SelectContent className="bg-popover">
-                        {turmas?.map((t) => (
-                          <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
-                        ))}
+                        {mentoresApi?.map((mentor) => {
+                          const turma = turmas?.find(t => t.id === formData.turma_id);
+                          const key = turma ? `${mentor.id}_${turma.estabelecimento_id}` : '';
+                          const dist = mentorDistances[key];
+                          return (
+                            <SelectItem key={mentor.id} value={String(mentor.id)}>
+                              {mentor.nome}{dist != null ? ` (${dist} km)` : ''}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1203,6 +1284,10 @@ const Horarios = () => {
                                   <Briefcase className="h-2 w-2 flex-shrink-0" />
                                   {event.tipo_atividade ?? 'Trabalho Autónomo'}
                                 </div>
+                                <div className="truncate opacity-90 text-[9px] mt-0.5 flex items-center gap-1">
+                                  <User className="h-2 w-2" />
+                                  {equipa?.find(p => p.id === event.responsavel_user_id)?.full_name?.split(' ')[0] ?? '?'}
+                                </div>
                                 {isRealized && (
                                   <div className="text-[9px] mt-0.5 opacity-80">✓ Realizado</div>
                                 )}
@@ -1384,9 +1469,15 @@ const Horarios = () => {
             <DialogTitle className="flex items-center justify-between">
               <span>Detalhes da Sessão</span>
               {viewSession && (
-                <Badge className={statusColors[viewSession.estado as SessionStatus]}>
-                  {viewSession.estado}
-                </Badge>
+                viewSession.is_autonomous ? (
+                  <Badge className={viewSession.is_realized ? 'bg-green-100 text-green-800 border-green-300' : 'bg-muted text-muted-foreground border-dashed'}>
+                    {viewSession.is_realized ? 'Trabalho Realizado' : 'Trabalho Planeado'}
+                  </Badge>
+                ) : (
+                  <Badge className={statusColors[viewSession.estado as SessionStatus]}>
+                    {viewSession.estado}
+                  </Badge>
+                )
               )}
             </DialogTitle>
           </DialogHeader>
@@ -1406,36 +1497,50 @@ const Horarios = () => {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <p className="text-muted-foreground text-xs font-medium uppercase">Turma & Local</p>
-                <div className="p-2 bg-secondary/30 rounded-md">
-                  <p className="font-bold text-base">{viewSession.turma_nome}</p>
-                  <p className="text-sm text-muted-foreground">{viewSession.estabelecimento_nome}</p>
-                  {viewSession.local && (
-                    <p className="text-xs mt-1 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" /> {viewSession.local}
-                    </p>
-                  )}
+              {viewSession.is_autonomous ? (
+                <div className="space-y-1">
+                  <p className="text-muted-foreground text-xs font-medium uppercase">Trabalho Autónomo</p>
+                  <div className="p-2 bg-secondary/30 rounded-md space-y-1">
+                    <div className="flex justify-between">
+                      <span className="text-sm font-semibold">Tipo de Atividade:</span>
+                      <span className="text-sm">{viewSession.tipo_atividade || '-'}</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground text-xs font-medium uppercase">Turma & Local</p>
+                    <div className="p-2 bg-secondary/30 rounded-md">
+                      <p className="font-bold text-base">{viewSession.turma_nome}</p>
+                      <p className="text-sm text-muted-foreground">{viewSession.estabelecimento_nome}</p>
+                      {viewSession.local && (
+                        <p className="text-xs mt-1 flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> {viewSession.local}
+                        </p>
+                      )}
+                    </div>
+                  </div>
 
-              <div className="space-y-1">
-                <p className="text-muted-foreground text-xs font-medium uppercase">Currículo</p>
-                <div className="p-2 bg-secondary/30 rounded-md space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-sm font-semibold">Disciplina:</span>
-                    <span className="text-sm">{viewSession.disciplina_nome || '-'}</span>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground text-xs font-medium uppercase">Currículo</p>
+                    <div className="p-2 bg-secondary/30 rounded-md space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-sm font-semibold">Disciplina:</span>
+                        <span className="text-sm">{viewSession.disciplina_nome || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm font-semibold">Atividade:</span>
+                        <span className="text-sm">{viewSession.atividade_nome || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-sm font-semibold">Nº Sessão:</span>
+                        <span className="text-sm">{viewSession.tema || '-'}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-semibold">Atividade:</span>
-                    <span className="text-sm">{viewSession.atividade_nome || '-'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-semibold">Nº Sessão:</span>
-                    <span className="text-sm">{viewSession.tema || '-'}</span>
-                  </div>
-                </div>
-              </div>
+                </>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-2 bg-secondary/30 rounded-md">
@@ -1489,37 +1594,97 @@ const Horarios = () => {
             </div>
           )}
           <DialogFooter>
-            {/* Botão Confirmar — sessões pendentes */}
-            {viewSession && viewSession.estado === 'pendente' && (
-              <Button
-                onClick={() => confirmMutation.mutate(viewSession.id)}
-                disabled={confirmMutation.isPending}
-                className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white"
-              >
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-                {confirmMutation.isPending ? 'A confirmar...' : 'Confirmar Sessão'}
-              </Button>
-            )}
-            {/* Botão Terminar — sessões confirmadas presenciais cuja hora já passou */}
-            {viewSession && viewSession.estado === 'confirmada' && !viewSession.is_autonomous && new Date(viewSession.data_hora) <= new Date() && (
-              <Button
-                onClick={() => { setIsDetailOpen(false); openTerminarModal(viewSession.id); }}
-                className="w-full sm:w-auto bg-[#6B7280] hover:bg-[#555e68] text-white"
-              >
-                <CheckCircle2 className="w-4 h-4 mr-2" />
-                Terminar Sessão
-              </Button>
-            )}
-            {profile === 'coordenador' && viewSession && (
-              <Button onClick={() => { setIsDetailOpen(false); handleOpenEdit(viewSession); }} variant="outline" className="w-full sm:w-auto">
-                <Edit2 className="w-4 h-4 mr-2" />
-                Editar Sessão
-              </Button>
-            )}
+            {(() => {
+              if (!viewSession) return null;
+              // Determine if the session belongs to someone else
+              const isOwnSession = viewSession.is_autonomous
+                ? viewSession.responsavel_user_id === user?.id
+                : viewSession.mentor_user_id === user?.id;
+              const isOtherUser = profile === 'coordenador' && !isOwnSession;
+
+              const handleWithConfirmation = (action: () => void) => {
+                if (isOtherUser) {
+                  setPendingAction(() => action);
+                } else {
+                  action();
+                }
+              };
+
+              const greenClass = isOtherUser
+                ? 'w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white'
+                : 'w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white';
+              const greyClass = isOtherUser
+                ? 'w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white'
+                : 'w-full sm:w-auto bg-[#6B7280] hover:bg-[#555e68] text-white';
+
+              return (
+                <>
+                  {/* Botão Confirmar — sessões pendentes (mentor atribuído ou coordenador) */}
+                  {viewSession.estado === 'pendente' && !viewSession.is_autonomous &&
+                    (profile === 'coordenador' || isOwnSession) && (
+                    <Button
+                      onClick={() => handleWithConfirmation(() => confirmMutation.mutate(viewSession.id))}
+                      disabled={confirmMutation.isPending}
+                      className={greenClass}
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      {confirmMutation.isPending ? 'A confirmar...' : 'Confirmar Sessão'}
+                    </Button>
+                  )}
+                  {/* Botão Marcar como Realizado — trabalho autónomo planeado (responsável ou coordenador) */}
+                  {viewSession.is_autonomous && !viewSession.is_realized &&
+                    (profile === 'coordenador' || isOwnSession) && (
+                    <Button
+                      onClick={() => handleWithConfirmation(() => realizeMutation.mutate(viewSession.id))}
+                      disabled={realizeMutation.isPending}
+                      className={greenClass}
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      {realizeMutation.isPending ? 'A marcar...' : 'Marcar como Realizado'}
+                    </Button>
+                  )}
+                  {/* Botão Terminar — sessões confirmadas presenciais cuja hora já passou (mentor ou coordenador) */}
+                  {viewSession.estado === 'confirmada' && !viewSession.is_autonomous && new Date(viewSession.data_hora) <= new Date() &&
+                    (profile === 'coordenador' || isOwnSession) && (
+                    <Button
+                      onClick={() => handleWithConfirmation(() => { setIsDetailOpen(false); openTerminarModal(viewSession.id); })}
+                      className={greyClass}
+                    >
+                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                      Terminar Sessão
+                    </Button>
+                  )}
+                  {profile === 'coordenador' && (
+                    <Button onClick={() => { setIsDetailOpen(false); handleOpenEdit(viewSession); }} variant="outline" className="w-full sm:w-auto">
+                      <Edit2 className="w-4 h-4 mr-2" />
+                      Editar Sessão
+                    </Button>
+                  )}
+                </>
+              );
+            })()}
             <Button onClick={() => setIsDetailOpen(false)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* CONFIRMAÇÃO — ação em sessão de outro user */}
+      <AlertDialog open={!!pendingAction} onOpenChange={(open) => { if (!open) setPendingAction(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Alterar sessão de outro membro</AlertDialogTitle>
+            <AlertDialogDescription>
+              Estás prestes a alterar uma sessão atribuída a outro membro da equipa. Pretendes continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Não</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { pendingAction?.(); setPendingAction(null); }}>
+              Sim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* TERMINAR SESSÃO MODAL */}
       <Dialog open={isTerminarOpen} onOpenChange={setIsTerminarOpen}>

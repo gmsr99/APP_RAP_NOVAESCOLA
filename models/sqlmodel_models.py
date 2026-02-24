@@ -19,6 +19,9 @@ class Estabelecimento(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     nome: str
     sigla: Optional[str] = None
+    morada: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
     turmas: List["Turma"] = Relationship(back_populates="estabelecimento")
 
@@ -42,6 +45,9 @@ class Mentor(SQLModel, table=True):
     nome: str
     email: Optional[str] = None
     user_id: Optional[str] = None
+    morada: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
     aulas: List["Aula"] = Relationship(back_populates="mentor")
 

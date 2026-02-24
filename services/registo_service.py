@@ -45,6 +45,10 @@ def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
             e.sigla        AS estabelecimento_sigla,
             m.nome         AS mentor_nome,
             m.user_id      AS mentor_user_id,
+            m.latitude     AS mentor_latitude,
+            m.longitude    AS mentor_longitude,
+            e.latitude     AS estab_latitude,
+            e.longitude    AS estab_longitude,
             atv.nome       AS atividade_nome
         FROM aulas a
         LEFT JOIN turmas t            ON a.turma_id = t.id
@@ -98,6 +102,10 @@ def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
                 "estabelecimento_sigla": row.estabelecimento_sigla,
                 "mentor_nome": row.mentor_nome,
                 "mentor_user_id": str(row.mentor_user_id) if row.mentor_user_id else None,
+                "mentor_latitude": float(row.mentor_latitude) if row.mentor_latitude else None,
+                "mentor_longitude": float(row.mentor_longitude) if row.mentor_longitude else None,
+                "estab_latitude": float(row.estab_latitude) if row.estab_latitude else None,
+                "estab_longitude": float(row.estab_longitude) if row.estab_longitude else None,
                 "atividade_id": row.atividade_id,
                 "atividade_nome": row.atividade_nome,
             })
@@ -132,6 +140,7 @@ def listar_registos(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
             r.local_registo,
             r.horario,
             r.tecnicos,
+            r.kms_percorridos,
             a.data_hora,
             a.duracao_minutos,
             a.tipo,
@@ -179,6 +188,7 @@ def listar_registos(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
                 "local_registo": row.local_registo,
                 "horario": row.horario,
                 "tecnicos": row.tecnicos,
+                "kms_percorridos": float(row.kms_percorridos) if row.kms_percorridos is not None else None,
                 "turma_nome": row.turma_nome,
                 "estabelecimento_nome": row.estabelecimento_nome,
                 "estabelecimento_sigla": row.estabelecimento_sigla,
@@ -203,15 +213,16 @@ def criar_registo(
     local_registo: Optional[str] = None,
     horario: Optional[str] = None,
     tecnicos: Optional[str] = None,
+    kms_percorridos: Optional[float] = None,
 ) -> Optional[Dict[str, Any]]:
     """Cria um registo de sessão."""
     import json
 
     sql_insert = text("""
         INSERT INTO registos (aula_id, user_id, numero_sessao, objetivos_gerais, sumario, participantes,
-                              atividade, data_registo, local_registo, horario, tecnicos)
+                              atividade, data_registo, local_registo, horario, tecnicos, kms_percorridos)
         VALUES (:aula_id, :user_id, :numero_sessao, :objetivos_gerais, :sumario, CAST(:participantes AS jsonb),
-                :atividade, :data_registo, :local_registo, :horario, :tecnicos)
+                :atividade, :data_registo, :local_registo, :horario, :tecnicos, :kms_percorridos)
         RETURNING id, criado_em
     """)
 
@@ -231,6 +242,7 @@ def criar_registo(
                     "local_registo": local_registo,
                     "horario": horario,
                     "tecnicos": tecnicos,
+                    "kms_percorridos": kms_percorridos,
                 },
             ).first()
             session.commit()

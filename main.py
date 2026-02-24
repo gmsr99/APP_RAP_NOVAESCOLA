@@ -252,11 +252,34 @@ async def delete_aula(aula_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+def _check_session_permission(user: dict, aula_info: dict):
+    """Verifica se o user tem permissão para alterar o estado da sessão.
+    Coordenadores podem alterar todas. Outros users só as atribuídas a eles."""
+    from services import profile_service
+    user_id = user.get("sub")
+    # Check if user is coordinator
+    perfis = profile_service.listar_perfis()
+    user_profile = next((p for p in perfis if p.get("id") == user_id), None)
+    if user_profile and user_profile.get("role") == "coordenador":
+        return True
+    # For regular sessions: check if user is the assigned mentor
+    if not aula_info.get("is_autonomous"):
+        if aula_info.get("mentor_user_id") == user_id:
+            return True
+    # For autonomous sessions: check if user is the responsavel
+    else:
+        if aula_info.get("responsavel_user_id") == user_id:
+            return True
+    return False
+
 @app.post("/api/aulas/{aula_id}/confirm", tags=["Aulas"])
-async def confirm_aula(aula_id: int):
-    """
-    Confirma uma aula (status -> 'confirmada').
-    """
+async def confirm_aula(aula_id: int, user=Depends(get_current_user_required)):
+    """Confirma uma aula (status -> 'confirmada')."""
+    aula_info = aula_service.obter_aula_por_id(aula_id)
+    if not aula_info:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+    if not _check_session_permission(user, aula_info):
+        raise HTTPException(status_code=403, detail="Sem permissão para alterar esta sessão.")
     try:
         sucesso = aula_service.mudar_estado_aula(aula_id, "confirmada")
         if sucesso:
@@ -266,10 +289,13 @@ async def confirm_aula(aula_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/aulas/{aula_id}/reject", tags=["Aulas"])
-async def reject_aula(aula_id: int):
-    """
-    Recusa uma aula (status -> 'recusada').
-    """
+async def reject_aula(aula_id: int, user=Depends(get_current_user_required)):
+    """Recusa uma aula (status -> 'recusada')."""
+    aula_info = aula_service.obter_aula_por_id(aula_id)
+    if not aula_info:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+    if not _check_session_permission(user, aula_info):
+        raise HTTPException(status_code=403, detail="Sem permissão para alterar esta sessão.")
     try:
         sucesso = aula_service.mudar_estado_aula(aula_id, "recusada")
         if sucesso:
@@ -278,6 +304,19 @@ async def reject_aula(aula_id: int):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/aulas/{aula_id}/realize", tags=["Aulas"])
+async def realize_aula(aula_id: int, user=Depends(get_current_user_required)):
+    """Marca trabalho autónomo como realizado (is_realized = True)."""
+    aula_info = aula_service.obter_aula_por_id(aula_id)
+    if not aula_info:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+    if not _check_session_permission(user, aula_info):
+        raise HTTPException(status_code=403, detail="Sem permissão para alterar esta sessão.")
+    resultado = aula_service.realizar_trabalho_autonomo(aula_id)
+    if resultado.get("ok"):
+        return {"message": "Trabalho autónomo marcado como realizado"}
+    raise HTTPException(status_code=400, detail=resultado.get("erro", "Erro ao realizar"))
+
 class TerminarPayload(BaseModel):
     avaliacao: int = Field(ge=1, le=5)
     obs_termino: Optional[str] = None
@@ -285,6 +324,11 @@ class TerminarPayload(BaseModel):
 @app.post("/api/aulas/{aula_id}/terminar", tags=["Aulas"])
 async def terminar_aula(aula_id: int, payload: TerminarPayload, user=Depends(get_current_user_required)):
     """Marca sessão como terminada com avaliação (1-5) e observações."""
+    aula_info = aula_service.obter_aula_por_id(aula_id)
+    if not aula_info:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+    if not _check_session_permission(user, aula_info):
+        raise HTTPException(status_code=403, detail="Sem permissão para alterar esta sessão.")
     resultado = aula_service.terminar_aula(aula_id, payload.avaliacao, payload.obs_termino)
     if resultado.get("ok"):
         return {"message": "Sessão terminada com sucesso"}
@@ -339,6 +383,13 @@ async def delete_notification(id: int):
         raise HTTPException(status_code=404, detail="Notificação não encontrada")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/notifications", tags=["Notifications"])
+async def delete_all_notifications(user=Depends(get_current_user_required)):
+    """Apaga todas as notificações do user autenticado."""
+    uid = user.get("sub")
+    count = notification_service.apagar_todas_notificacoes(uid)
+    return {"message": f"{count} notificações apagadas"}
 
 # --- Rotas para Turmas/Estabelecimentos ---
 from services import turma_service, profile_service, estudio_service, notification_service, registo_service, aluno_service
@@ -582,6 +633,7 @@ class RegistoCreate(BaseModel):
     local_registo: Optional[str] = None
     horario: Optional[str] = None
     tecnicos: Optional[str] = None
+    kms_percorridos: Optional[float] = None
 
 @app.post("/api/registos", tags=["Registos"])
 async def create_registo(registo: RegistoCreate, user=Depends(get_current_user_required)):
@@ -599,6 +651,7 @@ async def create_registo(registo: RegistoCreate, user=Depends(get_current_user_r
         local_registo=registo.local_registo,
         horario=registo.horario,
         tecnicos=registo.tecnicos,
+        kms_percorridos=registo.kms_percorridos,
     )
     if not resultado:
         raise HTTPException(status_code=500, detail="Erro ao criar registo. Verifica se a migração 002_registos.sql foi executada.")
@@ -639,11 +692,73 @@ async def get_produtor_dashboard(user=Depends(get_current_user_required)):
     return dashboard_data
 
 # -----------------------------------------------------------------------------
+# GEOCODING & DISTÂNCIA (OpenStreetMap / OSRM)
+# -----------------------------------------------------------------------------
+import httpx
+
+@app.get("/api/geocode/search", tags=["Geocoding"])
+async def geocode_search(q: str):
+    """Proxy para Nominatim — pesquisa de moradas (Portugal)."""
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": q, "format": "json", "limit": 5, "countrycodes": "pt"},
+            headers={"User-Agent": "RAPNovaEscola/1.0 (rap-nova-escola@edu.pt)"},
+        )
+        return resp.json()
+
+@app.get("/api/distance", tags=["Geocoding"])
+async def calculate_distance(lat1: float, lng1: float, lat2: float, lng2: float):
+    """Calcula distância de condução via OSRM (km)."""
+    url = f"https://router.project-osrm.org/route/v1/driving/{lng1},{lat1};{lng2},{lat2}?overview=false"
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(url)
+        data = resp.json()
+        if data.get("routes"):
+            distance_km = round(data["routes"][0]["distance"] / 1000, 1)
+            return {"distance_km": distance_km}
+        return {"distance_km": None, "error": "Rota não encontrada"}
+
+
+# -----------------------------------------------------------------------------
+# MENTOR — LOCALIZAÇÃO
+# -----------------------------------------------------------------------------
+
+@app.get("/api/mentores/me", tags=["Core"])
+async def get_my_mentor(user=Depends(get_current_user_required)):
+    """Retorna o registo de mentor do user autenticado."""
+    user_id = user.get("sub")
+    mentor = turma_service.obter_mentor_por_user_id(user_id)
+    if not mentor:
+        raise HTTPException(status_code=404, detail="Mentor não encontrado para este utilizador.")
+    return mentor
+
+
+class MentorLocationUpdate(BaseModel):
+    morada: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+@app.patch("/api/mentores/{mentor_id}/location", tags=["Core"])
+async def update_mentor_location(mentor_id: int, payload: MentorLocationUpdate):
+    """Atualiza a morada e coordenadas de um mentor."""
+    sucesso = turma_service.atualizar_localizacao_mentor(
+        mentor_id, payload.morada, payload.latitude, payload.longitude
+    )
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao atualizar localização.")
+    return {"ok": True}
+
+
+# -----------------------------------------------------------------------------
 # 10. CURRÍCULO (Competências e Avaliações)
 # -----------------------------------------------------------------------------
 class EstabelecimentoWikiCreate(BaseModel):
     nome: str
     sigla: str = None
+    morada: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 @app.get("/api/estabelecimentos", tags=["Wiki"])
 async def get_estabelecimentos():
@@ -651,14 +766,14 @@ async def get_estabelecimentos():
 
 @app.post("/api/estabelecimentos", tags=["Wiki"])
 async def create_estabelecimento(inst: EstabelecimentoWikiCreate):
-    res = turma_service.criar_estabelecimento(inst.nome, inst.sigla)
+    res = turma_service.criar_estabelecimento(inst.nome, inst.sigla, inst.morada, inst.latitude, inst.longitude)
     if not res:
         raise HTTPException(status_code=400, detail="Erro ao criar. Possível duplicado.")
     return res
 
 @app.put("/api/estabelecimentos/{id}", tags=["Wiki"])
 async def update_estabelecimento(id: int, inst: EstabelecimentoWikiCreate):
-    sucesso = turma_service.atualizar_estabelecimento(id, inst.nome, inst.sigla)
+    sucesso = turma_service.atualizar_estabelecimento(id, inst.nome, inst.sigla, inst.morada, inst.latitude, inst.longitude)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar.")
     return {"message": "Atualizado com sucesso"}

@@ -128,6 +128,27 @@ def apagar_notificacao(notificacao_id):
         if 'cur' in locals() and cur: cur.close()
         if 'conn' in locals() and conn: conn.close()
 
+def apagar_todas_notificacoes(user_id):
+    """
+    Remove todas as notificações de um utilizador.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        cur.execute("DELETE FROM notificacoes WHERE user_id = %s", (user_id,))
+        count = cur.rowcount
+        conn.commit()
+        print(f"🗑️ {count} notificações apagadas para User #{user_id}")
+        return count
+    except Exception as e:
+        print(f"❌ Erro ao apagar todas as notificações: {e}")
+        if 'conn' in locals() and conn: conn.rollback()
+        return 0
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
 def contar_nao_lidas(user_id):
     """
     Conta o número de notificações não lidas.

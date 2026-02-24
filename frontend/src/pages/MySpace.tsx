@@ -1,12 +1,21 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Camera, Lock, Loader2, Mail } from 'lucide-react';
+import { Camera, Lock, Loader2, Mail, MapPin, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/api';
+import { AddressAutocomplete } from '@/components/AddressAutocomplete';
+
+interface MentorData {
+  id: number;
+  nome: string;
+  morada: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
 
 export default function MySpace() {
   const { user } = useProfile();
@@ -21,7 +30,35 @@ export default function MySpace() {
   const [sendingReset, setSendingReset] = useState(false);
   const [resetSent, setResetSent] = useState(false);
 
+  // Mentor location state
+  const [mentor, setMentor] = useState<MentorData | null>(null);
+  const [mentorLoading, setMentorLoading] = useState(true);
+  const [locationForm, setLocationForm] = useState({ morada: '', latitude: 0, longitude: 0 });
+  const [savingLocation, setSavingLocation] = useState(false);
+
   const userId = session?.user?.id;
+
+  // Fetch mentor data
+  useEffect(() => {
+    const fetchMentor = async () => {
+      try {
+        const res = await api.get('/api/mentores/me');
+        const data = res.data as MentorData;
+        setMentor(data);
+        setLocationForm({
+          morada: data.morada || '',
+          latitude: data.latitude || 0,
+          longitude: data.longitude || 0,
+        });
+      } catch {
+        // User is not a mentor — hide the card
+        setMentor(null);
+      } finally {
+        setMentorLoading(false);
+      }
+    };
+    fetchMentor();
+  }, []);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -97,6 +134,23 @@ export default function MySpace() {
     }
   };
 
+  const handleSaveLocation = async () => {
+    if (!mentor || !locationForm.latitude || !locationForm.longitude) {
+      toast.error('Seleciona uma morada da lista de sugestões.');
+      return;
+    }
+
+    setSavingLocation(true);
+    try {
+      await api.patch(`/api/mentores/${mentor.id}/location`, locationForm);
+      toast.success('Localização guardada com sucesso!');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao guardar localização.');
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <div>
@@ -147,6 +201,51 @@ export default function MySpace() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Localização (só para mentores) */}
+      {!mentorLoading && mentor && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <MapPin className="h-5 w-5" />
+              A minha Localização
+            </CardTitle>
+            <CardDescription>
+              Define a tua morada de residência para calcular automaticamente a distância às escolas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <AddressAutocomplete
+              value={locationForm.morada}
+              onSelect={(r) => setLocationForm({ morada: r.display_name, latitude: r.lat, longitude: r.lon })}
+              placeholder="Pesquisar a tua morada..."
+            />
+            {locationForm.morada && locationForm.latitude !== 0 && (
+              <p className="text-xs text-muted-foreground">
+                Coordenadas: {locationForm.latitude.toFixed(4)}, {locationForm.longitude.toFixed(4)}
+              </p>
+            )}
+            <Button
+              onClick={handleSaveLocation}
+              disabled={savingLocation || !locationForm.latitude}
+              variant="outline"
+              size="sm"
+            >
+              {savingLocation ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  A guardar...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Guardar Localização
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Repor Password */}
       <Card>

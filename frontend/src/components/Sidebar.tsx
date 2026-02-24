@@ -28,7 +28,7 @@ const navigation = [
   { name: 'Registos', href: '/registos', icon: ClipboardList, profiles: ['coordenador', 'mentor', 'mentor_produtor'] },
   { name: 'Equipa', href: '/equipa', icon: Users, profiles: ['coordenador', 'mentor', 'produtor', 'mentor_produtor'] },
   { name: 'Equipamento', href: '/equipamento', icon: Package, profiles: ['coordenador'] },
-  { name: 'Formação', href: '/formacao', icon: GraduationCap, profiles: ['coordenador', 'mentor', 'produtor', 'mentor_produtor'] },
+  { name: 'Formação', href: '/formacao', icon: GraduationCap, profiles: ['coordenador', 'mentor', 'produtor', 'mentor_produtor'], disabled: true },
 
   { name: 'Wiki/Base', href: '/wiki', icon: Database, profiles: ['coordenador', 'mentor', 'produtor', 'mentor_produtor'] },
   { name: 'Chat', href: '/chat', icon: MessageSquare, profiles: ['coordenador', 'mentor', 'produtor', 'mentor_produtor'] },
@@ -68,6 +68,26 @@ export function Sidebar() {
       <nav className="flex-1 p-3 space-y-1">
         {filteredNavigation.map((item) => {
           const isActive = location.pathname === item.href;
+
+          if (item.disabled) {
+            return (
+              <div
+                key={item.name}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground/50 cursor-not-allowed"
+              >
+                <item.icon className="h-5 w-5 shrink-0" />
+                {!collapsed && (
+                  <>
+                    <span>{item.name}</span>
+                    <span className="ml-auto text-[10px] uppercase tracking-wider bg-muted px-1.5 py-0.5 rounded font-semibold">
+                      Brevemente
+                    </span>
+                  </>
+                )}
+              </div>
+            );
+          }
+
           return (
             <Link
               key={item.name}

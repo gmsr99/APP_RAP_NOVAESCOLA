@@ -73,6 +73,10 @@ interface SessaoRegistavel {
   estabelecimento_sigla: string | null;
   mentor_nome: string | null;
   mentor_user_id: string | null;
+  mentor_latitude: number | null;
+  mentor_longitude: number | null;
+  estab_latitude: number | null;
+  estab_longitude: number | null;
   atividade_id: number | null;
   atividade_nome: string | null;
 }
@@ -297,6 +301,7 @@ const Registos = () => {
     objetivos_gerais: '',
     sumario: '',
     participantes: [] as { nome_completo: string }[],
+    kms_percorridos: '',
   });
 
   const [selectedSession, setSelectedSession] = useState<SessaoRegistavel | null>(null);
@@ -377,6 +382,26 @@ const Registos = () => {
       }
     }
 
+    // Calcular kms (ida e volta) se sessão presencial com coordenadas
+    let kms = '';
+    if (
+      !session.is_autonomous &&
+      session.mentor_latitude && session.mentor_longitude &&
+      session.estab_latitude && session.estab_longitude
+    ) {
+      try {
+        const res = await api.get(
+          `/api/distance?lat1=${session.mentor_latitude}&lng1=${session.mentor_longitude}&lat2=${session.estab_latitude}&lng2=${session.estab_longitude}`
+        );
+        const data = res.data ?? res;
+        if (data.distance_km != null) {
+          kms = String(Math.round(data.distance_km * 2)); // ida e volta
+        }
+      } catch {
+        // ignore distance errors
+      }
+    }
+
     setFormData({
       atividade: session.is_autonomous
         ? (session.tipo_atividade || 'Trabalho Autónomo')
@@ -391,6 +416,7 @@ const Registos = () => {
       objetivos_gerais: '',
       sumario: session.observacoes || '',
       participantes,
+      kms_percorridos: kms,
     });
   };
 
@@ -416,6 +442,7 @@ const Registos = () => {
       local_registo: formData.local || null,
       horario: formData.horario || null,
       tecnicos: formData.tecnicos || null,
+      kms_percorridos: formData.kms_percorridos ? Number(formData.kms_percorridos) : null,
     });
 
     setModalOpen(false);
@@ -707,6 +734,18 @@ const Registos = () => {
                   className="text-sm"
                 />
               </div>
+              {selectedSession && !selectedSession.is_autonomous && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">Kms Percorridos (ida e volta)</Label>
+                  <Input
+                    type="number"
+                    value={formData.kms_percorridos}
+                    onChange={e => setFormData(prev => ({ ...prev, kms_percorridos: e.target.value }))}
+                    placeholder="Ex: 24"
+                    className="text-sm"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Editable text areas */}

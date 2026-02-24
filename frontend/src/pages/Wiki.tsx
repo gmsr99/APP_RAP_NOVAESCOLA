@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import {
   Card,
   CardContent,
@@ -53,6 +54,9 @@ interface Estabelecimento {
   id: number;
   nome: string;
   sigla: string;
+  morada?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 interface Turma {
@@ -88,7 +92,7 @@ const Wiki = () => {
   // State for Estabelecimentos
   const [isEstabDialogOpen, setIsEstabDialogOpen] = useState(false);
   const [editingEstab, setEditingEstab] = useState<Estabelecimento | null>(null);
-  const [estabForm, setEstabForm] = useState({ nome: '', sigla: '' });
+  const [estabForm, setEstabForm] = useState({ nome: '', sigla: '', morada: '', latitude: 0, longitude: 0 });
 
   // State for Turmas
   const [isTurmaDialogOpen, setIsTurmaDialogOpen] = useState(false);
@@ -232,13 +236,13 @@ const Wiki = () => {
   // --- HANDLERS ---
   const openNewEstab = () => {
     setEditingEstab(null);
-    setEstabForm({ nome: '', sigla: '' });
+    setEstabForm({ nome: '', sigla: '', morada: '', latitude: 0, longitude: 0 });
     setIsEstabDialogOpen(true);
   };
 
   const openEditEstab = (estab: Estabelecimento) => {
     setEditingEstab(estab);
-    setEstabForm({ nome: estab.nome, sigla: estab.sigla });
+    setEstabForm({ nome: estab.nome, sigla: estab.sigla, morada: estab.morada || '', latitude: estab.latitude || 0, longitude: estab.longitude || 0 });
     setIsEstabDialogOpen(true);
   };
 
@@ -733,6 +737,14 @@ const Wiki = () => {
                 value={estabForm.nome}
                 onChange={(e) => setEstabForm({ ...estabForm, nome: e.target.value })}
                 placeholder="Nome completo do estabelecimento"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Morada</Label>
+              <AddressAutocomplete
+                value={estabForm.morada}
+                onSelect={(r) => setEstabForm({ ...estabForm, morada: r.display_name, latitude: r.lat, longitude: r.lon })}
+                placeholder="Pesquisar morada do estabelecimento..."
               />
             </div>
           </div>

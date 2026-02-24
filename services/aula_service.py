@@ -532,6 +532,72 @@ def terminar_aula(aula_id, avaliacao, obs_termino=None):
         return {"ok": False, "erro": str(e)}
 
 
+def realizar_trabalho_autonomo(aula_id):
+    """Marca um trabalho autónomo como realizado (is_realized = True)."""
+    try:
+        with Session(engine) as session:
+            aula = session.get(Aula, aula_id)
+            if not aula:
+                return {"ok": False, "erro": "Sessão não encontrada."}
+
+            if not aula.is_autonomous:
+                return {"ok": False, "erro": "Esta sessão não é trabalho autónomo."}
+
+            if aula.is_realized:
+                return {"ok": False, "erro": "Este trabalho já foi marcado como realizado."}
+
+            nota = (
+                f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] "
+                f"Trabalho Autónomo marcado como Realizado"
+            )
+
+            aula.is_realized = True
+            aula.observacoes = (
+                f"{aula.observacoes}\n{nota}" if aula.observacoes else nota
+            )
+            aula.atualizado_em = datetime.utcnow()
+
+            session.add(aula)
+            session.commit()
+
+        print(f"✅ Trabalho Autónomo #{aula_id} marcado como realizado")
+
+        # Notificar coordenadores
+        try:
+            from services import notification_service, profile_service
+
+            perfis = profile_service.listar_perfis()
+            coordenadores_ids = [p["id"] for p in perfis if p.get("role") == "coordenador"]
+
+            aula_info = obter_aula_por_id(aula_id)
+            responsavel = aula_info.get("responsavel_user_id") if aula_info else None
+            # Get responsavel name from profiles
+            resp_nome = "Um membro"
+            if responsavel:
+                for p in perfis:
+                    if p.get("id") == responsavel:
+                        resp_nome = p.get("nome", "Um membro")
+                        break
+
+            for coord_id in coordenadores_ids:
+                notification_service.criar_notificacao(
+                    user_id=coord_id,
+                    tipo="session_realizada",
+                    titulo="Trabalho Autónomo Realizado",
+                    mensagem=f"{resp_nome} marcou um trabalho autónomo como realizado.",
+                    link="/horarios",
+                    metadados={"aula_id": aula_id},
+                )
+        except Exception as e:
+            print(f"⚠️ Erro ao enviar notificação: {e}")
+
+        return {"ok": True}
+
+    except Exception as e:
+        print(f"❌ Erro ao realizar trabalho autónomo: {e}")
+        return {"ok": False, "erro": str(e)}
+
+
 def obter_aula_por_id(aula_id):
     try:
         with Session(engine) as session:

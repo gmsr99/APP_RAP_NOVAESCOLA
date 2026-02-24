@@ -74,6 +74,15 @@ export function NotificationSidebar({ open, onOpenChange }: NotificationSidebarP
         },
     });
 
+    const clearAllMutation = useMutation({
+        mutationFn: async () => {
+            await api.delete('/api/notifications');
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        },
+    });
+
     const getIcon = (type: string) => {
         switch (type) {
             case 'session_created': return <Calendar className="h-5 w-5 text-blue-500" />;
@@ -90,7 +99,21 @@ export function NotificationSidebar({ open, onOpenChange }: NotificationSidebarP
         <Sheet open={open} onOpenChange={onOpenChange}>
             <SheetContent className="w-[400px] sm:w-[540px]">
                 <SheetHeader>
-                    <SheetTitle>Notificações</SheetTitle>
+                    <div className="flex items-center justify-between">
+                        <SheetTitle>Notificações</SheetTitle>
+                        {notifications.length > 0 && (
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                                onClick={() => clearAllMutation.mutate()}
+                                disabled={clearAllMutation.isPending}
+                            >
+                                <Trash2 className="h-3 w-3 mr-1" />
+                                {clearAllMutation.isPending ? 'A limpar...' : 'Limpar tudo'}
+                            </Button>
+                        )}
+                    </div>
                     <SheetDescription>
                         Acompanhe as atualizações das suas sessões e atividades.
                     </SheetDescription>
