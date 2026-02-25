@@ -18,6 +18,20 @@ def listar_perfis():
         print(f"Erro ao listar perfis: {e}")
         return []
 
+def apagar_utilizador(user_id: str):
+    """
+    Apaga permanentemente um utilizador do Supabase Auth e da tabela profiles.
+    """
+    try:
+        # Remove do Supabase Auth (cascade remove da tabela profiles se configurado)
+        supabase.auth.admin.delete_user(user_id)
+        # Garantir remoção da tabela profiles
+        supabase.table("profiles").delete().eq("id", user_id).execute()
+        return True
+    except Exception as e:
+        print(f"Erro ao apagar utilizador {user_id}: {e}")
+        raise e
+
 def obter_profile_id_por_email(email):
     """
     Obtém o UUID do perfil através do email.

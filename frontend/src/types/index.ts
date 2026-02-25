@@ -1,5 +1,5 @@
 // User Profiles
-export type UserProfile = 'coordenador' | 'mentor' | 'produtor' | 'mentor_produtor' | 'direcao';
+export type UserProfile = 'coordenador' | 'mentor' | 'produtor' | 'mentor_produtor' | 'direcao' | 'it_support';
 
 export interface User {
   id: string;

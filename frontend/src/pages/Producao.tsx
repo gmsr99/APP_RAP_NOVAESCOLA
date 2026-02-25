@@ -98,7 +98,7 @@ const Producao = () => {
 
   const [newMusicData, setNewMusicData] = useState({ titulo: '', turma_id: '', disciplina: '' });
 
-  const isCoordinator = profile === 'coordenador' || profile === 'direcao';
+  const isCoordinator = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
   const isProdutor = profile === 'produtor' || profile === 'mentor_produtor';
 
   // Queries

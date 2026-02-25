@@ -125,7 +125,7 @@ const EquipamentoView = ({ aulaId }: { aulaId: number }) => {
 
 const Horarios = () => {
   const { profile } = useProfile();
-  const isAdmin = profile === 'coordenador' || profile === 'direcao';
+  const isAdmin = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
   const { user } = useAuth(); // Get current user
   const [filterMode, setFilterMode] = useState<'all' | 'mine'>(profile === 'mentor' ? 'mine' : 'all');
   const [currentWeek, setCurrentWeek] = useState(new Date());

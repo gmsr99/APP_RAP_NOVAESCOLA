@@ -54,7 +54,7 @@ origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"https://app-rap-novaescola.*\.vercel\.app", # Permite branches de preview dinâmicos
+    allow_origin_regex=r"(https://app-rap-novaescola.*\.vercel\.app|http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):\d+)", # Permite Vercel previews + localhost + rede privada
     allow_credentials=True,
     allow_methods=["*"],  # Permite todos os métodos (GET, POST, PUT, etc)
     allow_headers=["*"],  # Permite todos os cabeçalhos
@@ -260,7 +260,7 @@ def _check_session_permission(user: dict, aula_info: dict):
     # Check if user is coordinator
     perfis = profile_service.listar_perfis()
     user_profile = next((p for p in perfis if p.get("id") == user_id), None)
-    if user_profile and user_profile.get("role") in ("coordenador", "direcao"):
+    if user_profile and user_profile.get("role") in ("coordenador", "direcao", "it_support"):
         return True
     # For regular sessions: check if user is the assigned mentor
     if not aula_info.get("is_autonomous"):
@@ -398,6 +398,25 @@ from services import turma_service, profile_service, estudio_service, notificati
 async def get_equipa():
     """Lista todos os membros da equipa (perfis públicos)."""
     return profile_service.listar_perfis()
+
+@app.delete("/api/equipa/{user_id}", tags=["Core"])
+async def delete_equipa_member(user_id: str, user=Depends(get_current_user_required)):
+    """Apaga permanentemente um membro da equipa (apenas direção)."""
+    caller_id = user.get("sub")
+    perfis = profile_service.listar_perfis()
+    caller_profile = next((p for p in perfis if p.get("id") == caller_id), None)
+    if not caller_profile or caller_profile.get("role") not in ("direcao", "it_support"):
+        raise HTTPException(status_code=403, detail="Apenas a direção pode apagar membros.")
+    if user_id == caller_id:
+        raise HTTPException(status_code=400, detail="Não podes apagar a tua própria conta.")
+    target_profile = next((p for p in perfis if p.get("id") == user_id), None)
+    if not target_profile:
+        raise HTTPException(status_code=404, detail="Utilizador não encontrado.")
+    try:
+        profile_service.apagar_utilizador(user_id)
+        return {"message": "Utilizador apagado com sucesso."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # --- Rota para Perfil / Avatar ---
@@ -635,7 +654,7 @@ async def export_registos(
     user_id = user.get("sub")
     perfis = profile_service.listar_perfis()
     user_profile = next((p for p in perfis if p.get("id") == user_id), None)
-    if not user_profile or user_profile.get("role") not in ("coordenador", "direcao"):
+    if not user_profile or user_profile.get("role") not in ("coordenador", "direcao", "it_support"):
         raise HTTPException(status_code=403, detail="Sem permissão para exportar registos.")
     user_id_list = [uid.strip() for uid in user_ids.split(",")] if user_ids else None
     estab_id_list = [int(eid.strip()) for eid in estabelecimento_ids.split(",")] if estabelecimento_ids else None

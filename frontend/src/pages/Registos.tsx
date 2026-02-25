@@ -328,7 +328,7 @@ const Registos = () => {
     },
   });
 
-  const isCoord = profile === 'coordenador' || profile === 'direcao';
+  const isCoord = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
 
   const { data: todosRegistos = [] } = useQuery({
     queryKey: ['registos-todos'],

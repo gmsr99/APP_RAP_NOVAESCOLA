@@ -21,17 +21,17 @@ import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard, profiles: ['coordenador', 'direcao', 'mentor', 'produtor', 'mentor_produtor'] },
-  { name: 'Horários Aulas', href: '/horarios', icon: Calendar, profiles: ['coordenador', 'direcao', 'mentor', 'produtor', 'mentor_produtor'] },
-  { name: 'Produção Musical', href: '/producao', icon: Music, profiles: ['coordenador', 'direcao', 'mentor', 'produtor', 'mentor_produtor'] },
-  { name: 'Estúdio', href: '/estudio', icon: Mic2, profiles: ['coordenador', 'direcao', 'mentor', 'produtor', 'mentor_produtor'] },
-  { name: 'Registos', href: '/registos', icon: ClipboardList, profiles: ['coordenador', 'direcao', 'mentor', 'mentor_produtor'] },
-  { name: 'Equipa', href: '/equipa', icon: Users, profiles: ['coordenador', 'direcao', 'mentor', 'produtor', 'mentor_produtor'] },
-  { name: 'Equipamento', href: '/equipamento', icon: Package, profiles: ['coordenador', 'direcao'] },
-  { name: 'Formação', href: '/formacao', icon: GraduationCap, profiles: ['coordenador', 'direcao', 'mentor', 'produtor', 'mentor_produtor'], disabled: true },
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
+  { name: 'Horários Aulas', href: '/horarios', icon: Calendar, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
+  { name: 'Produção Musical', href: '/producao', icon: Music, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
+  { name: 'Estúdio', href: '/estudio', icon: Mic2, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
+  { name: 'Registos', href: '/registos', icon: ClipboardList, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'mentor_produtor'] },
+  { name: 'Equipa', href: '/equipa', icon: Users, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
+  { name: 'Equipamento', href: '/equipamento', icon: Package, profiles: ['coordenador', 'direcao', 'it_support'] },
+  { name: 'Formação', href: '/formacao', icon: GraduationCap, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'], disabled: true },
 
-  { name: 'Wiki/Base', href: '/wiki', icon: Database, profiles: ['coordenador', 'direcao', 'mentor', 'produtor', 'mentor_produtor'] },
-  { name: 'Chat', href: '/chat', icon: MessageSquare, profiles: ['coordenador', 'direcao', 'mentor', 'produtor', 'mentor_produtor'] },
+  { name: 'Wiki/Base', href: '/wiki', icon: Database, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
+  { name: 'Chat', href: '/chat', icon: MessageSquare, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
 ];
 
 export function Sidebar() {

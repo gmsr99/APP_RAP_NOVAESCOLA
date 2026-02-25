@@ -87,7 +87,7 @@ interface Disciplina {
 const Wiki = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const isCoordinator = user?.role === 'coordenador';
+  const isCoordinator = user?.role === 'coordenador' || user?.role === 'direcao' || user?.role === 'it_support';
 
   // State for Estabelecimentos
   const [isEstabDialogOpen, setIsEstabDialogOpen] = useState(false);

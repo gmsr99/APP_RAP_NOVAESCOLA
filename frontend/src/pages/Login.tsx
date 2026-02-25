@@ -37,6 +37,11 @@ export default function Login() {
           throw new Error('Token de validação inválido.');
         }
       }
+      if (isSignUp && role === 'it_support') {
+        if (token !== 'RNE2027') {
+          throw new Error('Token de validação inválido.');
+        }
+      }
 
       const { error: err } = isSignUp
         ? await signUp(email, password, name || undefined, role)
@@ -103,11 +108,12 @@ export default function Login() {
                       <SelectItem value="mentor_produtor">Mentor & Produtor</SelectItem>
                       <SelectItem value="coordenador">Coordenador</SelectItem>
                       <SelectItem value="direcao">Direção</SelectItem>
+                      <SelectItem value="it_support">IT Support</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
-                {(role === 'coordenador' || role === 'direcao') && (
+                {(role === 'coordenador' || role === 'direcao' || role === 'it_support') && (
                   <div className="space-y-2">
                     <Label htmlFor="token" className="text-primary font-bold">Token de Validação</Label>
                     <Input
@@ -118,7 +124,7 @@ export default function Login() {
                       onChange={(e) => setToken(e.target.value)}
                       required
                     />
-                    <p className="text-xs text-muted-foreground">Necessário para criar conta de {role === 'direcao' ? 'Direção' : 'Coordenador'}.</p>
+                    <p className="text-xs text-muted-foreground">Necessário para criar conta de {role === 'direcao' ? 'Direção' : role === 'it_support' ? 'IT Support' : 'Coordenador'}.</p>
                   </div>
                 )}
               </>
