@@ -4,11 +4,23 @@ from typing import List, Optional
 from sqlmodel import Field, Relationship, SQLModel
 
 
+class ProjetoEstabelecimento(SQLModel, table=True):
+    __tablename__ = "projeto_estabelecimentos"
+
+    projeto_id: int = Field(foreign_key="projetos.id", primary_key=True)
+    estabelecimento_id: int = Field(foreign_key="estabelecimentos.id", primary_key=True)
+
+
 class Projeto(SQLModel, table=True):
     __tablename__ = "projetos"
 
     id: Optional[int] = Field(default=None, primary_key=True)
     nome: str
+    descricao: Optional[str] = None
+    data_inicio: Optional[str] = None
+    data_fim: Optional[str] = None
+    estado: str = "planejamento"
+    observacoes: Optional[str] = None
 
     aulas: List["Aula"] = Relationship(back_populates="projeto")
 

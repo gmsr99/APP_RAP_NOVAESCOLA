@@ -15,27 +15,32 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from database.connection import get_db_connection
 
-def listar_turmas_com_estabelecimento():
+def listar_turmas_com_estabelecimento(estabelecimento_id=None):
     """
     Lista todas as turmas com o nome da respectivo estabelecimento.
     Útil para dropdowns de seleção.
+    Opcionalmente filtra por estabelecimento_id.
     """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
         query = """
-            SELECT 
-                t.id, 
-                t.nome as turma_nome, 
+            SELECT
+                t.id,
+                t.nome as turma_nome,
                 e.nome as estabelecimento_nome,
                 e.id as estabelecimento_id
             FROM turmas t
             JOIN estabelecimentos e ON t.estabelecimento_id = e.id
-            ORDER BY e.nome, t.nome;
         """
-        
-        cur.execute(query)
+        params = []
+        if estabelecimento_id is not None:
+            query += " WHERE t.estabelecimento_id = %s"
+            params.append(estabelecimento_id)
+        query += " ORDER BY e.nome, t.nome;"
+
+        cur.execute(query, params)
         resultados = cur.fetchall()
         
         turmas = []
@@ -284,23 +289,84 @@ def apagar_turma(id: int):
             conn.close()
 
 
-def obter_mentor_por_user_id(user_id: str):
-    """Obtém o mentor associado a um user_id do Supabase."""
+def obter_mentor_por_user_id(user_id: str, email: str = None):
+    """Obtém o mentor associado a um user_id ou email do Supabase."""
+    conn = None
+    cur = None
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, morada, latitude, longitude FROM mentores WHERE user_id = %s", (user_id,))
+
+        # Verifica se a coluna user_id já existe (migração 008 pode ainda não ter sido aplicada)
+        cur.execute("""
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'mentores' AND column_name = 'user_id'
+        """)
+        has_user_id_col = cur.fetchone() is not None
+
+        if has_user_id_col:
+            cur.execute(
+                """SELECT id, nome, morada, latitude, longitude
+                   FROM mentores
+                   WHERE user_id = %s OR (user_id IS NULL AND email = %s)
+                   LIMIT 1""",
+                (user_id, email)
+            )
+        else:
+            # Migração 008 ainda não aplicada — lookup só por email
+            cur.execute(
+                "SELECT id, nome, morada, latitude, longitude FROM mentores WHERE email = %s LIMIT 1",
+                (email,)
+            )
+
         row = cur.fetchone()
         if row:
+            if has_user_id_col and email:
+                cur.execute(
+                    "UPDATE mentores SET user_id = %s WHERE id = %s AND user_id IS NULL",
+                    (user_id, row[0])
+                )
+                conn.commit()
             return {'id': row[0], 'nome': row[1], 'morada': row[2], 'latitude': row[3], 'longitude': row[4]}
         return None
     except Exception as e:
         print(f"❌ Erro ao obter mentor por user_id: {e}")
         return None
     finally:
-        if 'cur' in locals() and cur:
+        if cur:
             cur.close()
-        if 'conn' in locals() and conn:
+        if conn:
+            conn.close()
+
+
+def criar_mentor(user_id: str, nome: str, email: str, perfil: str):
+    """Cria um novo mentor na tabela (fallback quando o trigger do Supabase não disparou)."""
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO mentores (nome, email, perfil, user_id, ativo, criado_em, atualizado_em)
+               VALUES (%s, %s, %s, %s, true, NOW(), NOW())
+               ON CONFLICT (email) DO UPDATE SET user_id = EXCLUDED.user_id, nome = EXCLUDED.nome, perfil = EXCLUDED.perfil
+               RETURNING id, nome, morada, latitude, longitude""",
+            (nome, email, perfil, user_id)
+        )
+        row = cur.fetchone()
+        conn.commit()
+        if row:
+            return {'id': row[0], 'nome': row[1], 'morada': row[2], 'latitude': row[3], 'longitude': row[4]}
+        return None
+    except Exception as e:
+        print(f"❌ Erro ao criar mentor: {e}")
+        if conn:
+            conn.rollback()
+        return None
+    finally:
+        if cur:
+            cur.close()
+        if conn:
             conn.close()
 
 

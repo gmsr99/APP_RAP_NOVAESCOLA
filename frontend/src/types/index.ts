@@ -142,9 +142,20 @@ export interface Turma {
   display_name: string;
 }
 
+export interface Projeto {
+  id: number;
+  nome: string;
+  descricao?: string;
+  estado?: string;
+}
+
 export interface Estabelecimento { // Renamed form Instituicao
   id: number;
   nome: string;
+  sigla?: string;
+  morada?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface AulaCreate {
@@ -157,6 +168,7 @@ export interface AulaCreate {
   observacoes?: string;
   tipo: string;
   atividade_id?: number | null;
+  projeto_id?: number | null;
   is_autonomous?: boolean;
   is_realized?: boolean;
   tipo_atividade?: string | null;

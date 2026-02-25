@@ -14,24 +14,29 @@ import {
   ChevronRight,
   GraduationCap,
   Users,
-  Building2,
   Database,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
+import React, { useState } from 'react';
 
-const navigation = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
-  { name: 'Horários Aulas', href: '/horarios', icon: Calendar, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
-  { name: 'Produção Musical', href: '/producao', icon: Music, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
-  { name: 'Estúdio', href: '/estudio', icon: Mic2, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
+const allProfiles = ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'];
+
+type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; profiles: string[]; disabled?: boolean };
+type SeparatorItem = { separator: true };
+type SidebarItem = NavItem | SeparatorItem;
+
+const navigation: SidebarItem[] = [
+  { name: 'Dashboard', href: '/', icon: LayoutDashboard, profiles: allProfiles },
+  { name: 'Horários', href: '/horarios', icon: Calendar, profiles: allProfiles },
+  { name: 'Produção', href: '/producao', icon: Music, profiles: allProfiles },
+  { name: 'Estúdio', href: '/estudio', icon: Mic2, profiles: allProfiles },
   { name: 'Registos', href: '/registos', icon: ClipboardList, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'mentor_produtor'] },
-  { name: 'Equipa', href: '/equipa', icon: Users, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
-  { name: 'Equipamento', href: '/equipamento', icon: Package, profiles: ['coordenador', 'direcao', 'it_support'] },
-  { name: 'Formação', href: '/formacao', icon: GraduationCap, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'], disabled: true },
-
-  { name: 'Wiki/Base', href: '/wiki', icon: Database, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
-  { name: 'Chat', href: '/chat', icon: MessageSquare, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'] },
+  { name: 'Chat', href: '/chat', icon: MessageSquare, profiles: allProfiles },
+  { separator: true },
+  { name: 'Material', href: '/equipamento', icon: Package, profiles: ['coordenador', 'direcao', 'it_support'] },
+  { name: 'Equipa', href: '/equipa', icon: Users, profiles: allProfiles },
+  { name: 'Wiki', href: '/wiki', icon: Database, profiles: allProfiles },
+  { name: 'Formação', href: '/formacao', icon: GraduationCap, profiles: allProfiles, disabled: true },
 ];
 
 export function Sidebar() {
@@ -40,7 +45,7 @@ export function Sidebar() {
   const { profile } = useProfile();
 
   const filteredNavigation = navigation.filter(item =>
-    item.profiles.includes(profile)
+    'separator' in item || ('profiles' in item && item.profiles.includes(profile))
   );
 
   return (
@@ -51,31 +56,38 @@ export function Sidebar() {
       )}
     >
       {/* Logo */}
-      <div className="flex items-center justify-between h-16 px-4 border-b border-sidebar-border">
+      <div className="flex items-center justify-between h-20 px-4 border-b border-sidebar-border">
         {!collapsed && (
           <Link to="/" className="flex items-center gap-3">
-            <img src={logo} alt="RAP Nova Escola" className="h-8 w-auto" />
+            <img src={logo} alt="RAP Nova Escola" className="h-12 w-auto" />
           </Link>
         )}
         {collapsed && (
           <Link to="/" className="mx-auto">
-            <img src={logo} alt="RAP Nova Escola" className="h-8 w-auto" />
+            <img src={logo} alt="RAP Nova Escola" className="h-12 w-auto" />
           </Link>
         )}
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1">
-        {filteredNavigation.map((item) => {
-          const isActive = location.pathname === item.href;
+        {filteredNavigation.map((item, idx) => {
+          if ('separator' in item) {
+            return (
+              <div key={`sep-${idx}`} className="my-2 border-t border-sidebar-border" />
+            );
+          }
 
-          if (item.disabled) {
+          const isActive = location.pathname === item.href;
+          const Icon = item.icon;
+
+          if ('disabled' in item && item.disabled) {
             return (
               <div
                 key={item.name}
                 className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-muted-foreground/50 cursor-not-allowed"
               >
-                <item.icon className="h-5 w-5 shrink-0" />
+                <Icon className="h-5 w-5 shrink-0" />
                 {!collapsed && (
                   <>
                     <span>{item.name}</span>
@@ -99,7 +111,7 @@ export function Sidebar() {
                   : 'text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground'
               )}
             >
-              <item.icon className="h-5 w-5 shrink-0" />
+              <Icon className="h-5 w-5 shrink-0" />
               {!collapsed && <span>{item.name}</span>}
             </Link>
           );

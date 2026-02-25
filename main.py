@@ -47,14 +47,15 @@ origins = [
     "http://127.0.0.1:5173",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
-    "https://app-rap-novaescola.vercel.app"
+    "https://app-rap-novaescola.vercel.app",
+    "https://bpm.rapnovaescola.pt"
 ]
 
 # Adicionar o middleware de CORS à aplicação
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"(https://app-rap-novaescola.*\.vercel\.app|http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):\d+)", # Permite Vercel previews + localhost + rede privada
+    allow_origin_regex=r"(https://app-rap-novaescola.*\.vercel\.app|https://.*\.rapnovaescola\.pt|http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):\d+)",
     allow_credentials=True,
     allow_methods=["*"],  # Permite todos os métodos (GET, POST, PUT, etc)
     allow_headers=["*"],  # Permite todos os cabeçalhos
@@ -391,6 +392,66 @@ async def delete_all_notifications(user=Depends(get_current_user_required)):
     count = notification_service.apagar_todas_notificacoes(uid)
     return {"message": f"{count} notificações apagadas"}
 
+# --- Rotas para Projetos ---
+from services import projeto_service
+
+class ProjetoCreate(BaseModel):
+    nome: str
+    descricao: Optional[str] = None
+
+class ProjetoEstabAssoc(BaseModel):
+    estabelecimento_id: int
+
+@app.get("/api/projetos", tags=["Projetos"])
+async def get_projetos():
+    """Lista todos os projetos."""
+    return projeto_service.listar_projetos()
+
+@app.post("/api/projetos", tags=["Projetos"])
+async def create_projeto(data: ProjetoCreate):
+    """Cria um novo projeto."""
+    res = projeto_service.criar_projeto(data.nome, data.descricao)
+    if not res:
+        raise HTTPException(status_code=400, detail="Falha ao criar projeto")
+    return res
+
+@app.put("/api/projetos/{id}", tags=["Projetos"])
+async def update_projeto(id: int, data: ProjetoCreate):
+    """Atualiza um projeto."""
+    sucesso = projeto_service.atualizar_projeto(id, data.nome, data.descricao)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao atualizar projeto")
+    return {"message": "Projeto atualizado"}
+
+@app.delete("/api/projetos/{id}", tags=["Projetos"])
+async def delete_projeto(id: int):
+    """Apaga um projeto."""
+    sucesso = projeto_service.apagar_projeto(id)
+    if not sucesso:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    return {"message": "Projeto apagado"}
+
+@app.get("/api/projetos/{id}/estabelecimentos", tags=["Projetos"])
+async def get_projeto_estabelecimentos(id: int):
+    """Lista estabelecimentos de um projeto."""
+    return projeto_service.listar_estabelecimentos_por_projeto(id)
+
+@app.post("/api/projetos/{id}/estabelecimentos", tags=["Projetos"])
+async def add_projeto_estabelecimento(id: int, data: ProjetoEstabAssoc):
+    """Associa um estabelecimento a um projeto."""
+    sucesso = projeto_service.associar_estabelecimento(id, data.estabelecimento_id)
+    if not sucesso:
+        raise HTTPException(status_code=400, detail="Falha ao associar estabelecimento")
+    return {"message": "Estabelecimento associado"}
+
+@app.delete("/api/projetos/{id}/estabelecimentos/{estab_id}", tags=["Projetos"])
+async def remove_projeto_estabelecimento(id: int, estab_id: int):
+    """Remove associação entre projeto e estabelecimento."""
+    sucesso = projeto_service.desassociar_estabelecimento(id, estab_id)
+    if not sucesso:
+        raise HTTPException(status_code=404, detail="Associação não encontrada")
+    return {"message": "Estabelecimento desassociado"}
+
 # --- Rotas para Turmas/Estabelecimentos ---
 from services import turma_service, profile_service, estudio_service, notification_service, registo_service, aluno_service
 
@@ -515,9 +576,9 @@ async def create_turma(turma: TurmaCreate):
     raise HTTPException(status_code=400, detail="Falha ao criar turma (pode já existir)")
 
 @app.get("/api/turmas", tags=["Core"])
-async def get_turmas():
-    """Lista todas as turmas com estabelecimentos."""
-    return turma_service.listar_turmas_com_estabelecimento()
+async def get_turmas(estabelecimento_id: Optional[int] = None):
+    """Lista todas as turmas com estabelecimentos. Opcionalmente filtra por estabelecimento_id."""
+    return turma_service.listar_turmas_com_estabelecimento(estabelecimento_id)
 
 @app.put("/api/turmas/{id}", tags=["Core"])
 async def update_turma(id: int, turma: TurmaCreate):
@@ -762,13 +823,23 @@ async def calculate_distance(lat1: float, lng1: float, lat2: float, lng2: float)
 # MENTOR — LOCALIZAÇÃO
 # -----------------------------------------------------------------------------
 
+MENTOR_ROLES = {'mentor', 'produtor', 'mentor_produtor', 'coordenador'}
+
 @app.get("/api/mentores/me", tags=["Core"])
 async def get_my_mentor(user=Depends(get_current_user_required)):
-    """Retorna o registo de mentor do user autenticado."""
+    """Retorna o registo de mentor do user autenticado (auto-cria se necessário)."""
     user_id = user.get("sub")
-    mentor = turma_service.obter_mentor_por_user_id(user_id)
+    email = user.get("email")
+    mentor = turma_service.obter_mentor_por_user_id(user_id, email)
     if not mentor:
-        return {"id": None, "latitude": None, "longitude": None, "morada": None}
+        # Auto-criar se o role do user justifica entrada na tabela mentores
+        meta = user.get("user_metadata") or {}
+        role = meta.get("role", "")
+        if role in MENTOR_ROLES:
+            nome = meta.get("full_name") or (email or "").split("@")[0]
+            mentor = turma_service.criar_mentor(user_id, nome, email, role)
+    if not mentor:
+        raise HTTPException(status_code=404, detail="Mentor não encontrado")
     return mentor
 
 

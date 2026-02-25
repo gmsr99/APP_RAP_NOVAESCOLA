@@ -56,7 +56,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/services/api';
-import type { AulaAPI, Turma, AulaCreate, PublicProfileEquipa } from '@/types';
+import type { AulaAPI, Turma, AulaCreate, PublicProfileEquipa, Projeto, Estabelecimento } from '@/types';
 import {
   format,
   startOfWeek,
@@ -203,6 +203,27 @@ const Horarios = () => {
     queryFn: () => api.get<PublicProfileEquipa[]>('/api/equipa'),
     enabled: !!apiUrl,
   });
+
+  // Projeto → Estabelecimento → Turma cascading
+  const [selectedProjetoId, setSelectedProjetoId] = useState<number | null>(null);
+  const [selectedEstabId, setSelectedEstabId] = useState<number | null>(null);
+
+  const { data: projetos } = useQuery({
+    queryKey: ['projetos'],
+    queryFn: () => api.get<Projeto[]>('/api/projetos'),
+    enabled: !!apiUrl,
+  });
+
+  const { data: projetoEstabs } = useQuery({
+    queryKey: ['projeto-estabs', selectedProjetoId],
+    queryFn: () => api.get<Estabelecimento[]>(`/api/projetos/${selectedProjetoId}/estabelecimentos`),
+    enabled: !!selectedProjetoId,
+  });
+
+  // Turmas filtradas pelo estabelecimento selecionado
+  const filteredTurmas = selectedEstabId
+    ? turmas?.filter(t => t.estabelecimento_id === selectedEstabId)
+    : turmas;
 
   const [formData, setFormData] = useState<Partial<AulaCreate>>({
     duracao_minutos: 120,
@@ -470,6 +491,8 @@ const Horarios = () => {
     setModalTab('aula');
     setSelectedKitCatId('');
     setCheckedItemIds(new Set());
+    setSelectedProjetoId(null);
+    setSelectedEstabId(null);
     setFormData({
       duracao_minutos: 120,
       tipo: 'ensaio',
@@ -599,6 +622,7 @@ const Horarios = () => {
       tipo: formData.tipo || 'plano_aula',
       observacoes: formData.observacoes || '',
       atividade_id: formData.atividade_id,
+      projeto_id: selectedProjetoId,
     };
 
     if (editingSession) {
@@ -665,6 +689,67 @@ const Horarios = () => {
                   {/* ── Tab: Aula / Evento ── */}
                   <TabsContent value="aula">
                     <div className="grid gap-4 py-4">
+                      {/* Projeto → Estabelecimento → Turma (Cascading) */}
+                      <div className="space-y-2">
+                        <Label htmlFor="projeto">Projeto</Label>
+                        <Select
+                          value={selectedProjetoId ? String(selectedProjetoId) : undefined}
+                          onValueChange={(v) => {
+                            setSelectedProjetoId(Number(v));
+                            setSelectedEstabId(null);
+                            setFormData({ ...formData, turma_id: undefined, atividade_id: null });
+                            setSelectedDisciplinaId(null);
+                          }}
+                        >
+                          <SelectTrigger id="projeto">
+                            <SelectValue placeholder="Selecionar Projeto" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            {projetos?.map((p) => (
+                              <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="estabelecimento">Estabelecimento</Label>
+                          <Select
+                            disabled={!selectedProjetoId}
+                            value={selectedEstabId ? String(selectedEstabId) : undefined}
+                            onValueChange={(v) => {
+                              setSelectedEstabId(Number(v));
+                              setFormData({ ...formData, turma_id: undefined });
+                            }}
+                          >
+                            <SelectTrigger id="estabelecimento">
+                              <SelectValue placeholder="Selecione..." />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover">
+                              {projetoEstabs?.map((e) => (
+                                <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="turma">Turma</Label>
+                          <Select
+                            disabled={!selectedEstabId}
+                            value={formData.turma_id ? String(formData.turma_id) : undefined}
+                            onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
+                          >
+                            <SelectTrigger id="turma">
+                              <SelectValue placeholder="Selecione..." />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover">
+                              {filteredTurmas?.map((t) => (
+                                <SelectItem key={t.id} value={String(t.id)}>{t.nome}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
                       <div className="space-y-2">
                         <Label htmlFor="date">Data</Label>
                         <Input id="date" type="date" />
@@ -678,22 +763,6 @@ const Horarios = () => {
                           <Label htmlFor="time-end">Hora de fim</Label>
                           <Input id="time-end" type="time" />
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="turma">Turma</Label>
-                        <Select
-                          value={formData.turma_id ? String(formData.turma_id) : undefined}
-                          onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
-                        >
-                          <SelectTrigger id="turma">
-                            <SelectValue placeholder="Selecionar Turma" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover">
-                            {turmas?.map((t) => (
-                              <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="mentor">Mentor</Label>

@@ -89,6 +89,13 @@ const Wiki = () => {
   const { user } = useAuth();
   const isCoordinator = user?.role === 'coordenador' || user?.role === 'direcao' || user?.role === 'it_support';
 
+  // State for Projetos
+  const [selectedProjetoId, setSelectedProjetoId] = useState<number | null>(null);
+  const [isProjetoDialogOpen, setIsProjetoDialogOpen] = useState(false);
+  const [editingProjeto, setEditingProjeto] = useState<{ id: number; nome: string; descricao?: string } | null>(null);
+  const [projetoForm, setProjetoForm] = useState({ nome: '', descricao: '' });
+  const [addEstabToProjetoId, setAddEstabToProjetoId] = useState<string>('');
+
   // State for Estabelecimentos
   const [isEstabDialogOpen, setIsEstabDialogOpen] = useState(false);
   const [editingEstab, setEditingEstab] = useState<Estabelecimento | null>(null);
@@ -120,6 +127,25 @@ const Wiki = () => {
   const [newDisciplinaDesc, setNewDisciplinaDesc] = useState('');
 
   // --- QUERIES ---
+  interface Projeto { id: number; nome: string; descricao?: string; estado?: string; }
+
+  const { data: projetos = [] } = useQuery({
+    queryKey: ['projetos'],
+    queryFn: async () => {
+      const res = await api.get('/api/projetos');
+      return res.data as Projeto[];
+    }
+  });
+
+  const { data: projetoEstabs = [] } = useQuery({
+    queryKey: ['projeto-estabs', selectedProjetoId],
+    queryFn: async () => {
+      const res = await api.get(`/api/projetos/${selectedProjetoId}/estabelecimentos`);
+      return res.data as Estabelecimento[];
+    },
+    enabled: !!selectedProjetoId,
+  });
+
   const { data: estabelecimentos = [] } = useQuery({
     queryKey: ['estabelecimentos'],
     queryFn: async () => {
@@ -142,6 +168,60 @@ const Wiki = () => {
       const res = await api.get('/api/curriculo');
       return res.data as Disciplina[];
     }
+  });
+
+  // Estabelecimentos e turmas filtrados pelo projeto selecionado
+  const filteredEstabs = selectedProjetoId ? projetoEstabs : estabelecimentos;
+  const filteredEstabIds = new Set(filteredEstabs.map(e => e.id));
+  const filteredTurmas = selectedProjetoId
+    ? turmas.filter((t: Turma) => filteredEstabIds.has(t.estabelecimento_id))
+    : turmas;
+
+  // Estabelecimentos que ainda NÃO estão no projeto (para o dropdown de associar)
+  const unlinkedEstabs = selectedProjetoId
+    ? estabelecimentos.filter(e => !filteredEstabIds.has(e.id))
+    : [];
+
+  // --- MUTATIONS: PROJETOS ---
+  const saveProjetoMutation = useMutation({
+    mutationFn: (data: { nome: string; descricao?: string }) => {
+      if (editingProjeto) return api.put(`/api/projetos/${editingProjeto.id}`, data);
+      return api.post('/api/projetos', data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projetos'] });
+      toast.success(editingProjeto ? 'Projeto atualizado!' : 'Projeto criado!');
+      setIsProjetoDialogOpen(false);
+    },
+    onError: () => toast.error('Erro ao salvar projeto.')
+  });
+
+  const deleteProjetoMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/api/projetos/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projetos'] });
+      setSelectedProjetoId(null);
+      toast.success('Projeto apagado!');
+    },
+  });
+
+  const assocEstabMutation = useMutation({
+    mutationFn: (estabelecimento_id: number) =>
+      api.post(`/api/projetos/${selectedProjetoId}/estabelecimentos`, { estabelecimento_id }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projeto-estabs', selectedProjetoId] });
+      setAddEstabToProjetoId('');
+      toast.success('Estabelecimento associado ao projeto!');
+    },
+  });
+
+  const desassocEstabMutation = useMutation({
+    mutationFn: (estabId: number) =>
+      api.delete(`/api/projetos/${selectedProjetoId}/estabelecimentos/${estabId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projeto-estabs', selectedProjetoId] });
+      toast.success('Estabelecimento desassociado!');
+    },
   });
 
   // --- MUTATIONS: ESTABELECIMENTOS ---
@@ -328,10 +408,10 @@ const Wiki = () => {
     setIsActivityDialogOpen(true);
   };
 
-  // Group turmas by estabelecimento
-  const turmasByEstab = estabelecimentos.map(estab => ({
+  // Group turmas by estabelecimento (filtered by projeto)
+  const turmasByEstab = filteredEstabs.map(estab => ({
     ...estab,
-    turmas: turmas.filter((t: Turma) => t.estabelecimento_id === estab.id)
+    turmas: filteredTurmas.filter((t: Turma) => t.estabelecimento_id === estab.id)
   }));
 
   return (
@@ -346,6 +426,88 @@ const Wiki = () => {
           Documentação da lógica da aplicação, hierarquias e dados de referência.
         </p>
       </div>
+
+      {/* Seletor de Projeto */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2">
+              <Layers className="h-5 w-5 text-primary" />
+              Projeto
+            </CardTitle>
+            <CardDescription>
+              Seleciona um projeto para ver os seus estabelecimentos e turmas.
+            </CardDescription>
+          </div>
+          {isCoordinator && (
+            <Button size="sm" className="gap-2" onClick={() => {
+              setEditingProjeto(null);
+              setProjetoForm({ nome: '', descricao: '' });
+              setIsProjetoDialogOpen(true);
+            }}>
+              <Plus className="h-4 w-4" />
+              Novo Projeto
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3">
+            <Select
+              value={selectedProjetoId ? String(selectedProjetoId) : undefined}
+              onValueChange={(v) => setSelectedProjetoId(Number(v))}
+            >
+              <SelectTrigger className="w-[300px]">
+                <SelectValue placeholder="Selecionar projeto..." />
+              </SelectTrigger>
+              <SelectContent>
+                {projetos.map((p) => (
+                  <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedProjetoId && isCoordinator && (
+              <>
+                <Button variant="ghost" size="icon" onClick={() => {
+                  const p = projetos.find(x => x.id === selectedProjetoId);
+                  if (p) {
+                    setEditingProjeto(p);
+                    setProjetoForm({ nome: p.nome, descricao: p.descricao || '' });
+                    setIsProjetoDialogOpen(true);
+                  }
+                }}>
+                  <Edit2 className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="text-destructive" onClick={() => {
+                  if (confirm('Apagar este projeto? Os estabelecimentos não são apagados, apenas desassociados.')) {
+                    deleteProjetoMutation.mutate(selectedProjetoId);
+                  }
+                }}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            )}
+          </div>
+          {selectedProjetoId && isCoordinator && unlinkedEstabs.length > 0 && (
+            <div className="flex items-center gap-2 mt-4">
+              <Select value={addEstabToProjetoId} onValueChange={setAddEstabToProjetoId}>
+                <SelectTrigger className="w-[250px]">
+                  <SelectValue placeholder="Associar estabelecimento..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {unlinkedEstabs.map((e) => (
+                    <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" disabled={!addEstabToProjetoId} onClick={() => {
+                assocEstabMutation.mutate(Number(addEstabToProjetoId));
+              }}>
+                Associar
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Contexto e Hierarquia - (Mantido igual) */}
@@ -444,14 +606,19 @@ const Wiki = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {estabelecimentos.map((estab) => (
+              {filteredEstabs.map((estab) => (
                 <TableRow key={estab.id}>
                   <TableCell className="font-bold">{estab.sigla}</TableCell>
                   <TableCell>{estab.nome}</TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right flex items-center justify-end gap-1">
                     {isCoordinator && (
                       <Button variant="ghost" size="icon" onClick={() => openEditEstab(estab)}>
                         <Edit2 className="h-4 w-4 text-blue-500" />
+                      </Button>
+                    )}
+                    {isCoordinator && selectedProjetoId && (
+                      <Button variant="ghost" size="icon" onClick={() => desassocEstabMutation.mutate(estab.id)} title="Desassociar do projeto">
+                        <X className="h-4 w-4 text-destructive" />
                       </Button>
                     )}
                   </TableCell>
@@ -713,6 +880,45 @@ const Wiki = () => {
           </Accordion>
         </CardContent>
       </Card>
+
+      {/* DIALOG FOR PROJETOS */}
+      <Dialog open={isProjetoDialogOpen} onOpenChange={setIsProjetoDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingProjeto ? 'Editar Projeto' : 'Novo Projeto'}</DialogTitle>
+            <DialogDescription>
+              {editingProjeto ? 'Alterar dados do projeto.' : 'Criar um novo projeto.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="proj-nome">Nome</Label>
+              <Input
+                id="proj-nome"
+                value={projetoForm.nome}
+                onChange={(e) => setProjetoForm({ ...projetoForm, nome: e.target.value })}
+                placeholder="Ex: PIS, Gulbenkian 70 anos"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="proj-desc">Descrição</Label>
+              <Input
+                id="proj-desc"
+                value={projetoForm.descricao}
+                onChange={(e) => setProjetoForm({ ...projetoForm, descricao: e.target.value })}
+                placeholder="Descrição opcional"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsProjetoDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={() => saveProjetoMutation.mutate(projetoForm)} disabled={!projetoForm.nome}>
+              <Save className="h-4 w-4 mr-2" />
+              {editingProjeto ? 'Atualizar' : 'Criar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* DIALOG FOR ESTABELECIMENTOS */}
       <Dialog open={isEstabDialogOpen} onOpenChange={setIsEstabDialogOpen}>

@@ -46,8 +46,8 @@ def fix_complete_trigger():
             CREATE OR REPLACE FUNCTION sync_mentores_and_produtores()
             RETURNS TRIGGER AS $$
             BEGIN
-                -- MENTORES: mentor, mentor_produtor, coordenador
-                IF NEW.role IN ('mentor', 'mentor_produtor', 'coordenador') THEN
+                -- MENTORES: mentor, produtor, mentor_produtor, coordenador
+                IF NEW.role IN ('mentor', 'produtor', 'mentor_produtor', 'coordenador') THEN
                     UPDATE mentores 
                     SET nome = COALESCE(NEW.full_name, split_part(NEW.email, '@', 1)), 
                         perfil = NEW.role,
@@ -107,7 +107,7 @@ def fix_complete_trigger():
 
         conn.commit()
         print("\n✅ Complete trigger fix applied successfully!")
-        print("   - Mentores: mentor, mentor_produtor, coordenador")
+        print("   - Mentores: mentor, produtor, mentor_produtor, coordenador")
         print("   - Produtores: produtor, mentor_produtor, coordenador")
 
         cur.close()
