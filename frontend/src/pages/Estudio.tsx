@@ -396,9 +396,7 @@ export default function Estudio() {
                   </SelectTrigger>
                   <SelectContent>
                     {team.map(u => (
-                      <SelectItem key={u.id} value={u.id}>
-                        {u.nome} ({u.role})
-                      </SelectItem>
+                      <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

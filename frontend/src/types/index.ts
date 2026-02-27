@@ -188,6 +188,7 @@ export interface PublicProfileEquipa {
 export interface ChatChannel {
   id: string;
   name: string;
+  description?: string | null;
   type: 'channel' | 'dm';
   created_at: string;
 }

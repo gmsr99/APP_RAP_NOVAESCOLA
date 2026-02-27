@@ -5,21 +5,28 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from database.connection import get_db_connection
 
-def listar_musicas(arquivadas=False, user_id=None, role=None):
+def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None):
     """
     Lista todas as músicas, com suporte a filtros.
-    
+
     Args:
         arquivadas (bool): Se True, lista apenas as arquivadas.
-        user_id (str): ID do utilizador atual (opcional, para filtros futuros).
+        user_id (str): ID do utilizador atual (opcional).
         role (str): Role do utilizador atual (opcional).
+        projeto_id (int): Filtrar por projeto (opcional).
     """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
-        query = """
-            SELECT 
+
+        conditions = ["m.arquivado = %s"]
+        params = [arquivadas]
+        if projeto_id:
+            conditions.append("m.projeto_id = %s")
+            params.append(projeto_id)
+
+        query = f"""
+            SELECT
                 m.id, m.titulo, m.estado, m.disciplina, m.arquivado, m.criado_em,
                 t.id as turma_id, t.nome as turma_nome,
                 e.nome as estabelecimento_nome,
@@ -29,7 +36,10 @@ def listar_musicas(arquivadas=False, user_id=None, role=None):
                 m.link_demo,
                 m.misturado_por_id, p_mist.full_name as misturado_por_nome,
                 m.revisto_por_id, p_rev.full_name as revisto_por_nome,
-                m.finalizado_por_id, p_fin.full_name as finalizado_por_nome
+                m.finalizado_por_id, p_fin.full_name as finalizado_por_nome,
+                m.deadline,
+                m.notas,
+                m.projeto_id
             FROM musicas m
             LEFT JOIN turmas t ON m.turma_id = t.id
             LEFT JOIN estabelecimentos e ON t.estabelecimento_id = e.id
@@ -38,11 +48,11 @@ def listar_musicas(arquivadas=False, user_id=None, role=None):
             LEFT JOIN profiles p_mist ON m.misturado_por_id = p_mist.id
             LEFT JOIN profiles p_rev ON m.revisto_por_id = p_rev.id
             LEFT JOIN profiles p_fin ON m.finalizado_por_id = p_fin.id
-            WHERE m.arquivado = %s
+            WHERE {" AND ".join(conditions)}
             ORDER BY m.criado_em DESC
         """
-        
-        cur.execute(query, (arquivadas,))
+
+        cur.execute(query, params)
         musicas = cur.fetchall()
         
         resultado = []
@@ -80,7 +90,10 @@ def listar_musicas(arquivadas=False, user_id=None, role=None):
                 'finalizado_por': {
                     'id': row[19],
                     'nome': row[20]
-                } if row[19] else None
+                } if row[19] else None,
+                'deadline': row[21].isoformat() if row[21] else None,
+                'notas': row[22],
+                'projeto_id': row[23]
             })
             
         return resultado
@@ -121,10 +134,10 @@ def criar_musica(dados, criador_id):
             responsavel_inicial = criador_id
         
         cur.execute("""
-            INSERT INTO musicas (titulo, turma_id, disciplina, estado, criador_id, responsavel_id)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO musicas (titulo, turma_id, disciplina, estado, criador_id, responsavel_id, projeto_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, (dados['titulo'], dados['turma_id'], dados.get('disciplina'), estado_inicial, criador_id, responsavel_inicial))
+        """, (dados['titulo'], dados['turma_id'], dados.get('disciplina'), estado_inicial, criador_id, responsavel_inicial, dados.get('projeto_id')))
         
         new_id = cur.fetchone()[0]
         conn.commit()
@@ -278,6 +291,180 @@ def aceitar_tarefa(musica_id, user_id):
         if 'conn' in locals() and conn: conn.close()
 
 def atualizar_detalhes(musica_id, dados):
-    """Atualiza detalhes genéricos da música."""
-    # ... implementação genérica se necessário (titulo, link_demo, etC)
-    pass
+    """Atualiza campos editáveis da música (deadline, notas, link_demo, titulo)."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        campos = []
+        valores = []
+        for campo in ('deadline', 'notas', 'link_demo', 'titulo'):
+            if campo in dados:
+                campos.append(f"{campo} = %s")
+                valores.append(dados[campo])
+        if not campos:
+            return False
+        valores.append(musica_id)
+        cur.execute(
+            f"UPDATE musicas SET {', '.join(campos)}, updated_at = NOW() WHERE id = %s",
+            valores
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"❌ Erro ao atualizar detalhes: {e}")
+        if 'conn' in locals() and conn: conn.rollback()
+        return False
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
+def apagar_musica(musica_id):
+    """Apaga permanentemente uma música e todas as suas aulas associadas."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM musicas WHERE id = %s RETURNING id", (musica_id,))
+        deleted = cur.fetchone()
+        conn.commit()
+        return deleted is not None
+    except Exception as e:
+        print(f"❌ Erro ao apagar música: {e}")
+        if 'conn' in locals() and conn: conn.rollback()
+        return False
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
+def listar_stats_instituicao(projeto_id=None):
+    """Stats de progresso agrupados por estabelecimento > turma."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        estab_filter = ""
+        params = []
+        if projeto_id:
+            estab_filter = "JOIN projeto_estabelecimentos pe ON pe.estabelecimento_id = e.id AND pe.projeto_id = %s"
+            params.append(projeto_id)
+
+        cur.execute(f"""
+            SELECT
+                e.id as estab_id,
+                e.nome as estab_nome,
+                t.id as turma_id,
+                t.nome as turma_nome,
+                t.sessoes_previstas,
+                t.musicas_previstas,
+                COALESCE(sess.realizadas, 0) as sessoes_realizadas,
+                COALESCE(mus.total, 0) as musicas_total,
+                COALESCE(mus.concluidas, 0) as musicas_concluidas
+            FROM estabelecimentos e
+            {estab_filter}
+            JOIN turmas t ON t.estabelecimento_id = e.id
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*) as realizadas
+                FROM aulas a
+                WHERE a.turma_id = t.id
+                  AND a.estado = 'terminada'
+                  AND a.is_autonomous = FALSE
+                  {'AND a.projeto_id = %s' if projeto_id else ''}
+            ) sess ON true
+            LEFT JOIN LATERAL (
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE m.estado = 'concluído') as concluidas
+                FROM musicas m
+                WHERE m.turma_id = t.id AND m.arquivado = FALSE
+                  {'AND m.projeto_id = %s' if projeto_id else ''}
+            ) mus ON true
+            ORDER BY e.nome, t.nome
+        """, params + ([projeto_id] if projeto_id else []) + ([projeto_id] if projeto_id else []))
+        rows = cur.fetchall()
+
+        estabs = {}
+        for row in rows:
+            eid = row[0]
+            if eid not in estabs:
+                estabs[eid] = {
+                    'estabelecimento_id': eid,
+                    'estabelecimento_nome': row[1],
+                    'turmas': []
+                }
+            estabs[eid]['turmas'].append({
+                'turma_id': row[2],
+                'turma_nome': row[3],
+                'sessoes_previstas': row[4],
+                'musicas_previstas': row[5],
+                'sessoes_realizadas': row[6],
+                'musicas_total': row[7],
+                'musicas_concluidas': row[8],
+            })
+
+        return list(estabs.values())
+    except Exception as e:
+        print(f"❌ Erro ao listar stats instituição: {e}")
+        return []
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
+def listar_stats_equipa(projeto_id=None):
+    """Stats de músicas agrupados por membro da equipa (responsável ou criador)."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        conditions = ["m.arquivado = FALSE", "m.estado != 'concluído'"]
+        params = []
+        if projeto_id:
+            conditions.append("m.projeto_id = %s")
+            params.append(projeto_id)
+
+        cur.execute(f"""
+            SELECT
+                COALESCE(m.responsavel_id, m.criador_id) as user_id,
+                COALESCE(p.full_name, split_part(p.email, '@', 1)) as nome,
+                m.id, m.titulo, m.estado,
+                t.nome as turma_nome,
+                e.nome as estab_nome
+            FROM musicas m
+            LEFT JOIN profiles p ON p.id = COALESCE(m.responsavel_id, m.criador_id)
+            LEFT JOIN turmas t ON m.turma_id = t.id
+            LEFT JOIN estabelecimentos e ON t.estabelecimento_id = e.id
+            WHERE {" AND ".join(conditions)}
+            ORDER BY p.full_name, m.criado_em DESC
+        """, params)
+        rows = cur.fetchall()
+
+        membros = {}
+        for row in rows:
+            uid = row[0]
+            if not uid:
+                continue
+            if uid not in membros:
+                membros[uid] = {
+                    'user_id': uid,
+                    'nome': row[1],
+                    'musicas': []
+                }
+            membros[uid]['musicas'].append({
+                'id': row[2],
+                'titulo': row[3],
+                'estado': row[4],
+                'turma_nome': row[5],
+                'estabelecimento_nome': row[6],
+            })
+
+        resultado = list(membros.values())
+        for m in resultado:
+            m['musicas_atribuidas'] = len(m['musicas'])
+        return resultado
+    except Exception as e:
+        print(f"❌ Erro ao listar stats equipa: {e}")
+        return []
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()

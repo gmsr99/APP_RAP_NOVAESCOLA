@@ -630,16 +630,17 @@ async def get_produtores():
 from services import musica_service
 
 @app.get("/api/musicas", tags=["Producao"])
-async def get_musicas(arquivadas: bool = False, user=Depends(get_current_user_optional)):
-    """Lista todas as músicas (ativas ou arquivadas)."""
+async def get_musicas(arquivadas: bool = False, projeto_id: Optional[int] = None, user=Depends(get_current_user_optional)):
+    """Lista todas as músicas (ativas ou arquivadas), com filtro opcional por projeto."""
     user_id = user.get("sub") if user else None
     role = (user.get("user_metadata") or {}).get("role") if user else None
-    return musica_service.listar_musicas(arquivadas, user_id, role)
+    return musica_service.listar_musicas(arquivadas, user_id, role, projeto_id)
 
 class MusicaCreate(BaseModel):
     titulo: str
     turma_id: int
     disciplina: str = None
+    projeto_id: Optional[int] = None
 
 @app.post("/api/musicas", tags=["Producao"])
 async def create_musica(musica: MusicaCreate, user=Depends(get_current_user_required)):
@@ -774,6 +775,35 @@ async def desarquivar_musica(musica_id: int):
     if not sucesso:
         raise HTTPException(status_code=400, detail=mensagem)
     return {"message": mensagem}
+
+@app.patch("/api/musicas/{musica_id}", tags=["Producao"])
+async def update_musica_detalhes(musica_id: int, payload: dict, user=Depends(get_current_user_required)):
+    """Atualiza detalhes editáveis de uma música (deadline, notas, link_demo, titulo)."""
+    sucesso = musica_service.atualizar_detalhes(musica_id, payload)
+    if not sucesso:
+        raise HTTPException(status_code=400, detail="Erro ao atualizar música")
+    return {"message": "Música atualizada"}
+
+@app.delete("/api/musicas/{musica_id}", tags=["Producao"])
+async def delete_musica(musica_id: int, user=Depends(get_current_user_required)):
+    """Apaga permanentemente uma música. Restrito a coordenador, direção e IT support."""
+    role = (user.get("user_metadata") or {}).get("role", "")
+    if role not in {"coordenador", "direcao", "it_support"}:
+        raise HTTPException(status_code=403, detail="Sem permissão para apagar músicas.")
+    sucesso = musica_service.apagar_musica(musica_id)
+    if not sucesso:
+        raise HTTPException(status_code=404, detail="Música não encontrada.")
+    return {"message": "Música apagada."}
+
+@app.get("/api/producao/stats/instituicao", tags=["Producao"])
+async def get_stats_instituicao(projeto_id: Optional[int] = None, user=Depends(get_current_user_required)):
+    """Stats de progresso agrupados por estabelecimento > turma."""
+    return musica_service.listar_stats_instituicao(projeto_id)
+
+@app.get("/api/producao/stats/equipa", tags=["Producao"])
+async def get_stats_equipa(projeto_id: Optional[int] = None, user=Depends(get_current_user_required)):
+    """Stats de músicas agrupados por membro da equipa."""
+    return musica_service.listar_stats_equipa(projeto_id)
 
 
 # -----------------------------------------------------------------------------

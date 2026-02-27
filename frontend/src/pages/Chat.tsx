@@ -324,7 +324,7 @@ export default function Chat() {
   return (
     <div className="flex h-[calc(100vh-7rem)] -m-6 bg-background">
       {/* Channels Sidebar */}
-      <div className="w-64 bg-sidebar border-r border-sidebar-border flex flex-col">
+      <div className="w-80 bg-sidebar border-r border-sidebar-border flex flex-col">
         <div className="p-4 border-b border-sidebar-border">
           <h2 className="font-semibold text-sidebar-foreground flex items-center gap-2">
             <Users className="h-5 w-5" />
@@ -345,36 +345,36 @@ export default function Chat() {
                 <button
                   key={channel.id}
                   onClick={() => setSelectedChannelId(channel.id)}
+                  title={channel.description || undefined}
                   className={cn(
-                    'w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors',
+                    'w-full flex items-start gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left',
                     selectedChannelId === channel.id
                       ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                       : 'text-sidebar-foreground hover:bg-sidebar-accent/50'
                   )}
                 >
-                  <Hash className="h-4 w-4 shrink-0" />
-                  <span className={cn('truncate', channel.unread_count > 0 && 'font-semibold')}>{channel.name}</span>
-                  {channel.unread_count > 0 && (
-                    <span className="ml-auto h-2.5 w-2.5 shrink-0 rounded-full bg-blue-500" />
-                  )}
+                  <Hash className="h-4 w-4 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className={cn('truncate text-sm', channel.unread_count > 0 && 'font-semibold')}>{channel.name}</span>
+                      {channel.unread_count > 0 && (
+                        <span className="ml-1 h-2.5 w-2.5 shrink-0 rounded-full bg-blue-500" />
+                      )}
+                    </div>
+                    {channel.description && (
+                      <p className="text-[10px] text-sidebar-foreground/50 truncate leading-tight mt-0.5">{channel.description}</p>
+                    )}
+                  </div>
                 </button>
               ))}
             </div>
 
             {/* Direct Messages */}
             <div>
-              <div className="flex items-center justify-between mb-2 px-2">
+              <div className="mb-2 px-2">
                 <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Mensagens Diretas
                 </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={() => setIsDmDialogOpen(true)}
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
               </div>
               {dmChannels.map((dm) => (
                 <button
@@ -398,6 +398,13 @@ export default function Chat() {
                   )}
                 </button>
               ))}
+              <button
+                onClick={() => setIsDmDialogOpen(true)}
+                className="w-full flex items-center gap-2 px-2 py-1.5 mt-1 rounded-md text-sm text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground transition-colors"
+              >
+                <Plus className="h-4 w-4 shrink-0" />
+                <span>Nova Mensagem</span>
+              </button>
             </div>
           </div>
         </ScrollArea>
@@ -406,15 +413,20 @@ export default function Chat() {
       {/* Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Channel Header */}
-        <div className="h-14 px-4 border-b border-border flex items-center gap-2 bg-card">
+        <div className="min-h-14 px-4 py-2 border-b border-border flex items-center gap-2 bg-card">
           {selectedChannel ? (
             <>
               {selectedChannel.type === 'channel' ? (
-                <Hash className="h-5 w-5 text-muted-foreground" />
+                <Hash className="h-5 w-5 text-muted-foreground shrink-0" />
               ) : (
-                <MessageCircle className="h-5 w-5 text-muted-foreground" />
+                <MessageCircle className="h-5 w-5 text-muted-foreground shrink-0" />
               )}
-              <h3 className="font-semibold">{getChannelDisplayName(selectedChannel)}</h3>
+              <div>
+                <h3 className="font-semibold leading-tight">{getChannelDisplayName(selectedChannel)}</h3>
+                {selectedChannel.type === 'channel' && selectedChannel.description && (
+                  <p className="text-xs text-muted-foreground">{selectedChannel.description}</p>
+                )}
+              </div>
             </>
           ) : (
             <h3 className="font-semibold text-muted-foreground">Seleciona um canal</h3>
@@ -437,12 +449,15 @@ export default function Chat() {
                     <MessageCircle className="h-6 w-6 text-muted-foreground" />
                   )}
                 </div>
-                <p className="text-muted-foreground">
+                <p className="font-medium text-foreground">
                   {selectedChannel.type === 'channel'
-                    ? `Este é o início do canal #${selectedChannel.name}`
+                    ? `Bem-vindo a #${selectedChannel.name}`
                     : `Inicia uma conversa com ${getChannelDisplayName(selectedChannel)}`
                   }
                 </p>
+                {selectedChannel.type === 'channel' && selectedChannel.description && (
+                  <p className="text-sm text-muted-foreground mt-1">{selectedChannel.description}</p>
+                )}
               </div>
             ) : (
               messages.map((message) => (
