@@ -233,6 +233,8 @@ def criar_aulas_recorrentes(
     responsavel_user_id,
     observacoes,
     semanas,
+    tema=None,
+    projeto_id=None,
 ):
     """Cria N sessões de trabalho autónomo com intervalo semanal."""
     from datetime import timedelta
@@ -249,6 +251,8 @@ def criar_aulas_recorrentes(
             tipo_atividade=tipo_atividade,
             responsavel_user_id=responsavel_user_id,
             observacoes=observacoes,
+            tema=tema,
+            projeto_id=projeto_id,
         )
         if resultado:
             resultados.append(resultado)
@@ -801,6 +805,159 @@ def atualizar_aula(aula_id, dados):
     except Exception as e:
         print(f"❌ Erro ao atualizar aula: {e}")
         return False
+
+
+def listar_horas_equipa(projeto_id=None):
+    """Agrega horas por colaborador, separando sessões-aula de trabalho autónomo."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        projeto_filter = ""
+        params = []
+        if projeto_id:
+            projeto_filter = "AND (a.projeto_id = %s OR (a.projeto_id IS NULL AND t.estabelecimento_id IN (SELECT estabelecimento_id FROM projeto_estabelecimentos WHERE projeto_id = %s)))"
+            params.extend([projeto_id, projeto_id])
+
+        cur.execute(f"""
+            SELECT
+                p.id as user_id,
+                p.full_name as nome,
+                COALESCE(SUM(a.duracao_minutos) FILTER (WHERE a.is_autonomous = FALSE), 0) as minutos_aulas,
+                COALESCE(SUM(a.duracao_minutos) FILTER (WHERE a.is_autonomous = TRUE), 0) as minutos_autonomo,
+                COALESCE(COUNT(*) FILTER (WHERE a.is_autonomous = FALSE), 0) as sessoes_aulas,
+                COALESCE(COUNT(*) FILTER (WHERE a.is_autonomous = TRUE), 0) as sessoes_autonomo
+            FROM profiles p
+            JOIN mentores m ON m.user_id = p.id
+            JOIN aulas a ON (
+                (a.is_autonomous = FALSE AND a.mentor_id = m.id AND a.estado = 'terminada')
+                OR
+                (a.is_autonomous = TRUE AND a.responsavel_user_id = p.id::text AND a.is_realized = TRUE)
+            )
+            LEFT JOIN turmas t ON t.id = a.turma_id
+            WHERE 1=1 {projeto_filter}
+            GROUP BY p.id, p.full_name
+            ORDER BY (SUM(a.duracao_minutos)) DESC
+        """, params)
+
+        rows = cur.fetchall()
+        return [{
+            'user_id': str(row[0]),
+            'nome': row[1],
+            'horas_aulas': round(row[2] / 60.0, 1),
+            'horas_autonomo': round(row[3] / 60.0, 1),
+            'sessoes_aulas': row[4],
+            'sessoes_autonomo': row[5],
+        } for row in rows]
+    except Exception as e:
+        print(f"❌ Erro ao listar horas equipa: {e}")
+        return []
+    finally:
+        if 'cur' in locals() and cur:
+            cur.close()
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+def contar_sessoes_user(user_id):
+    """Conta sessões concluídas de um user (aulas terminadas como mentor + autónomas realizadas)."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT
+                COALESCE(COUNT(*) FILTER (WHERE a.is_autonomous = FALSE), 0) as sessoes_aulas,
+                COALESCE(COUNT(*) FILTER (WHERE a.is_autonomous = TRUE), 0) as sessoes_autonomo
+            FROM aulas a
+            LEFT JOIN mentores m ON m.id = a.mentor_id
+            WHERE (
+                (a.is_autonomous = FALSE AND m.user_id = %s AND a.estado = 'terminada')
+                OR
+                (a.is_autonomous = TRUE AND a.responsavel_user_id = %s AND a.is_realized = TRUE)
+            )
+        """, [user_id, user_id])
+        row = cur.fetchone()
+        return {
+            'sessoes_aulas': row[0] if row else 0,
+            'sessoes_autonomo': row[1] if row else 0,
+            'total': (row[0] + row[1]) if row else 0,
+        }
+    except Exception as e:
+        print(f"❌ Erro ao contar sessões user: {e}")
+        return {'sessoes_aulas': 0, 'sessoes_autonomo': 0, 'total': 0}
+    finally:
+        if 'cur' in locals() and cur:
+            cur.close()
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
+def listar_feedback_sessoes(projeto_id=None):
+    """Lista avaliações e observações de sessões terminadas, com info de turma/mentor/disciplina."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        conditions = ["a.estado = 'terminada'", "a.is_autonomous = FALSE", "a.avaliacao IS NOT NULL"]
+        params = []
+
+        if projeto_id:
+            conditions.append("""(
+                a.projeto_id = %s
+                OR (a.projeto_id IS NULL AND t.estabelecimento_id IN (
+                    SELECT estabelecimento_id FROM projeto_estabelecimentos WHERE projeto_id = %s
+                ))
+            )""")
+            params.extend([projeto_id, projeto_id])
+
+        query = f"""
+            SELECT
+                a.id, a.avaliacao, a.obs_termino, a.data_hora, a.duracao_minutos,
+                t.id as turma_id, t.nome as turma_nome,
+                e.id as estab_id, e.nome as estab_nome,
+                p.full_name as mentor_nome, m.user_id as mentor_user_id,
+                d.id as disciplina_id, d.nome as disciplina_nome
+            FROM aulas a
+            LEFT JOIN turmas t ON t.id = a.turma_id
+            LEFT JOIN estabelecimentos e ON e.id = t.estabelecimento_id
+            LEFT JOIN mentores m ON m.id = a.mentor_id
+            LEFT JOIN profiles p ON p.id = m.user_id
+            LEFT JOIN atividades atv ON atv.id = a.atividade_id
+            LEFT JOIN disciplinas d ON d.id = atv.disciplina_id
+            WHERE {" AND ".join(conditions)}
+            ORDER BY a.data_hora DESC
+        """
+
+        cur.execute(query, params)
+        rows = cur.fetchall()
+
+        resultado = []
+        for row in rows:
+            resultado.append({
+                'id': row[0],
+                'avaliacao': row[1],
+                'obs_termino': row[2],
+                'data_hora': row[3].isoformat() if row[3] else None,
+                'duracao_minutos': row[4],
+                'turma_id': row[5],
+                'turma_nome': row[6],
+                'estab_id': row[7],
+                'estab_nome': row[8],
+                'mentor_nome': row[9],
+                'mentor_user_id': str(row[10]) if row[10] else None,
+                'disciplina_id': row[11],
+                'disciplina_nome': row[12],
+            })
+
+        return resultado
+    except Exception as e:
+        print(f"❌ Erro ao listar feedback de sessões: {e}")
+        return []
+    finally:
+        if 'cur' in locals() and cur:
+            cur.close()
+        if 'conn' in locals() and conn:
+            conn.close()
 
 
 def apagar_aula(aula_id):

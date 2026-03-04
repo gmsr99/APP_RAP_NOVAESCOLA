@@ -240,6 +240,8 @@ const Horarios = () => {
     hora_inicio: '',
     hora_fim: '',
     tipo_atividade: 'Produção Musical',
+    projeto_id: '' as string,
+    tema: '',
     repetir_semanalmente: false,
     semanas: 4,
     observacoes: '',
@@ -253,12 +255,51 @@ const Horarios = () => {
     'Manutenção',
   ];
 
+  // Disciplinas da turma selecionada (filtra o dropdown de disciplinas)
+  const { data: turmaDisciplinas = [] } = useQuery({
+    queryKey: ['turma-disciplinas', formData.turma_id],
+    queryFn: async () => (await api.get(`/api/turmas/${formData.turma_id}/disciplinas`)).data,
+    enabled: !!formData.turma_id,
+  });
+
+  const filteredDisciplinas = turmaDisciplinas.length > 0
+    ? curriculo?.filter((d: any) => turmaDisciplinas.some((td: any) => td.id === d.id))
+    : curriculo;
+
+  // Stats por instituição (para pré-preencher Nº Sessão)
+  const { data: statsInstituicao } = useQuery({
+    queryKey: ['producao-stats-inst', selectedProjetoId],
+    queryFn: async () => (await api.get(`/api/producao/stats/instituicao?projeto_id=${selectedProjetoId}`)).data as {
+      estabelecimento_id: number; estabelecimento_nome: string;
+      turmas: { turma_id: number; disciplina_id: number | null; sessoes_realizadas: number }[];
+    }[],
+    enabled: !!selectedProjetoId,
+  });
+
   // Helper to get activities for selected discipline
   const [selectedDisciplinaId, setSelectedDisciplinaId] = useState<number | null>(null);
 
   const availableActivities = selectedDisciplinaId
     ? curriculo?.find(d => d.id === selectedDisciplinaId)?.atividades || []
     : [];
+
+  // Pré-preencher Nº Sessão (N+1) — N = total de sessões aula na turma (todos os estados)
+  useEffect(() => {
+    if (!formData.turma_id || !aulasApi || editingSession) return;
+    const n = aulasApi.filter(a => !a.is_autonomous && a.turma_id === formData.turma_id).length;
+    setFormData(prev => ({ ...prev, tema: String(n + 1) }));
+  }, [formData.turma_id, aulasApi, editingSession]);
+
+  // Pré-preencher Nº Sessão autónoma (N+1) — N = total de sessões do responsável (todos os estados)
+  useEffect(() => {
+    if (!autonomousForm.responsavel_user_id || !aulasApi) return;
+    const userId = autonomousForm.responsavel_user_id;
+    const n = aulasApi.filter(a =>
+      (a.is_autonomous && a.responsavel_user_id === userId) ||
+      (!a.is_autonomous && a.mentor_user_id === userId)
+    ).length;
+    setAutonomousForm(prev => ({ ...prev, tema: String(n + 1) }));
+  }, [autonomousForm.responsavel_user_id, aulasApi]);
 
   // Calcular distâncias mentor→estabelecimento quando turma muda
   const calcDistances = useCallback(async (turmaId: number) => {
@@ -472,6 +513,8 @@ const Horarios = () => {
           responsavel_user_id: data.payload.responsavel_user_id,
           observacoes: data.payload.observacoes,
           semanas: data.semanas,
+          tema: data.payload.tema,
+          projeto_id: data.payload.projeto_id,
         });
       }
       return api.post('/api/aulas', data.payload);
@@ -505,6 +548,8 @@ const Horarios = () => {
       hora_inicio: '',
       hora_fim: '',
       tipo_atividade: 'Produção Musical',
+      projeto_id: '',
+      tema: '',
       repetir_semanalmente: false,
       semanas: 4,
       observacoes: '',
@@ -576,7 +621,9 @@ const Horarios = () => {
         tipo: 'trabalho_autonomo',
         is_autonomous: true,
         tipo_atividade: autonomousForm.tipo_atividade,
+        projeto_id: autonomousForm.projeto_id ? parseInt(autonomousForm.projeto_id) : null,
         responsavel_user_id: autonomousForm.responsavel_user_id,
+        tema: autonomousForm.tema || '',
         observacoes: autonomousForm.observacoes || '',
       };
       createAutonomousMutation.mutate({
@@ -737,7 +784,10 @@ const Horarios = () => {
                           <Select
                             disabled={!selectedEstabId}
                             value={formData.turma_id ? String(formData.turma_id) : undefined}
-                            onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
+                            onValueChange={(v) => {
+                              setFormData({ ...formData, turma_id: Number(v), atividade_id: null });
+                              setSelectedDisciplinaId(null);
+                            }}
                           >
                             <SelectTrigger id="turma">
                               <SelectValue placeholder="Selecione..." />
@@ -801,7 +851,7 @@ const Horarios = () => {
                               <SelectValue placeholder="Selecione..." />
                             </SelectTrigger>
                             <SelectContent>
-                              {curriculo?.map((d: any) => (
+                              {filteredDisciplinas?.map((d: any) => (
                                 <SelectItem key={d.id} value={String(d.id)}>{d.disciplina}</SelectItem>
                               ))}
                             </SelectContent>
@@ -912,6 +962,25 @@ const Horarios = () => {
                   {/* ── Tab: Trabalho Autónomo ── */}
                   <TabsContent value="autonomo">
                     <div className="grid gap-4 py-4">
+                      {/* Projeto */}
+                      <div className="space-y-2">
+                        <Label htmlFor="auto-projeto">Projeto <span className="text-destructive">*</span></Label>
+                        <Select
+                          value={autonomousForm.projeto_id || 'none'}
+                          onValueChange={(v) => setAutonomousForm({ ...autonomousForm, projeto_id: v === 'none' ? '' : v })}
+                        >
+                          <SelectTrigger id="auto-projeto">
+                            <SelectValue placeholder="Selecionar projeto" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            <SelectItem value="none">Selecionar projeto</SelectItem>
+                            {projetos?.map((p) => (
+                              <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
                       {/* Quem */}
                       <div className="space-y-2">
                         <Label htmlFor="autonomo-quem">Quem</Label>
@@ -980,6 +1049,17 @@ const Horarios = () => {
                             ))}
                           </SelectContent>
                         </Select>
+                      </div>
+
+                      {/* Nº Sessão (auto-preenchido) */}
+                      <div className="space-y-2">
+                        <Label htmlFor="auto-tema">Nº Sessão</Label>
+                        <Input
+                          id="auto-tema"
+                          placeholder="Nº Sessão"
+                          value={autonomousForm.tema}
+                          onChange={(e) => setAutonomousForm({ ...autonomousForm, tema: e.target.value })}
+                        />
                       </div>
 
                       {/* Recorrência */}

@@ -22,6 +22,7 @@ import UpdatePassword from "./pages/UpdatePassword";
 
 import NotFound from "./pages/NotFound";
 import Wiki from "./pages/Wiki";
+import Estatisticas from "./pages/Estatisticas";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient();
@@ -54,6 +55,7 @@ const App = () => (
                 <Route path="/myspace" element={<MySpace />} />
 
                 <Route path="/wiki" element={<Wiki />} />
+                <Route path="/estatisticas" element={<Estatisticas />} />
               </Route>
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

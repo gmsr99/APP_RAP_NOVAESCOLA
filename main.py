@@ -181,6 +181,7 @@ async def create_aula(aula: AulaCreate):
         local=aula.local,
         tema=aula.tema,
         objetivos=None,
+        projeto_id=aula.projeto_id,
         observacoes=aula.observacoes,
         atividade_id=aula.atividade_id,
         is_autonomous=aula.is_autonomous,
@@ -204,6 +205,8 @@ class AulaRecorrenteCreate(BaseModel):
     responsavel_user_id: str
     observacoes: Optional[str] = None
     semanas: int = 4
+    tema: Optional[str] = None
+    projeto_id: Optional[int] = None
 
 
 @app.post("/api/aulas/recorrentes", tags=["Aulas"])
@@ -219,6 +222,8 @@ async def create_aulas_recorrentes(payload: AulaRecorrenteCreate):
             responsavel_user_id=payload.responsavel_user_id,
             observacoes=payload.observacoes,
             semanas=payload.semanas,
+            tema=payload.tema,
+            projeto_id=payload.projeto_id,
         )
         return {"criadas": len(resultados), "sessoes": resultados}
     except Exception as e:
@@ -612,6 +617,26 @@ async def update_alunos_turma(turma_id: int, payload: AlunosUpdate):
         raise HTTPException(status_code=500, detail="Erro ao atualizar alunos")
     return {"message": "Alunos atualizados"}
 
+class TurmaDisciplinaItem(BaseModel):
+    disciplina_id: int
+    horas_previstas: Optional[float] = None
+
+class TurmaDisciplinasUpdate(BaseModel):
+    disciplinas: list[TurmaDisciplinaItem]
+
+@app.get("/api/turmas/{turma_id}/disciplinas", tags=["Core"])
+async def get_turma_disciplinas(turma_id: int):
+    """Lista as disciplinas de uma turma."""
+    return turma_service.listar_disciplinas_turma(turma_id)
+
+@app.put("/api/turmas/{turma_id}/disciplinas", tags=["Core"])
+async def update_turma_disciplinas(turma_id: int, payload: TurmaDisciplinasUpdate):
+    """Substitui as disciplinas de uma turma."""
+    sucesso = turma_service.definir_disciplinas_turma(turma_id, [d.dict() for d in payload.disciplinas])
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao atualizar disciplinas da turma")
+    return {"message": "Disciplinas atualizadas"}
+
 @app.get("/api/mentores", tags=["Core"])
 async def get_mentores():
     """Lista todos os mentores para dropdown."""
@@ -805,6 +830,22 @@ async def get_stats_equipa(projeto_id: Optional[int] = None, user=Depends(get_cu
     """Stats de músicas agrupados por membro da equipa."""
     return musica_service.listar_stats_equipa(projeto_id)
 
+@app.get("/api/stats/feedback", tags=["Estatisticas"])
+async def get_stats_feedback(projeto_id: Optional[int] = None, user=Depends(get_current_user_required)):
+    """Lista feedback/avaliações de sessões terminadas."""
+    return aula_service.listar_feedback_sessoes(projeto_id)
+
+@app.get("/api/stats/equipa-horas", tags=["Estatisticas"])
+async def get_stats_equipa_horas(projeto_id: Optional[int] = None, user=Depends(get_current_user_required)):
+    """Horas por colaborador (aulas vs trabalho autónomo)."""
+    return aula_service.listar_horas_equipa(projeto_id)
+
+
+@app.get("/api/stats/sessoes-user/{user_id}", tags=["Estatisticas"])
+async def get_stats_sessoes_user(user_id: str, user=Depends(get_current_user_required)):
+    """Conta sessões concluídas de um user (para pré-preencher Nº Sessão)."""
+    return aula_service.contar_sessoes_user(user_id)
+
 
 # -----------------------------------------------------------------------------
 # 9. DASHBOARD (Estatísticas para Produtores)
@@ -937,14 +978,32 @@ async def get_curriculo():
 class DisciplinaCreate(BaseModel):
     nome: str
     descricao: str = None
+    musicas_previstas: Optional[int] = 7
+    horas_previstas: Optional[float] = None
 
 @app.post("/api/disciplinas", tags=["Wiki"])
 async def create_disciplina(disc: DisciplinaCreate):
     """Cria uma nova disciplina."""
-    id = curriculo_service.adicionar_disciplina(disc.nome, disc.descricao)
+    id = curriculo_service.adicionar_disciplina(disc.nome, disc.descricao, disc.musicas_previstas, disc.horas_previstas)
     if not id:
         raise HTTPException(status_code=500, detail="Erro ao criar disciplina")
     return {"id": id, "nome": disc.nome}
+
+@app.put("/api/disciplinas/{id}", tags=["Wiki"])
+async def update_disciplina(id: int, disc: DisciplinaCreate):
+    """Atualiza uma disciplina existente."""
+    sucesso = curriculo_service.atualizar_disciplina(id, disc.nome, disc.descricao, disc.musicas_previstas, disc.horas_previstas)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao atualizar disciplina")
+    return {"id": id, "nome": disc.nome}
+
+@app.delete("/api/disciplinas/{id}", tags=["Wiki"])
+async def delete_disciplina(id: int):
+    """Remove uma disciplina."""
+    sucesso = curriculo_service.apagar_disciplina(id)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao apagar disciplina")
+    return {"message": "Disciplina apagada"}
 
 class AtividadeCreate(BaseModel):
     disciplina_id: int

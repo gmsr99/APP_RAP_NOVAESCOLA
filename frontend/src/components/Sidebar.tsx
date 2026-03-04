@@ -15,6 +15,7 @@ import {
   GraduationCap,
   Users,
   Database,
+  BarChart3,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import React, { useState } from 'react';
@@ -30,11 +31,12 @@ const navigation: SidebarItem[] = [
   { name: 'Horários', href: '/horarios', icon: Calendar, profiles: allProfiles },
   { name: 'Produção', href: '/producao', icon: Music, profiles: allProfiles },
   { name: 'Estúdio', href: '/estudio', icon: Mic2, profiles: allProfiles },
-  { name: 'Registos', href: '/registos', icon: ClipboardList, profiles: ['coordenador', 'direcao', 'it_support', 'mentor', 'mentor_produtor'] },
+  { name: 'Registos', href: '/registos', icon: ClipboardList, profiles: allProfiles },
   { name: 'Chat', href: '/chat', icon: MessageSquare, profiles: allProfiles },
   { separator: true },
   { name: 'Material', href: '/equipamento', icon: Package, profiles: ['coordenador', 'direcao', 'it_support'] },
   { name: 'Equipa', href: '/equipa', icon: Users, profiles: allProfiles },
+  { name: 'Estatísticas', href: '/estatisticas', icon: BarChart3, profiles: ['coordenador', 'direcao', 'it_support'] },
   { name: 'Wiki', href: '/wiki', icon: Database, profiles: allProfiles },
   { name: 'Formação', href: '/formacao', icon: GraduationCap, profiles: allProfiles, disabled: true },
 ];

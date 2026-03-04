@@ -22,12 +22,18 @@ def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None):
         conditions = ["m.arquivado = %s"]
         params = [arquivadas]
         if projeto_id:
-            conditions.append("m.projeto_id = %s")
-            params.append(projeto_id)
+            conditions.append("""(
+                m.projeto_id = %s
+                OR (m.projeto_id IS NULL AND t.estabelecimento_id IN (
+                    SELECT estabelecimento_id FROM projeto_estabelecimentos WHERE projeto_id = %s
+                ))
+            )""")
+            params.extend([projeto_id, projeto_id])
 
         query = f"""
             SELECT
-                m.id, m.titulo, m.estado, m.disciplina, m.arquivado, m.criado_em,
+                m.id, m.titulo, m.estado, COALESCE(NULLIF(m.disciplina, ''), disc.nome) as disciplina,
+                m.arquivado, m.criado_em,
                 t.id as turma_id, t.nome as turma_nome,
                 e.nome as estabelecimento_nome,
                 m.responsavel_id, p_resp.full_name as responsavel_nome,
@@ -43,6 +49,7 @@ def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None):
             FROM musicas m
             LEFT JOIN turmas t ON m.turma_id = t.id
             LEFT JOIN estabelecimentos e ON t.estabelecimento_id = e.id
+            LEFT JOIN disciplinas disc ON disc.id = m.disciplina_id
             LEFT JOIN profiles p_resp ON m.responsavel_id = p_resp.id
             LEFT JOIN profiles p_criador ON m.criador_id = p_criador.id
             LEFT JOIN profiles p_mist ON m.misturado_por_id = p_mist.id
@@ -133,11 +140,20 @@ def criar_musica(dados, criador_id):
             estado_inicial = 'gravação'
             responsavel_inicial = criador_id
         
+        # Se disciplina_id fornecido, resolver o nome da disciplina para o campo texto
+        disciplina_texto = dados.get('disciplina')
+        disciplina_id = dados.get('disciplina_id')
+        if disciplina_id and not disciplina_texto:
+            cur.execute("SELECT nome FROM disciplinas WHERE id = %s", (disciplina_id,))
+            d_row = cur.fetchone()
+            if d_row:
+                disciplina_texto = d_row[0]
+
         cur.execute("""
-            INSERT INTO musicas (titulo, turma_id, disciplina, estado, criador_id, responsavel_id, projeto_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO musicas (titulo, turma_id, disciplina, disciplina_id, estado, criador_id, responsavel_id, projeto_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, (dados['titulo'], dados['turma_id'], dados.get('disciplina'), estado_inicial, criador_id, responsavel_inicial, dados.get('projeto_id')))
+        """, (dados['titulo'], dados['turma_id'], disciplina_texto, disciplina_id, estado_inicial, criador_id, responsavel_inicial, dados.get('projeto_id')))
         
         new_id = cur.fetchone()[0]
         conn.commit()
@@ -355,31 +371,41 @@ def listar_stats_instituicao(projeto_id=None):
                 e.nome as estab_nome,
                 t.id as turma_id,
                 t.nome as turma_nome,
-                t.sessoes_previstas,
-                t.musicas_previstas,
-                COALESCE(sess.realizadas, 0) as sessoes_realizadas,
-                COALESCE(mus.total, 0) as musicas_total,
+                td.horas_previstas,
+                d.id as disciplina_id,
+                d.nome as disciplina_nome,
+                COALESCE(d.musicas_previstas, t.musicas_previstas, 7) as musicas_previstas,
+                COALESCE(sess.horas_realizadas, 0) as horas_realizadas,
+                COALESCE(sess.sessoes_realizadas, 0) as sessoes_realizadas,
+                COALESCE(mus.em_curso, 0) as musicas_em_curso,
                 COALESCE(mus.concluidas, 0) as musicas_concluidas
             FROM estabelecimentos e
             {estab_filter}
             JOIN turmas t ON t.estabelecimento_id = e.id
+            LEFT JOIN turma_disciplinas td ON td.turma_id = t.id
+            LEFT JOIN disciplinas d ON d.id = td.disciplina_id
             LEFT JOIN LATERAL (
-                SELECT COUNT(*) as realizadas
+                SELECT ROUND(SUM(COALESCE(a.duracao_minutos, 0)) / 60.0) as horas_realizadas,
+                       COUNT(*) as sessoes_realizadas
                 FROM aulas a
                 WHERE a.turma_id = t.id
                   AND a.estado = 'terminada'
                   AND a.is_autonomous = FALSE
-                  {'AND a.projeto_id = %s' if projeto_id else ''}
+                  AND (d.id IS NULL OR a.atividade_id IN (
+                      SELECT id FROM atividades WHERE disciplina_id = d.id
+                  ))
+                  {'AND (a.projeto_id = %s OR a.projeto_id IS NULL)' if projeto_id else ''}
             ) sess ON true
             LEFT JOIN LATERAL (
                 SELECT
-                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE m.estado != 'concluído') as em_curso,
                     COUNT(*) FILTER (WHERE m.estado = 'concluído') as concluidas
                 FROM musicas m
                 WHERE m.turma_id = t.id AND m.arquivado = FALSE
-                  {'AND m.projeto_id = %s' if projeto_id else ''}
+                  AND (d.id IS NULL OR m.disciplina_id = d.id)
+                  {'AND (m.projeto_id = %s OR m.projeto_id IS NULL)' if projeto_id else ''}
             ) mus ON true
-            ORDER BY e.nome, t.nome
+            ORDER BY e.nome, t.nome, d.nome NULLS FIRST
         """, params + ([projeto_id] if projeto_id else []) + ([projeto_id] if projeto_id else []))
         rows = cur.fetchall()
 
@@ -395,11 +421,14 @@ def listar_stats_instituicao(projeto_id=None):
             estabs[eid]['turmas'].append({
                 'turma_id': row[2],
                 'turma_nome': row[3],
-                'sessoes_previstas': row[4],
-                'musicas_previstas': row[5],
-                'sessoes_realizadas': row[6],
-                'musicas_total': row[7],
-                'musicas_concluidas': row[8],
+                'horas_previstas': float(row[4]) if row[4] is not None else None,
+                'disciplina_id': row[5],
+                'disciplina_nome': row[6],
+                'musicas_previstas': row[7],
+                'horas_realizadas': float(row[8]) if row[8] is not None else 0,
+                'sessoes_realizadas': row[9],
+                'musicas_em_curso': row[10],
+                'musicas_concluidas': row[11],
             })
 
         return list(estabs.values())

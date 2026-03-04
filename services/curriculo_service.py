@@ -12,12 +12,12 @@ def listar_curriculo():
         cur = conn.cursor()
         
         # Obter disciplinas
-        cur.execute("SELECT id, nome, descricao FROM disciplinas ORDER BY nome")
+        cur.execute("SELECT id, nome, descricao, COALESCE(musicas_previstas, 7), horas_previstas FROM disciplinas ORDER BY nome")
         disciplinas = cur.fetchall()
-        
+
         resultado = []
         for disc in disciplinas:
-            d_id, d_nome, d_desc = disc
+            d_id, d_nome, d_desc, d_musicas_prev, d_horas_prev = disc
             
             # Obter atividades da disciplina
             cur.execute("""
@@ -45,6 +45,8 @@ def listar_curriculo():
                 'id': d_id,
                 'disciplina': d_nome,
                 'descricao': d_desc,
+                'musicas_previstas': d_musicas_prev,
+                'horas_previstas': float(d_horas_prev) if d_horas_prev is not None else None,
                 'atividades': atividades
             })
             
@@ -56,15 +58,15 @@ def listar_curriculo():
         if 'cur' in locals() and cur: cur.close()
         if 'conn' in locals() and conn: conn.close()
 
-def adicionar_disciplina(nome, descricao=None):
+def adicionar_disciplina(nome, descricao=None, musicas_previstas=7, horas_previstas=None):
     """Adiciona uma nova disciplina."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
         cur.execute(
-            "INSERT INTO disciplinas (nome, descricao) VALUES (%s, %s) RETURNING id",
-            (nome, descricao)
+            "INSERT INTO disciplinas (nome, descricao, musicas_previstas, horas_previstas) VALUES (%s, %s, %s, %s) RETURNING id",
+            (nome, descricao, musicas_previstas if musicas_previstas is not None else 7, horas_previstas)
         )
         new_id = cur.fetchone()[0]
         conn.commit()
@@ -73,6 +75,41 @@ def adicionar_disciplina(nome, descricao=None):
         print(f"❌ Erro ao adicionar disciplina: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return None
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+def atualizar_disciplina(id, nome, descricao=None, musicas_previstas=None, horas_previstas=None):
+    """Atualiza uma disciplina existente."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE disciplinas SET nome = %s, descricao = %s, musicas_previstas = %s, horas_previstas = %s WHERE id = %s",
+            (nome, descricao, musicas_previstas, horas_previstas, id)
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"❌ Erro ao atualizar disciplina: {e}")
+        if 'conn' in locals() and conn: conn.rollback()
+        return False
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+def apagar_disciplina(id):
+    """Remove uma disciplina."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM disciplinas WHERE id = %s", (id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        print(f"❌ Erro ao apagar disciplina: {e}")
+        if 'conn' in locals() and conn: conn.rollback()
+        return False
     finally:
         if 'cur' in locals() and cur: cur.close()
         if 'conn' in locals() and conn: conn.close()

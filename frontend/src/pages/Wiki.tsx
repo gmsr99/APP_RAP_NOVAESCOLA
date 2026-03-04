@@ -81,7 +81,14 @@ interface Disciplina {
   id: number;
   disciplina: string;
   descricao: string;
+  musicas_previstas: number;
+  horas_previstas: number | null;
   atividades: Atividade[];
+}
+
+interface TurmaDisciplinaEntry {
+  disciplina_id: number;
+  horas_previstas: string; // string for input control
 }
 
 const Wiki = () => {
@@ -107,6 +114,7 @@ const Wiki = () => {
   const [newTurmaName, setNewTurmaName] = useState('');
   const [selectedEstabId, setSelectedEstabId] = useState<string>('');
   const [alunosNomes, setAlunosNomes] = useState<string[]>([]);
+  const [selectedDisciplinas, setSelectedDisciplinas] = useState<TurmaDisciplinaEntry[]>([]);
 
   // State for Curriculum
   const [isActivityDialogOpen, setIsActivityDialogOpen] = useState(false);
@@ -123,8 +131,11 @@ const Wiki = () => {
 
   // State for Disciplinas
   const [isDisciplinaDialogOpen, setIsDisciplinaDialogOpen] = useState(false);
+  const [editingDisciplina, setEditingDisciplina] = useState<Disciplina | null>(null);
   const [newDisciplinaName, setNewDisciplinaName] = useState('');
   const [newDisciplinaDesc, setNewDisciplinaDesc] = useState('');
+  const [newDisciplinaMusicasPrevistas, setNewDisciplinaMusicasPrevistas] = useState<string>('7');
+  const [newDisciplinaHorasPrevistas, setNewDisciplinaHorasPrevistas] = useState<string>('');
 
   // --- QUERIES ---
   interface Projeto { id: number; nome: string; descricao?: string; estado?: string; }
@@ -302,15 +313,31 @@ const Wiki = () => {
 
   // --- MUTATIONS: DISCIPLINAS ---
   const saveDisciplinaMutation = useMutation({
-    mutationFn: (data: any) => api.post('/api/disciplinas', data),
+    mutationFn: (data: any) => editingDisciplina
+      ? api.put(`/api/disciplinas/${editingDisciplina.id}`, data)
+      : api.post('/api/disciplinas', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['curriculo'] });
-      toast.success('Disciplina criada!');
+      toast.success(editingDisciplina ? 'Disciplina atualizada!' : 'Disciplina criada!');
       setIsDisciplinaDialogOpen(false);
+      setEditingDisciplina(null);
       setNewDisciplinaName('');
       setNewDisciplinaDesc('');
+      setNewDisciplinaMusicasPrevistas('7');
+      setNewDisciplinaHorasPrevistas('');
     },
-    onError: () => toast.error('Erro ao criar disciplina.')
+    onError: () => toast.error('Erro ao guardar disciplina.')
+  });
+
+  const deleteDisciplinaMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/api/disciplinas/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['curriculo'] });
+      toast.success('Disciplina apagada!');
+      setIsDisciplinaDialogOpen(false);
+      setEditingDisciplina(null);
+    },
+    onError: () => toast.error('Erro ao apagar disciplina.')
   });
 
   // --- HANDLERS ---
@@ -331,6 +358,7 @@ const Wiki = () => {
     setNewTurmaName('');
     setSelectedEstabId('');
     setAlunosNomes([]);
+    setSelectedDisciplinas([]);
     setIsTurmaDialogOpen(true);
   };
 
@@ -339,10 +367,18 @@ const Wiki = () => {
     setNewTurmaName(turma.nome);
     setSelectedEstabId(turma.estabelecimento_id.toString());
     try {
-      const res = await api.get(`/api/turmas/${turma.id}/alunos`);
-      setAlunosNomes(res.data.map((a: any) => a.nome));
+      const [alunosRes, discRes] = await Promise.all([
+        api.get(`/api/turmas/${turma.id}/alunos`),
+        api.get(`/api/turmas/${turma.id}/disciplinas`),
+      ]);
+      setAlunosNomes(alunosRes.data.map((a: any) => a.nome));
+      setSelectedDisciplinas(discRes.data.map((d: any) => ({
+        disciplina_id: d.id,
+        horas_previstas: d.horas_previstas != null ? String(d.horas_previstas) : '',
+      })));
     } catch {
       setAlunosNomes([]);
+      setSelectedDisciplinas([]);
     }
     setIsTurmaDialogOpen(true);
   };
@@ -350,13 +386,16 @@ const Wiki = () => {
   const handleSaveTurma = async () => {
     if (!newTurmaName || !selectedEstabId) return;
 
-    const saveAlunos = async (turmaId: number) => {
+    const saveExtras = async (turmaId: number) => {
       const filteredNomes = alunosNomes.filter(n => n.trim());
-      try {
-        await api.put(`/api/turmas/${turmaId}/alunos`, { nomes: filteredNomes });
-      } catch {
-        toast.error('Erro ao guardar alunos.');
-      }
+      const discPayload = selectedDisciplinas.map(d => ({
+        disciplina_id: d.disciplina_id,
+        horas_previstas: d.horas_previstas ? parseFloat(d.horas_previstas) : null,
+      }));
+      await Promise.all([
+        api.put(`/api/turmas/${turmaId}/alunos`, { nomes: filteredNomes }).catch(() => toast.error('Erro ao guardar alunos.')),
+        api.put(`/api/turmas/${turmaId}/disciplinas`, { disciplinas: discPayload }).catch(() => toast.error('Erro ao guardar disciplinas.')),
+      ]);
     };
 
     saveTurmaMutation.mutate(
@@ -364,7 +403,7 @@ const Wiki = () => {
       {
         onSuccess: async (response) => {
           const turmaId = editingTurma?.id || response?.data?.id;
-          if (turmaId) await saveAlunos(turmaId);
+          if (turmaId) await saveExtras(turmaId);
         },
       }
     );
@@ -385,14 +424,31 @@ const Wiki = () => {
   };
 
   const openNewDisciplina = () => {
+    setEditingDisciplina(null);
     setNewDisciplinaName('');
     setNewDisciplinaDesc('');
+    setNewDisciplinaMusicasPrevistas('7');
+    setNewDisciplinaHorasPrevistas('');
+    setIsDisciplinaDialogOpen(true);
+  };
+
+  const openEditDisciplina = (disc: Disciplina) => {
+    setEditingDisciplina(disc);
+    setNewDisciplinaName(disc.disciplina);
+    setNewDisciplinaDesc(disc.descricao || '');
+    setNewDisciplinaMusicasPrevistas(String(disc.musicas_previstas ?? 7));
+    setNewDisciplinaHorasPrevistas(disc.horas_previstas != null ? String(disc.horas_previstas) : '');
     setIsDisciplinaDialogOpen(true);
   };
 
   const handleSaveDisciplina = () => {
     if (!newDisciplinaName) return;
-    saveDisciplinaMutation.mutate({ nome: newDisciplinaName, descricao: newDisciplinaDesc });
+    saveDisciplinaMutation.mutate({
+      nome: newDisciplinaName,
+      descricao: newDisciplinaDesc,
+      musicas_previstas: parseInt(newDisciplinaMusicasPrevistas) || 0,
+      horas_previstas: newDisciplinaHorasPrevistas ? parseFloat(newDisciplinaHorasPrevistas) : null,
+    });
   };
 
   const openEditActivity = (act: Atividade) => {
@@ -724,6 +780,55 @@ const Wiki = () => {
                       ))}
                     </div>
                   </div>
+
+                  {/* Disciplinas matriculadas */}
+                  <div className="space-y-2">
+                    <Label className="font-medium">Disciplinas matriculadas</Label>
+                    <div className="space-y-2 rounded-md border p-3 max-h-[200px] overflow-y-auto">
+                      {curriculo.length === 0 && (
+                        <p className="text-sm text-muted-foreground">Nenhuma disciplina disponível.</p>
+                      )}
+                      {curriculo.map((disc) => {
+                        const entry = selectedDisciplinas.find(d => d.disciplina_id === disc.id);
+                        const checked = !!entry;
+                        const defaultHoras = disc.horas_previstas != null ? String(disc.horas_previstas) : '';
+                        return (
+                          <div key={disc.id} className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              id={`disc-${disc.id}`}
+                              checked={checked}
+                              onChange={e => {
+                                if (e.target.checked) {
+                                  setSelectedDisciplinas(prev => [...prev, { disciplina_id: disc.id, horas_previstas: defaultHoras }]);
+                                } else {
+                                  setSelectedDisciplinas(prev => prev.filter(d => d.disciplina_id !== disc.id));
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-gray-300"
+                            />
+                            <label htmlFor={`disc-${disc.id}`} className="flex-1 text-sm cursor-pointer">
+                              {disc.disciplina}
+                              <span className="text-xs text-muted-foreground ml-1.5">({disc.musicas_previstas} músicas)</span>
+                            </label>
+                            {checked && (
+                              <Input
+                                type="number"
+                                min={0}
+                                step={0.5}
+                                placeholder="Horas"
+                                value={entry!.horas_previstas}
+                                onChange={e => setSelectedDisciplinas(prev => prev.map(d =>
+                                  d.disciplina_id === disc.id ? { ...d, horas_previstas: e.target.value } : d
+                                ))}
+                                className="w-24 text-sm h-7"
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
                 <DialogFooter className="flex sm:justify-between w-full">
                   {editingTurma ? (
@@ -773,15 +878,15 @@ const Wiki = () => {
                           key={turma.id}
                           className="flex items-center justify-between p-2 rounded-md hover:bg-secondary/50 group"
                         >
-                          <div className="flex items-center gap-2">
-                            <Users className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Users className="h-4 w-4 text-muted-foreground shrink-0" />
                             <span>{turma.nome}</span>
                           </div>
                           {isCoordinator && (
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 openEditTurma(turma);
@@ -825,7 +930,20 @@ const Wiki = () => {
             {curriculo.map((item) => (
               <AccordionItem key={item.id} value={`item-${item.id}`}>
                 <AccordionTrigger className="text-lg font-semibold hover:no-underline hover:text-primary">
-                  {item.disciplina}
+                  <span className="flex items-center gap-2 flex-1">
+                    {item.disciplina}
+                    <span className="text-xs font-normal text-muted-foreground">({item.musicas_previstas} músicas)</span>
+                    {isCoordinator && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6 ml-1 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => { e.stopPropagation(); openEditDisciplina(item); }}
+                      >
+                        <Edit2 className="h-3.5 w-3.5 text-blue-500" />
+                      </Button>
+                    )}
+                  </span>
                 </AccordionTrigger>
                 <AccordionContent>
                   <div className="mb-4 flex justify-end">
@@ -1060,9 +1178,9 @@ const Wiki = () => {
       <Dialog open={isDisciplinaDialogOpen} onOpenChange={setIsDisciplinaDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Nova Disciplina</DialogTitle>
+            <DialogTitle>{editingDisciplina ? 'Editar Disciplina' : 'Nova Disciplina'}</DialogTitle>
             <DialogDescription>
-              Adicionar uma nova disciplina ao currículo.
+              {editingDisciplina ? 'Alterar dados da disciplina.' : 'Adicionar uma nova disciplina ao currículo.'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -1084,8 +1202,44 @@ const Wiki = () => {
                 placeholder="Breve descrição do conteúdo"
               />
             </div>
+            <div className="grid gap-2">
+              <Label htmlFor="disc-musicas">Músicas Previstas</Label>
+              <Input
+                id="disc-musicas"
+                type="number"
+                min={0}
+                value={newDisciplinaMusicasPrevistas}
+                onChange={(e) => setNewDisciplinaMusicasPrevistas(e.target.value)}
+                placeholder="Ex: 7"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="disc-horas">Horas Previstas (total da disciplina)</Label>
+              <Input
+                id="disc-horas"
+                type="number"
+                min={0}
+                step={0.5}
+                value={newDisciplinaHorasPrevistas}
+                onChange={(e) => setNewDisciplinaHorasPrevistas(e.target.value)}
+                placeholder="Ex: 64"
+              />
+            </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="flex sm:justify-between w-full">
+            {editingDisciplina ? (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  if (confirm('Apagar esta disciplina? As atividades associadas também serão apagadas.')) {
+                    deleteDisciplinaMutation.mutate(editingDisciplina.id);
+                  }
+                }}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Apagar
+              </Button>
+            ) : <div />}
             <Button onClick={handleSaveDisciplina}>
               <Save className="h-4 w-4 mr-2" />
               Gravar

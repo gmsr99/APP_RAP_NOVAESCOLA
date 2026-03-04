@@ -48,6 +48,7 @@ import {
   X,
   Check,
   Trash2,
+  CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, addMinutes } from 'date-fns';
@@ -59,6 +60,7 @@ interface Musica {
   titulo: string;
   estado: string;
   disciplina: string | null;
+  disciplina_id?: number | null;
   arquivado: boolean;
   criado_em: string;
   turma: { id: number; nome: string; estabelecimento: string } | null;
@@ -80,10 +82,13 @@ interface ProjetoEstabelecimento { id: number; nome: string }
 interface TurmaStats {
   turma_id: number;
   turma_nome: string;
-  sessoes_previstas: number | null;
+  disciplina_id: number | null;
+  disciplina_nome: string | null;
+  horas_previstas: number | null;
   musicas_previstas: number | null;
+  horas_realizadas: number;
   sessoes_realizadas: number;
-  musicas_total: number;
+  musicas_em_curso: number;
   musicas_concluidas: number;
 }
 
@@ -146,12 +151,13 @@ const Producao = () => {
 
   const [selectedProjetoId, setSelectedProjetoId] = useState<number | null>(null);
   const [isNewMusicOpen, setIsNewMusicOpen] = useState(false);
-  const [newMusicData, setNewMusicData] = useState({ titulo: '', turma_id: '', disciplina: '', projeto_id: '' });
+  const [newMusicData, setNewMusicData] = useState({ titulo: '', turma_id: '', disciplina: '', disciplina_id: '', projeto_id: '' });
   const [workLogModal, setWorkLogModal] = useState<{ open: boolean; music: Musica | null }>({ open: false, music: null });
   const [workLogForm, setWorkLogForm] = useState({ date: '', hora_inicio: '', hora_fim: '', observacoes: '' });
   const [editingCell, setEditingCell] = useState<{ id: number; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<Musica | null>(null);
+  const [concluidasOpen, setConcluidasOpen] = useState(false);
 
   const isCoordinator = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
   const isProdutor = profile === 'produtor' || profile === 'mentor_produtor';
@@ -161,6 +167,14 @@ const Producao = () => {
   const { data: projetos = [] } = useQuery({
     queryKey: ['projetos'],
     queryFn: async () => (await api.get('/api/projetos')).data as Projeto[]
+  });
+
+  // Disciplinas da turma selecionada no modal (para filtrar disciplinas)
+  const selectedTurmaIdNum = newMusicData.turma_id ? parseInt(newMusicData.turma_id) : null;
+  const { data: turmaDisciplinas = [] } = useQuery({
+    queryKey: ['turma-disciplinas', selectedTurmaIdNum],
+    queryFn: async () => (await api.get(`/api/turmas/${selectedTurmaIdNum}/disciplinas`)).data,
+    enabled: !!selectedTurmaIdNum,
   });
 
   // Estabelecimentos do projeto selecionado no modal (para filtrar turmas)
@@ -208,6 +222,18 @@ const Producao = () => {
     }
   });
 
+  const concluidasAtivas = musicas.filter(m => !m.arquivado && m.estado === 'concluído');
+  const { data: musicasArquivadas = [] } = useQuery({
+    queryKey: ['musicas-arquivadas', selectedProjetoId],
+    queryFn: async () => {
+      const url = selectedProjetoId
+        ? `/api/musicas?arquivadas=true&projeto_id=${selectedProjetoId}`
+        : '/api/musicas?arquivadas=true';
+      return (await api.get(url)).data as Musica[];
+    },
+    enabled: concluidasOpen,
+  });
+
   // ─── Mutations ───────────────────────────────────────────────────────────────
 
   const createMusicMutation = useMutation({
@@ -216,7 +242,7 @@ const Producao = () => {
       queryClient.invalidateQueries({ queryKey: ['musicas'] });
       toast({ title: 'Música criada', description: 'Nova produção iniciada!' });
       setIsNewMusicOpen(false);
-      setNewMusicData({ titulo: '', turma_id: '', disciplina: '', projeto_id: '' });
+      setNewMusicData({ titulo: '', turma_id: '', disciplina: '', disciplina_id: '', projeto_id: '' });
     },
     onError: () => toast({ title: 'Erro', description: 'Falha ao criar música.', variant: 'destructive' })
   });
@@ -230,6 +256,17 @@ const Producao = () => {
       toast({ title: 'Fase avançada' });
     },
     onError: (err: any) => toast({ title: 'Erro', description: err.response?.data?.detail || 'Erro ao avançar fase.', variant: 'destructive' })
+  });
+
+  const aceitarTarefaMutation = useMutation({
+    mutationFn: (id: number) => api.post(`/api/musicas/${id}/aceitar`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['musicas'] });
+      queryClient.invalidateQueries({ queryKey: ['producao-stats-inst'] });
+      queryClient.invalidateQueries({ queryKey: ['producao-stats-equipa'] });
+      toast({ title: 'Tarefa aceite', description: 'A música foi atribuída a ti.' });
+    },
+    onError: (err: any) => toast({ title: 'Erro', description: err.response?.data?.detail || 'Erro ao aceitar tarefa.', variant: 'destructive' })
   });
 
   const createWorkLogMutation = useMutation({
@@ -278,21 +315,21 @@ const Producao = () => {
   // ─── Handlers ────────────────────────────────────────────────────────────────
 
   const handleSubmitNew = () => {
-    if (!newMusicData.titulo || !newMusicData.turma_id || !newMusicData.projeto_id) {
-      toast({ title: 'Campos obrigatórios', description: 'Preenche o título, o projeto e a turma.', variant: 'destructive' });
+    if (!newMusicData.titulo || !newMusicData.turma_id || !newMusicData.projeto_id || !newMusicData.disciplina_id) {
+      toast({ title: 'Campos obrigatórios', description: 'Preenche o título, o projeto, a turma e a disciplina.', variant: 'destructive' });
       return;
     }
     createMusicMutation.mutate({
       titulo: newMusicData.titulo,
       turma_id: parseInt(newMusicData.turma_id),
-      disciplina: newMusicData.disciplina,
+      disciplina_id: parseInt(newMusicData.disciplina_id),
       projeto_id: parseInt(newMusicData.projeto_id),
     });
   };
 
   const handleAdvance = (music: Musica) => {
     if (DIRECT_ADVANCE_STATES.includes(music.estado)) {
-      advancePhaseMutation.mutate({ id: music.id });
+      aceitarTarefaMutation.mutate(music.id);
       return;
     }
     const now = new Date();
@@ -449,7 +486,7 @@ const Producao = () => {
                       m.estado === 'feedback_wip' ? (
                         <FeedbackDialog music={m} />
                       ) : (
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAdvance(m)} disabled={advancePhaseMutation.isPending}>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAdvance(m)} disabled={advancePhaseMutation.isPending || aceitarTarefaMutation.isPending}>
                           <PlayCircle className="w-3 h-3 mr-1" />
                           {ACTION_LABELS[m.estado] || 'Avançar'}
                         </Button>
@@ -486,13 +523,15 @@ const Producao = () => {
         </div>
       ) : (
         statsInstituicao.map(estab => {
-          const totalSessoes = estab.turmas.reduce((s, t) => s + (t.sessoes_previstas || 0), 0);
-          const totalRealizadas = estab.turmas.reduce((s, t) => s + t.sessoes_realizadas, 0);
+          const totalHoras = estab.turmas.reduce((s, t) => s + (t.horas_previstas || 0), 0);
+          const totalHorasRealizadas = estab.turmas.reduce((s, t) => s + t.horas_realizadas, 0);
           const totalMusicasPrev = estab.turmas.reduce((s, t) => s + (t.musicas_previstas || 0), 0);
           const totalConcluidas = estab.turmas.reduce((s, t) => s + t.musicas_concluidas, 0);
-          const totalMusicas = estab.turmas.reduce((s, t) => s + t.musicas_total, 0);
-          const pctSessoes = totalSessoes > 0 ? Math.round((totalRealizadas / totalSessoes) * 100) : 0;
+          const totalEmCurso = estab.turmas.reduce((s, t) => s + t.musicas_em_curso, 0);
+          const pctHoras = totalHoras > 0 ? Math.round((totalHorasRealizadas / totalHoras) * 100) : 0;
           const pctMusicas = totalMusicasPrev > 0 ? Math.round((totalConcluidas / totalMusicasPrev) * 100) : 0;
+          const turmaIds = new Set(estab.turmas.map(t => t.turma_id));
+          const musicasEstab = activeMusicas.filter(m => m.turma && turmaIds.has(m.turma.id));
 
           return (
             <Card key={estab.estabelecimento_id}>
@@ -508,13 +547,13 @@ const Producao = () => {
                   <div className="space-y-1.5">
                     <div className="flex justify-between text-sm">
                       <span className="flex items-center gap-1.5 font-medium">
-                        <Calendar className="h-3.5 w-3.5" /> Sessões
+                        <Calendar className="h-3.5 w-3.5" /> Horas
                       </span>
                       <span className="text-muted-foreground">
-                        {totalRealizadas} / {totalSessoes || '?'} ({pctSessoes}%)
+                        {totalHorasRealizadas}h / {totalHoras ? `${totalHoras}h` : '?'} ({pctHoras}%)
                       </span>
                     </div>
-                    <Progress value={pctSessoes} className="h-2.5" />
+                    <Progress value={pctHoras} className="h-2.5" />
                   </div>
                   <div className="space-y-1.5">
                     <div className="flex justify-between text-sm">
@@ -535,20 +574,23 @@ const Producao = () => {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-muted/30">
-                          <TableHead className="text-xs">Turma</TableHead>
-                          <TableHead className="text-xs text-center">Sessões</TableHead>
-                          <TableHead className="text-xs text-center">Músicas</TableHead>
+                          <TableHead className="text-xs">Turma / Disciplina</TableHead>
+                          <TableHead className="text-xs text-center">Horas</TableHead>
+                          <TableHead className="text-xs text-center">Em Curso</TableHead>
                           <TableHead className="text-xs text-center">Concluídas</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {estab.turmas.map(t => (
-                          <TableRow key={t.turma_id}>
-                            <TableCell className="text-xs font-medium">{t.turma_nome}</TableCell>
-                            <TableCell className="text-xs text-center">
-                              {t.sessoes_realizadas} / {t.sessoes_previstas || '?'}
+                          <TableRow key={`${t.turma_id}-${t.disciplina_id ?? 'none'}`}>
+                            <TableCell className="text-xs font-medium">
+                              {t.turma_nome}
+                              {t.disciplina_nome && <span className="text-muted-foreground font-normal"> — {t.disciplina_nome}</span>}
                             </TableCell>
-                            <TableCell className="text-xs text-center">{t.musicas_total}</TableCell>
+                            <TableCell className="text-xs text-center">
+                              {t.horas_realizadas}h / {t.horas_previstas != null ? `${t.horas_previstas}h` : '?'}
+                            </TableCell>
+                            <TableCell className="text-xs text-center">{t.musicas_em_curso}</TableCell>
                             <TableCell className="text-xs text-center">{t.musicas_concluidas}</TableCell>
                           </TableRow>
                         ))}
@@ -557,10 +599,23 @@ const Producao = () => {
                   </div>
                 )}
 
-                {estab.turmas.length === 1 && (
-                  <div className="flex gap-6 text-sm text-muted-foreground">
-                    <span>Músicas em curso: <strong className="text-foreground">{totalMusicas - totalConcluidas}</strong></span>
-                    <span>Concluídas: <strong className="text-foreground">{totalConcluidas}</strong></span>
+                <div className="flex gap-6 text-sm text-muted-foreground">
+                  <span>Músicas em curso: <strong className="text-foreground">{totalEmCurso}</strong></span>
+                  <span>Concluídas: <strong className="text-foreground">{totalConcluidas}</strong></span>
+                </div>
+
+                {musicasEstab.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    {musicasEstab.map(m => (
+                      <div key={m.id} className="flex items-center justify-between text-xs py-1 px-2 rounded bg-muted/40">
+                        <span className="font-medium">{m.titulo}
+                          <span className="text-muted-foreground font-normal ml-1.5">— {m.turma?.nome}{m.disciplina ? ` — ${m.disciplina}` : ''}</span>
+                        </span>
+                        <Badge variant="secondary" className={cn('text-xs', STATUS_COLORS[m.estado])}>
+                          {STATUS_LABELS[m.estado] || m.estado}
+                        </Badge>
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
@@ -627,7 +682,11 @@ const Producao = () => {
           <h1 className="text-3xl font-display font-bold">Produção</h1>
           <p className="text-muted-foreground mt-1">Gestão do fluxo de trabalho de produção musical.</p>
         </div>
-        <Dialog open={isNewMusicOpen} onOpenChange={setIsNewMusicOpen}>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setConcluidasOpen(true)}>
+            <CheckCircle2 className="h-4 w-4 mr-2" /> Concluídas
+          </Button>
+          <Dialog open={isNewMusicOpen} onOpenChange={setIsNewMusicOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => {
               if (selectedProjetoId) setNewMusicData(d => ({ ...d, projeto_id: String(selectedProjetoId) }));
@@ -657,7 +716,7 @@ const Producao = () => {
               </div>
               <div className="space-y-2">
                 <Label>Turma / Artista <span className="text-destructive">*</span></Label>
-                <Select value={newMusicData.turma_id} onValueChange={(val) => setNewMusicData({ ...newMusicData, turma_id: val })}>
+                <Select value={newMusicData.turma_id} onValueChange={(val) => setNewMusicData({ ...newMusicData, turma_id: val, disciplina_id: '' })}>
                   <SelectTrigger><SelectValue placeholder="Selecionar turma" /></SelectTrigger>
                   <SelectContent>
                     {turmasFiltradas.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>)}
@@ -665,8 +724,17 @@ const Producao = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Disciplina (Opcional)</Label>
-                <Input placeholder="Ex: Português" value={newMusicData.disciplina} onChange={(e) => setNewMusicData({ ...newMusicData, disciplina: e.target.value })} />
+                <Label>Disciplina <span className="text-destructive">*</span></Label>
+                <Select
+                  value={newMusicData.disciplina_id || ''}
+                  onValueChange={(val) => setNewMusicData({ ...newMusicData, disciplina_id: val })}
+                  disabled={!newMusicData.turma_id}
+                >
+                  <SelectTrigger><SelectValue placeholder={newMusicData.turma_id ? 'Selecionar disciplina' : 'Seleciona primeiro a turma'} /></SelectTrigger>
+                  <SelectContent>
+                    {turmaDisciplinas.map((d: any) => <SelectItem key={d.id} value={String(d.id)}>{d.nome}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <DialogFooter>
@@ -674,6 +742,7 @@ const Producao = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {/* Project Selector */}
@@ -792,6 +861,70 @@ const Producao = () => {
             <Button onClick={handleWorkLogConfirm} disabled={advancePhaseMutation.isPending || createWorkLogMutation.isPending}>
               <PlayCircle className="w-4 h-4 mr-2" /> Registar & Avançar
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Concluídas Dialog */}
+      <Dialog open={concluidasOpen} onOpenChange={setConcluidasOpen}>
+        <DialogContent className="sm:max-w-[700px] max-h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              Músicas Concluídas & Arquivadas
+            </DialogTitle>
+            <DialogDescription>
+              Lista de todas as produções que completaram o fluxo de trabalho.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1 mt-2">
+            {(() => {
+              const todas = [
+                ...concluidasAtivas.map(m => ({ ...m, _tipo: 'concluída' as const })),
+                ...musicasArquivadas.map(m => ({ ...m, _tipo: 'arquivada' as const })),
+              ].sort((a, b) => b.id - a.id);
+              if (todas.length === 0) {
+                return (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <CheckCircle2 className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                    Nenhuma música concluída ainda.
+                  </div>
+                );
+              }
+              return (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Turma / Instituição</TableHead>
+                      <TableHead>Finalizada por</TableHead>
+                      <TableHead>Estado</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {todas.map(m => (
+                      <TableRow key={`${m._tipo}-${m.id}`}>
+                        <TableCell className="font-medium text-sm">{m.titulo}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {m.turma ? `${m.turma.nome} • ${m.turma.estabelecimento}` : '—'}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {m.finalizado_por?.nome?.split(' ')[0] || '—'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="secondary" className={m.arquivado ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'}>
+                            {m.arquivado ? 'Arquivada' : 'Concluída'}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              );
+            })()}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConcluidasOpen(false)}>Fechar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
