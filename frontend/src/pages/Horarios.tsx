@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import AIAgentChat from '@/components/AIAgentChat';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -51,6 +52,7 @@ import {
   Briefcase,
   Star,
   CheckCircle2,
+  Sparkles,
 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -132,6 +134,7 @@ const Horarios = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<'week' | 'month' | 'list'>('week');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isAgentOpen, setIsAgentOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<AulaAPI | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [viewSession, setViewSession] = useState<AulaAPI | null>(null);
@@ -703,538 +706,544 @@ const Horarios = () => {
           </p>
         </div>
         {isAdmin && (
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={handleOpenCreate}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Sessão
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[540px] bg-card">
-              <DialogHeader>
-                <DialogTitle className="font-display">
-                  {editingSession ? 'Editar Sessão' : 'Novo Agendamento'}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingSession
-                    ? 'Altere os detalhes da sessão existente.'
-                    : 'Agenda uma aula com turma ou um bloco de trabalho interno.'}
-                </DialogDescription>
-              </DialogHeader>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setIsAgentOpen(true)}>
+              <Sparkles className="h-4 w-4 mr-2" />
+              Com Agente
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={handleOpenCreate}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nova Sessão
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[540px] bg-card">
+                <DialogHeader>
+                  <DialogTitle className="font-display">
+                    {editingSession ? 'Editar Sessão' : 'Novo Agendamento'}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {editingSession
+                      ? 'Altere os detalhes da sessão existente.'
+                      : 'Agenda uma aula com turma ou um bloco de trabalho interno.'}
+                  </DialogDescription>
+                </DialogHeader>
 
-              {/* Tabs — apenas em modo de criação */}
-              {!editingSession && (
-                <Tabs value={modalTab} onValueChange={(v) => setModalTab(v as 'aula' | 'autonomo')} className="w-full">
-                  <TabsList className="grid w-full grid-cols-2">
-                    <TabsTrigger value="aula">Aula / Evento</TabsTrigger>
-                    <TabsTrigger value="autonomo" className="flex items-center gap-1">
-                      <Briefcase className="h-3.5 w-3.5" />
-                      Trabalho Autónomo
-                    </TabsTrigger>
-                  </TabsList>
+                {/* Tabs — apenas em modo de criação */}
+                {!editingSession && (
+                  <Tabs value={modalTab} onValueChange={(v) => setModalTab(v as 'aula' | 'autonomo')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="aula">Aula / Evento</TabsTrigger>
+                      <TabsTrigger value="autonomo" className="flex items-center gap-1">
+                        <Briefcase className="h-3.5 w-3.5" />
+                        Trabalho Autónomo
+                      </TabsTrigger>
+                    </TabsList>
 
-                  {/* ── Tab: Aula / Evento ── */}
-                  <TabsContent value="aula">
-                    <div className="grid gap-4 py-4">
-                      {/* Projeto → Estabelecimento → Turma (Cascading) */}
-                      <div className="space-y-2">
-                        <Label htmlFor="projeto">Projeto</Label>
-                        <Select
-                          value={selectedProjetoId ? String(selectedProjetoId) : undefined}
-                          onValueChange={(v) => {
-                            setSelectedProjetoId(Number(v));
-                            setSelectedEstabId(null);
-                            setFormData({ ...formData, turma_id: undefined, atividade_id: null });
-                            setSelectedDisciplinaId(null);
-                          }}
-                        >
-                          <SelectTrigger id="projeto">
-                            <SelectValue placeholder="Selecionar Projeto" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover">
-                            {projetos?.map((p) => (
-                              <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
+                    {/* ── Tab: Aula / Evento ── */}
+                    <TabsContent value="aula">
+                      <div className="grid gap-4 py-4">
+                        {/* Projeto → Estabelecimento → Turma (Cascading) */}
                         <div className="space-y-2">
-                          <Label htmlFor="estabelecimento">Estabelecimento</Label>
+                          <Label htmlFor="projeto">Projeto</Label>
                           <Select
-                            disabled={!selectedProjetoId}
-                            value={selectedEstabId ? String(selectedEstabId) : undefined}
+                            value={selectedProjetoId ? String(selectedProjetoId) : undefined}
                             onValueChange={(v) => {
-                              setSelectedEstabId(Number(v));
-                              setFormData({ ...formData, turma_id: undefined });
-                            }}
-                          >
-                            <SelectTrigger id="estabelecimento">
-                              <SelectValue placeholder="Selecione..." />
-                            </SelectTrigger>
-                            <SelectContent className="bg-popover">
-                              {projetoEstabs?.map((e) => (
-                                <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="turma">Turma</Label>
-                          <Select
-                            disabled={!selectedEstabId}
-                            value={formData.turma_id ? String(formData.turma_id) : undefined}
-                            onValueChange={(v) => {
-                              setFormData({ ...formData, turma_id: Number(v), atividade_id: null });
+                              setSelectedProjetoId(Number(v));
+                              setSelectedEstabId(null);
+                              setFormData({ ...formData, turma_id: undefined, atividade_id: null });
                               setSelectedDisciplinaId(null);
                             }}
                           >
-                            <SelectTrigger id="turma">
-                              <SelectValue placeholder="Selecione..." />
+                            <SelectTrigger id="projeto">
+                              <SelectValue placeholder="Selecionar Projeto" />
                             </SelectTrigger>
                             <SelectContent className="bg-popover">
-                              {filteredTurmas?.map((t) => (
-                                <SelectItem key={t.id} value={String(t.id)}>{t.nome}</SelectItem>
+                              {projetos?.map((p) => (
+                                <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="date">Data</Label>
-                        <Input id="date" type="date" />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="time">Hora de início</Label>
-                          <Input id="time" type="time" />
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="estabelecimento">Estabelecimento</Label>
+                            <Select
+                              disabled={!selectedProjetoId}
+                              value={selectedEstabId ? String(selectedEstabId) : undefined}
+                              onValueChange={(v) => {
+                                setSelectedEstabId(Number(v));
+                                setFormData({ ...formData, turma_id: undefined });
+                              }}
+                            >
+                              <SelectTrigger id="estabelecimento">
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover">
+                                {projetoEstabs?.map((e) => (
+                                  <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="turma">Turma</Label>
+                            <Select
+                              disabled={!selectedEstabId}
+                              value={formData.turma_id ? String(formData.turma_id) : undefined}
+                              onValueChange={(v) => {
+                                setFormData({ ...formData, turma_id: Number(v), atividade_id: null });
+                                setSelectedDisciplinaId(null);
+                              }}
+                            >
+                              <SelectTrigger id="turma">
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover">
+                                {filteredTurmas?.map((t) => (
+                                  <SelectItem key={t.id} value={String(t.id)}>{t.nome}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="time-end">Hora de fim</Label>
-                          <Input id="time-end" type="time" />
+                          <Label htmlFor="date">Data</Label>
+                          <Input id="date" type="date" />
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="mentor">Mentor</Label>
-                        <Select
-                          value={formData.mentor_id ? String(formData.mentor_id) : undefined}
-                          onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v) })}
-                        >
-                          <SelectTrigger id="mentor">
-                            <SelectValue placeholder="Selecionar mentor" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover">
-                            {mentoresApi?.map((mentor) => {
-                              const turma = turmas?.find(t => t.id === formData.turma_id);
-                              const key = turma ? `${mentor.id}_${turma.estabelecimento_id}` : '';
-                              const dist = mentorDistances[key];
-                              return (
-                                <SelectItem key={mentor.id} value={String(mentor.id)}>
-                                  {mentor.nome}{dist != null ? ` (${dist} km)` : ''}
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="time">Hora de início</Label>
+                            <Input id="time" type="time" />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="time-end">Hora de fim</Label>
+                            <Input id="time-end" type="time" />
+                          </div>
+                        </div>
                         <div className="space-y-2">
-                          <Label htmlFor="disciplina">Disciplina</Label>
+                          <Label htmlFor="mentor">Mentor</Label>
                           <Select
-                            value={selectedDisciplinaId ? String(selectedDisciplinaId) : undefined}
-                            onValueChange={(v) => {
-                              setSelectedDisciplinaId(Number(v));
-                              setFormData({ ...formData, atividade_id: null });
-                            }}
+                            value={formData.mentor_id ? String(formData.mentor_id) : undefined}
+                            onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v) })}
                           >
-                            <SelectTrigger id="disciplina">
-                              <SelectValue placeholder="Selecione..." />
+                            <SelectTrigger id="mentor">
+                              <SelectValue placeholder="Selecionar mentor" />
                             </SelectTrigger>
-                            <SelectContent>
-                              {filteredDisciplinas?.map((d: any) => (
-                                <SelectItem key={d.id} value={String(d.id)}>{d.disciplina}</SelectItem>
-                              ))}
+                            <SelectContent className="bg-popover">
+                              {mentoresApi?.map((mentor) => {
+                                const turma = turmas?.find(t => t.id === formData.turma_id);
+                                const key = turma ? `${mentor.id}_${turma.estabelecimento_id}` : '';
+                                const dist = mentorDistances[key];
+                                return (
+                                  <SelectItem key={mentor.id} value={String(mentor.id)}>
+                                    {mentor.nome}{dist != null ? ` (${dist} km)` : ''}
+                                  </SelectItem>
+                                );
+                              })}
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="atividade">Atividade</Label>
-                          <Select
-                            disabled={!selectedDisciplinaId}
-                            value={formData.atividade_id ? String(formData.atividade_id) : undefined}
-                            onValueChange={(v) => setFormData({ ...formData, atividade_id: Number(v) })}
-                          >
-                            <SelectTrigger id="atividade">
-                              <SelectValue placeholder="Selecione..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableActivities.map((algo: any) => (
-                                <SelectItem key={algo.id} value={String(algo.id)}>{algo.nome}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="disciplina">Disciplina</Label>
+                            <Select
+                              value={selectedDisciplinaId ? String(selectedDisciplinaId) : undefined}
+                              onValueChange={(v) => {
+                                setSelectedDisciplinaId(Number(v));
+                                setFormData({ ...formData, atividade_id: null });
+                              }}
+                            >
+                              <SelectTrigger id="disciplina">
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {filteredDisciplinas?.map((d: any) => (
+                                  <SelectItem key={d.id} value={String(d.id)}>{d.disciplina}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="atividade">Atividade</Label>
+                            <Select
+                              disabled={!selectedDisciplinaId}
+                              value={formData.atividade_id ? String(formData.atividade_id) : undefined}
+                              onValueChange={(v) => setFormData({ ...formData, atividade_id: Number(v) })}
+                            >
+                              <SelectTrigger id="atividade">
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {availableActivities.map((algo: any) => (
+                                  <SelectItem key={algo.id} value={String(algo.id)}>{algo.nome}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="location">Local</Label>
-                          <Input
-                            id="location"
-                            placeholder="Ex: Sala de Música"
-                            value={formData.local || ''}
-                            onChange={(e) => setFormData({ ...formData, local: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="nSessao">Nº Sessão</Label>
-                          <Input
-                            id="nSessao"
-                            type="number"
-                            placeholder="Ex: 1"
-                            value={formData.tema || ''}
-                            onChange={(e) => setFormData({ ...formData, tema: e.target.value })}
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="equipamento">Kit de Material</Label>
-                        <Select
-                          value={selectedKitCatId}
-                          onValueChange={(v) => {
-                            setSelectedKitCatId(v);
-                            if (v === 'none' || !v) {
-                              setCheckedItemIds(new Set());
-                            } else {
-                              const cat = kitCategorias?.find(c => String(c.id) === v);
-                              if (cat) setCheckedItemIds(new Set(cat.itens.map(i => i.id)));
-                            }
-                          }}
-                        >
-                          <SelectTrigger id="equipamento">
-                            <SelectValue placeholder="Selecione kit..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Nenhum</SelectItem>
-                            {kitCategorias?.map(cat => (
-                              <SelectItem key={cat.id} value={String(cat.id)}>{cat.nome}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {selectedKitCatId && selectedKitCatId !== 'none' && (() => {
-                          const cat = kitCategorias?.find(c => String(c.id) === selectedKitCatId);
-                          if (!cat) return null;
-                          return (
-                            <div className="space-y-1.5 pl-1 pt-1">
-                              {cat.itens.map(item => (
-                                <label key={item.id} className="flex items-center gap-2 text-sm cursor-pointer">
-                                  <input
-                                    type="checkbox"
-                                    checked={checkedItemIds.has(item.id)}
-                                    onChange={() => {
-                                      setCheckedItemIds(prev => {
-                                        const next = new Set(prev);
-                                        if (next.has(item.id)) next.delete(item.id);
-                                        else next.add(item.id);
-                                        return next;
-                                      });
-                                    }}
-                                    className="rounded border-border"
-                                  />
-                                  {item.nome}
-                                </label>
-                              ))}
-                            </div>
-                          );
-                        })()}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="obs">Observações</Label>
-                        <Input
-                          id="obs"
-                          placeholder="Notas adicionais..."
-                          value={formData.observacoes || ''}
-                          onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
-                        />
-                      </div>
-                    </div>
-                  </TabsContent>
-
-                  {/* ── Tab: Trabalho Autónomo ── */}
-                  <TabsContent value="autonomo">
-                    <div className="grid gap-4 py-4">
-                      {/* Projeto */}
-                      <div className="space-y-2">
-                        <Label htmlFor="auto-projeto">Projeto <span className="text-destructive">*</span></Label>
-                        <Select
-                          value={autonomousForm.projeto_id || 'none'}
-                          onValueChange={(v) => setAutonomousForm({ ...autonomousForm, projeto_id: v === 'none' ? '' : v })}
-                        >
-                          <SelectTrigger id="auto-projeto">
-                            <SelectValue placeholder="Selecionar projeto" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover">
-                            <SelectItem value="none">Selecionar projeto</SelectItem>
-                            {projetos?.map((p) => (
-                              <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Quem */}
-                      <div className="space-y-2">
-                        <Label htmlFor="autonomo-quem">Quem</Label>
-                        <Select
-                          value={autonomousForm.responsavel_user_id}
-                          onValueChange={(v) => setAutonomousForm({ ...autonomousForm, responsavel_user_id: v })}
-                        >
-                          <SelectTrigger id="autonomo-quem">
-                            <SelectValue placeholder="Selecionar membro da equipa" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover">
-                            {equipa?.map((p) => (
-                              <SelectItem key={p.id} value={p.id}>
-                                {p.full_name}
-                                <span className="ml-2 text-xs text-muted-foreground capitalize">({p.role})</span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Quando */}
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="auto-date">Data</Label>
-                          <Input
-                            id="auto-date"
-                            type="date"
-                            value={autonomousForm.date}
-                            onChange={(e) => setAutonomousForm({ ...autonomousForm, date: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="auto-start">Início</Label>
-                          <Input
-                            id="auto-start"
-                            type="time"
-                            value={autonomousForm.hora_inicio}
-                            onChange={(e) => setAutonomousForm({ ...autonomousForm, hora_inicio: e.target.value })}
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="auto-end">Fim</Label>
-                          <Input
-                            id="auto-end"
-                            type="time"
-                            value={autonomousForm.hora_fim}
-                            onChange={(e) => setAutonomousForm({ ...autonomousForm, hora_fim: e.target.value })}
-                          />
-                        </div>
-                      </div>
-
-                      {/* O Quê */}
-                      <div className="space-y-2">
-                        <Label htmlFor="auto-tipo">Tipo de Atividade</Label>
-                        <Select
-                          value={autonomousForm.tipo_atividade}
-                          onValueChange={(v) => setAutonomousForm({ ...autonomousForm, tipo_atividade: v })}
-                        >
-                          <SelectTrigger id="auto-tipo">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-popover">
-                            {TIPOS_ATIVIDADE.map((t) => (
-                              <SelectItem key={t} value={t}>{t}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Nº Sessão (auto-preenchido) */}
-                      <div className="space-y-2">
-                        <Label htmlFor="auto-tema">Nº Sessão</Label>
-                        <Input
-                          id="auto-tema"
-                          placeholder="Nº Sessão"
-                          value={autonomousForm.tema}
-                          onChange={(e) => setAutonomousForm({ ...autonomousForm, tema: e.target.value })}
-                        />
-                      </div>
-
-                      {/* Recorrência */}
-                      <div className="space-y-3 rounded-md border border-dashed border-border p-3">
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id="auto-recorr"
-                            checked={autonomousForm.repetir_semanalmente}
-                            onCheckedChange={(v) =>
-                              setAutonomousForm({ ...autonomousForm, repetir_semanalmente: !!v })
-                            }
-                          />
-                          <Label htmlFor="auto-recorr" className="cursor-pointer font-normal">
-                            Repetir semanalmente
-                          </Label>
-                        </div>
-                        {autonomousForm.repetir_semanalmente && (
-                          <div className="flex items-center gap-2 pl-6">
-                            <Label htmlFor="auto-semanas" className="text-sm text-muted-foreground whitespace-nowrap">
-                              Nº de semanas:
-                            </Label>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="location">Local</Label>
                             <Input
-                              id="auto-semanas"
-                              type="number"
-                              min={2}
-                              max={52}
-                              className="w-20"
-                              value={autonomousForm.semanas}
-                              onChange={(e) =>
-                                setAutonomousForm({ ...autonomousForm, semanas: Number(e.target.value) })
-                              }
+                              id="location"
+                              placeholder="Ex: Sala de Música"
+                              value={formData.local || ''}
+                              onChange={(e) => setFormData({ ...formData, local: e.target.value })}
                             />
                           </div>
-                        )}
+                          <div className="space-y-2">
+                            <Label htmlFor="nSessao">Nº Sessão</Label>
+                            <Input
+                              id="nSessao"
+                              type="number"
+                              placeholder="Ex: 1"
+                              value={formData.tema || ''}
+                              onChange={(e) => setFormData({ ...formData, tema: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="equipamento">Kit de Material</Label>
+                          <Select
+                            value={selectedKitCatId}
+                            onValueChange={(v) => {
+                              setSelectedKitCatId(v);
+                              if (v === 'none' || !v) {
+                                setCheckedItemIds(new Set());
+                              } else {
+                                const cat = kitCategorias?.find(c => String(c.id) === v);
+                                if (cat) setCheckedItemIds(new Set(cat.itens.map(i => i.id)));
+                              }
+                            }}
+                          >
+                            <SelectTrigger id="equipamento">
+                              <SelectValue placeholder="Selecione kit..." />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Nenhum</SelectItem>
+                              {kitCategorias?.map(cat => (
+                                <SelectItem key={cat.id} value={String(cat.id)}>{cat.nome}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {selectedKitCatId && selectedKitCatId !== 'none' && (() => {
+                            const cat = kitCategorias?.find(c => String(c.id) === selectedKitCatId);
+                            if (!cat) return null;
+                            return (
+                              <div className="space-y-1.5 pl-1 pt-1">
+                                {cat.itens.map(item => (
+                                  <label key={item.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={checkedItemIds.has(item.id)}
+                                      onChange={() => {
+                                        setCheckedItemIds(prev => {
+                                          const next = new Set(prev);
+                                          if (next.has(item.id)) next.delete(item.id);
+                                          else next.add(item.id);
+                                          return next;
+                                        });
+                                      }}
+                                      className="rounded border-border"
+                                    />
+                                    {item.nome}
+                                  </label>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="obs">Observações</Label>
+                          <Input
+                            id="obs"
+                            placeholder="Notas adicionais..."
+                            value={formData.observacoes || ''}
+                            onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                          />
+                        </div>
                       </div>
+                    </TabsContent>
 
-                      {/* Observações */}
+                    {/* ── Tab: Trabalho Autónomo ── */}
+                    <TabsContent value="autonomo">
+                      <div className="grid gap-4 py-4">
+                        {/* Projeto */}
+                        <div className="space-y-2">
+                          <Label htmlFor="auto-projeto">Projeto <span className="text-destructive">*</span></Label>
+                          <Select
+                            value={autonomousForm.projeto_id || 'none'}
+                            onValueChange={(v) => setAutonomousForm({ ...autonomousForm, projeto_id: v === 'none' ? '' : v })}
+                          >
+                            <SelectTrigger id="auto-projeto">
+                              <SelectValue placeholder="Selecionar projeto" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover">
+                              <SelectItem value="none">Selecionar projeto</SelectItem>
+                              {projetos?.map((p) => (
+                                <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Quem */}
+                        <div className="space-y-2">
+                          <Label htmlFor="autonomo-quem">Quem</Label>
+                          <Select
+                            value={autonomousForm.responsavel_user_id}
+                            onValueChange={(v) => setAutonomousForm({ ...autonomousForm, responsavel_user_id: v })}
+                          >
+                            <SelectTrigger id="autonomo-quem">
+                              <SelectValue placeholder="Selecionar membro da equipa" />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover">
+                              {equipa?.map((p) => (
+                                <SelectItem key={p.id} value={p.id}>
+                                  {p.full_name}
+                                  <span className="ml-2 text-xs text-muted-foreground capitalize">({p.role})</span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Quando */}
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="space-y-2">
+                            <Label htmlFor="auto-date">Data</Label>
+                            <Input
+                              id="auto-date"
+                              type="date"
+                              value={autonomousForm.date}
+                              onChange={(e) => setAutonomousForm({ ...autonomousForm, date: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="auto-start">Início</Label>
+                            <Input
+                              id="auto-start"
+                              type="time"
+                              value={autonomousForm.hora_inicio}
+                              onChange={(e) => setAutonomousForm({ ...autonomousForm, hora_inicio: e.target.value })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="auto-end">Fim</Label>
+                            <Input
+                              id="auto-end"
+                              type="time"
+                              value={autonomousForm.hora_fim}
+                              onChange={(e) => setAutonomousForm({ ...autonomousForm, hora_fim: e.target.value })}
+                            />
+                          </div>
+                        </div>
+
+                        {/* O Quê */}
+                        <div className="space-y-2">
+                          <Label htmlFor="auto-tipo">Tipo de Atividade</Label>
+                          <Select
+                            value={autonomousForm.tipo_atividade}
+                            onValueChange={(v) => setAutonomousForm({ ...autonomousForm, tipo_atividade: v })}
+                          >
+                            <SelectTrigger id="auto-tipo">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-popover">
+                              {TIPOS_ATIVIDADE.map((t) => (
+                                <SelectItem key={t} value={t}>{t}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {/* Nº Sessão (auto-preenchido) */}
+                        <div className="space-y-2">
+                          <Label htmlFor="auto-tema">Nº Sessão</Label>
+                          <Input
+                            id="auto-tema"
+                            placeholder="Nº Sessão"
+                            value={autonomousForm.tema}
+                            onChange={(e) => setAutonomousForm({ ...autonomousForm, tema: e.target.value })}
+                          />
+                        </div>
+
+                        {/* Recorrência */}
+                        <div className="space-y-3 rounded-md border border-dashed border-border p-3">
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="auto-recorr"
+                              checked={autonomousForm.repetir_semanalmente}
+                              onCheckedChange={(v) =>
+                                setAutonomousForm({ ...autonomousForm, repetir_semanalmente: !!v })
+                              }
+                            />
+                            <Label htmlFor="auto-recorr" className="cursor-pointer font-normal">
+                              Repetir semanalmente
+                            </Label>
+                          </div>
+                          {autonomousForm.repetir_semanalmente && (
+                            <div className="flex items-center gap-2 pl-6">
+                              <Label htmlFor="auto-semanas" className="text-sm text-muted-foreground whitespace-nowrap">
+                                Nº de semanas:
+                              </Label>
+                              <Input
+                                id="auto-semanas"
+                                type="number"
+                                min={2}
+                                max={52}
+                                className="w-20"
+                                value={autonomousForm.semanas}
+                                onChange={(e) =>
+                                  setAutonomousForm({ ...autonomousForm, semanas: Number(e.target.value) })
+                                }
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Observações */}
+                        <div className="space-y-2">
+                          <Label htmlFor="auto-obs">Observações (opcional)</Label>
+                          <Textarea
+                            id="auto-obs"
+                            placeholder="Notas sobre este bloco de trabalho..."
+                            rows={2}
+                            value={autonomousForm.observacoes}
+                            onChange={(e) => setAutonomousForm({ ...autonomousForm, observacoes: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    </TabsContent>
+                  </Tabs>
+                )}
+
+                {/* Formulário de edição (sem tabs) */}
+                {editingSession && (
+                  <div className="grid gap-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="date">Data</Label>
+                      <Input
+                        id="date"
+                        type="date"
+                        defaultValue={format(new Date(editingSession.data_hora), 'yyyy-MM-dd')}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="auto-obs">Observações (opcional)</Label>
-                        <Textarea
-                          id="auto-obs"
-                          placeholder="Notas sobre este bloco de trabalho..."
-                          rows={2}
-                          value={autonomousForm.observacoes}
-                          onChange={(e) => setAutonomousForm({ ...autonomousForm, observacoes: e.target.value })}
+                        <Label htmlFor="time">Hora de início</Label>
+                        <Input
+                          id="time"
+                          type="time"
+                          defaultValue={format(new Date(editingSession.data_hora), 'HH:mm')}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="time-end">Hora de fim</Label>
+                        <Input
+                          id="time-end"
+                          type="time"
+                          defaultValue={format(addMinutes(new Date(editingSession.data_hora), editingSession.duracao_minutos), 'HH:mm')}
                         />
                       </div>
                     </div>
-                  </TabsContent>
-                </Tabs>
-              )}
+                    <div className="space-y-2">
+                      <Label htmlFor="turma">Turma</Label>
+                      <Select
+                        value={formData.turma_id ? String(formData.turma_id) : undefined}
+                        onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
+                      >
+                        <SelectTrigger id="turma">
+                          <SelectValue placeholder="Selecionar Turma" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover">
+                          {turmas?.map((t) => (
+                            <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="mentor">Mentor</Label>
+                      <Select
+                        value={formData.mentor_id ? String(formData.mentor_id) : undefined}
+                        onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v) })}
+                      >
+                        <SelectTrigger id="mentor">
+                          <SelectValue placeholder="Selecionar mentor" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-popover">
+                          {mentoresApi?.map((mentor) => {
+                            const turma = turmas?.find(t => t.id === formData.turma_id);
+                            const key = turma ? `${mentor.id}_${turma.estabelecimento_id}` : '';
+                            const dist = mentorDistances[key];
+                            return (
+                              <SelectItem key={mentor.id} value={String(mentor.id)}>
+                                {mentor.nome}{dist != null ? ` (${dist} km)` : ''}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="location">Local</Label>
+                        <Input
+                          id="location"
+                          placeholder="Ex: Sala de Música"
+                          value={formData.local || ''}
+                          onChange={(e) => setFormData({ ...formData, local: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="nSessao">Nº Sessão</Label>
+                        <Input
+                          id="nSessao"
+                          type="number"
+                          placeholder="Ex: 1"
+                          value={formData.tema || ''}
+                          onChange={(e) => setFormData({ ...formData, tema: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="obs">Observações</Label>
+                      <Input
+                        id="obs"
+                        placeholder="Notas adicionais..."
+                        value={formData.observacoes || ''}
+                        onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                )}
 
-              {/* Formulário de edição (sem tabs) */}
-              {editingSession && (
-                <div className="grid gap-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="date">Data</Label>
-                    <Input
-                      id="date"
-                      type="date"
-                      defaultValue={format(new Date(editingSession.data_hora), 'yyyy-MM-dd')}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="time">Hora de início</Label>
-                      <Input
-                        id="time"
-                        type="time"
-                        defaultValue={format(new Date(editingSession.data_hora), 'HH:mm')}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="time-end">Hora de fim</Label>
-                      <Input
-                        id="time-end"
-                        type="time"
-                        defaultValue={format(addMinutes(new Date(editingSession.data_hora), editingSession.duracao_minutos), 'HH:mm')}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="turma">Turma</Label>
-                    <Select
-                      value={formData.turma_id ? String(formData.turma_id) : undefined}
-                      onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
+                <DialogFooter className="flex sm:justify-between w-full">
+                  {editingSession ? (
+                    <Button variant="destructive" onClick={handleDelete}>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Apagar
+                    </Button>
+                  ) : <div />}
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleSave}
+                      disabled={createSessionMutation.isPending || createAutonomousMutation.isPending || updateSessionMutation.isPending}
                     >
-                      <SelectTrigger id="turma">
-                        <SelectValue placeholder="Selecionar Turma" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover">
-                        {turmas?.map((t) => (
-                          <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <Save className="h-4 w-4 mr-2" />
+                      {editingSession ? 'Atualizar' : modalTab === 'autonomo' ? 'Agendar Trabalho' : 'Criar Sessão'}
+                    </Button>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="mentor">Mentor</Label>
-                    <Select
-                      value={formData.mentor_id ? String(formData.mentor_id) : undefined}
-                      onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v) })}
-                    >
-                      <SelectTrigger id="mentor">
-                        <SelectValue placeholder="Selecionar mentor" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-popover">
-                        {mentoresApi?.map((mentor) => {
-                          const turma = turmas?.find(t => t.id === formData.turma_id);
-                          const key = turma ? `${mentor.id}_${turma.estabelecimento_id}` : '';
-                          const dist = mentorDistances[key];
-                          return (
-                            <SelectItem key={mentor.id} value={String(mentor.id)}>
-                              {mentor.nome}{dist != null ? ` (${dist} km)` : ''}
-                            </SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="location">Local</Label>
-                      <Input
-                        id="location"
-                        placeholder="Ex: Sala de Música"
-                        value={formData.local || ''}
-                        onChange={(e) => setFormData({ ...formData, local: e.target.value })}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="nSessao">Nº Sessão</Label>
-                      <Input
-                        id="nSessao"
-                        type="number"
-                        placeholder="Ex: 1"
-                        value={formData.tema || ''}
-                        onChange={(e) => setFormData({ ...formData, tema: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="obs">Observações</Label>
-                    <Input
-                      id="obs"
-                      placeholder="Notas adicionais..."
-                      value={formData.observacoes || ''}
-                      onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <DialogFooter className="flex sm:justify-between w-full">
-                {editingSession ? (
-                  <Button variant="destructive" onClick={handleDelete}>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Apagar
-                  </Button>
-                ) : <div />}
-                <div className="flex gap-2">
-                  <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancelar
-                  </Button>
-                  <Button
-                    onClick={handleSave}
-                    disabled={createSessionMutation.isPending || createAutonomousMutation.isPending || updateSessionMutation.isPending}
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    {editingSession ? 'Atualizar' : modalTab === 'autonomo' ? 'Agendar Trabalho' : 'Criar Sessão'}
-                  </Button>
-                </div>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         )}
       </div>
 
@@ -1772,38 +1781,38 @@ const Horarios = () => {
                   {/* Botão Confirmar — sessões pendentes (mentor atribuído ou coordenador) */}
                   {viewSession.estado === 'pendente' && !viewSession.is_autonomous &&
                     (isAdmin || isOwnSession) && (
-                    <Button
-                      onClick={() => handleWithConfirmation(() => confirmMutation.mutate(viewSession.id))}
-                      disabled={confirmMutation.isPending}
-                      className={greenClass}
-                    >
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                      {confirmMutation.isPending ? 'A confirmar...' : 'Confirmar Sessão'}
-                    </Button>
-                  )}
+                      <Button
+                        onClick={() => handleWithConfirmation(() => confirmMutation.mutate(viewSession.id))}
+                        disabled={confirmMutation.isPending}
+                        className={greenClass}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        {confirmMutation.isPending ? 'A confirmar...' : 'Confirmar Sessão'}
+                      </Button>
+                    )}
                   {/* Botão Marcar como Realizado — trabalho autónomo planeado (responsável ou coordenador) */}
                   {viewSession.is_autonomous && !viewSession.is_realized &&
                     (isAdmin || isOwnSession) && (
-                    <Button
-                      onClick={() => handleWithConfirmation(() => realizeMutation.mutate(viewSession.id))}
-                      disabled={realizeMutation.isPending}
-                      className={greenClass}
-                    >
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                      {realizeMutation.isPending ? 'A marcar...' : 'Marcar como Realizado'}
-                    </Button>
-                  )}
+                      <Button
+                        onClick={() => handleWithConfirmation(() => realizeMutation.mutate(viewSession.id))}
+                        disabled={realizeMutation.isPending}
+                        className={greenClass}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        {realizeMutation.isPending ? 'A marcar...' : 'Marcar como Realizado'}
+                      </Button>
+                    )}
                   {/* Botão Terminar — sessões confirmadas presenciais cuja hora já passou (mentor ou coordenador) */}
                   {viewSession.estado === 'confirmada' && !viewSession.is_autonomous && new Date(viewSession.data_hora) <= new Date() &&
                     (isAdmin || isOwnSession) && (
-                    <Button
-                      onClick={() => handleWithConfirmation(() => { setIsDetailOpen(false); openTerminarModal(viewSession.id); })}
-                      className={greyClass}
-                    >
-                      <CheckCircle2 className="w-4 h-4 mr-2" />
-                      Terminar Sessão
-                    </Button>
-                  )}
+                      <Button
+                        onClick={() => handleWithConfirmation(() => { setIsDetailOpen(false); openTerminarModal(viewSession.id); })}
+                        className={greyClass}
+                      >
+                        <CheckCircle2 className="w-4 h-4 mr-2" />
+                        Terminar Sessão
+                      </Button>
+                    )}
                   {isAdmin && (
                     <Button onClick={() => { setIsDetailOpen(false); handleOpenEdit(viewSession); }} variant="outline" className="w-full sm:w-auto">
                       <Edit2 className="w-4 h-4 mr-2" />
@@ -1889,6 +1898,9 @@ const Horarios = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* AI Agent Sidebar */}
+      <AIAgentChat open={isAgentOpen} onClose={() => setIsAgentOpen(false)} />
     </div >
   );
 };

@@ -1077,6 +1077,35 @@ async def get_or_create_dm(payload: DMPayload, user=Depends(get_current_user_req
     return result
 
 # -----------------------------------------------------------------------------
+# Endpoints do Agente AI
+# -----------------------------------------------------------------------------
+from services import ai_agent_service
+
+class AIAgentMessage(BaseModel):
+    mensagem: str
+    historico: Optional[list] = None
+
+@app.post("/api/ai/agent/horarios", tags=["AI Agent"])
+async def ai_agent_horarios(payload: AIAgentMessage, user=Depends(get_current_user_required)):
+    """
+    Processa uma mensagem de linguagem natural via Agente AI (Gemini).
+    Apenas acessível a coordenadores, direção e IT support.
+    """
+    # Validar permissões
+    user_id = user.get("sub")
+    perfis = profile_service.listar_perfis()
+    user_profile = next((p for p in perfis if p.get("id") == user_id), None)
+    if not user_profile or user_profile.get("role") not in ("coordenador", "direcao", "it_support"):
+        raise HTTPException(status_code=403, detail="Sem permissão para usar o agente AI.")
+
+    # Processar mensagem
+    resultado = ai_agent_service.processar_mensagem(
+        mensagem=payload.mensagem,
+        historico=payload.historico,
+    )
+    return resultado
+
+
 # 3. PONTO DE ENTRADA PARA ARRANCAR O SERVIDOR
 # -----------------------------------------------------------------------------
 

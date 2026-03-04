@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { Hash, MessageCircle, Send, Users, Plus } from 'lucide-react';
+import { Hash, MessageCircle, Send, Users, Plus, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -277,7 +277,7 @@ export default function Chat() {
     }
 
     // Trigger singleton notification for other members (fire-and-forget)
-    api.post('/api/chat/notify', { channel_id: selectedChannelId }).catch(() => {});
+    api.post('/api/chat/notify', { channel_id: selectedChannelId }).catch(() => { });
   }
 
   // ── Start DM ──
@@ -404,6 +404,26 @@ export default function Chat() {
               >
                 <Plus className="h-4 w-4 shrink-0" />
                 <span>Nova Mensagem</span>
+              </button>
+            </div>
+
+            {/* AI */}
+            <div className="mt-4">
+              <div className="mb-2 px-2">
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  AI
+                </span>
+              </div>
+              <button
+                onClick={() => window.open('https://chat-nova-escola-bice.vercel.app/', '_blank', 'noopener,noreferrer')}
+                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+              >
+                <Avatar className="h-5 w-5">
+                  <AvatarFallback className="text-[10px] bg-primary text-primary-foreground">
+                    <Bot className="h-3 w-3" />
+                  </AvatarFallback>
+                </Avatar>
+                <span className="truncate">Chatbot</span>
               </button>
             </div>
           </div>

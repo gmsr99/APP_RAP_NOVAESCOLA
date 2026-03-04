@@ -33,9 +33,7 @@ export function Layout() {
     }
   }, [location.pathname]);
 
-  const handleOpenChatbot = () => {
-    window.open('https://chat-nova-escola-bice.vercel.app/', '_blank', 'noopener,noreferrer');
-  };
+
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
@@ -69,14 +67,7 @@ export function Layout() {
         </main>
       </div>
 
-      {/* Chatbot FAB */}
-      <Button
-        size="icon"
-        onClick={handleOpenChatbot}
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all z-50 bg-accent hover:bg-accent/80"
-      >
-        <MessageCircle className="h-6 w-6" />
-      </Button>
+
     </div>
   );
 }

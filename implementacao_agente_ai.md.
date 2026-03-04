@@ -1,0 +1,42 @@
+# Agente de Agendamento AI (RAP Nova Escola)
+
+O objetivo deste projeto é adicionar um botão "+ Com Agente" na página de horários, apenas visível a utilizadores com perfis administrativos (`coordenador`, `direcao`, `it_support`). Ao clicar, o utilizador terá acesso a um chat em linguagem natural onde pode pedir ao Agente de Inteligência Artificial para realizar agendamentos de sessões no sistema, interpretar conflitos e gerir disponibilidades.
+
+## User Review Required
+
+1. **Chave da API**: É necessário obter e configurar a Chave API do Gemini (Google) no ambiente `.env` do backend (`GEMINI_API_KEY`).
+2. **Interface do Chat**: Pretendes que o chat abra num painel lateral (Sidebar) ou numa janela sobreposta à tabela (Modal)?
+
+## Proposed Changes
+
+### Backend (FastAPI - [main.py](file:///Users/gmsr44/Desktop/Outros%20Projetos/Rap%20Nova%20Escola/BPM_RAP_Nova_Escola-main/main.py) e Serviços)
+
+#### [NEW] `services/ai_agent_service.py`
+- Lógica de comunicação com a API do Gemini.
+- Definição do *System Prompt* (instruções sobre o papel do assistente).
+- Definição das ferramentas (Function Calling) mapeando para operações do sistema (ex: `criar_aula()`).
+
+#### [MODIFY] [main.py](file:///Users/gmsr44/Desktop/Outros%20Projetos/Rap%20Nova%20Escola/BPM_RAP_Nova_Escola-main/main.py)
+- Criar a rota `POST /api/ai/agent/horarios` (`Tags=["AI"]`).
+- Validar as permissões: Apenas `coordenador`, `direcao`, `it_support`.
+- Processar os inputs do user, invocar o LLM, executar funções chamadas pelo LLM e responder ao frontend.
+
+### Frontend (Next.js / React)
+
+#### [NEW] `frontend/src/components/AIAgentChat.jsx`
+- Interface do chat de IA.
+- Mostrar estado de carregamento quando aguarda resposta.
+
+#### [MODIFY] `frontend/src/pages/Horarios.jsx` (ou semelhante)
+- Controlar a visibilidade do botão "+ Com Agente" com base no `role` do utilizador logado.
+- Controlar o estado (aberto/fechado) do novo componente `AIAgentChat`.
+
+## Verification Plan
+
+### Automated Tests
+* Invocar a rota POST com um payload em bruto para testar se o LLM consegue classificar intenções e chamar a função Python correspondente.
+
+### Manual Verification
+1. Entrar na aplicação com utilizador `direcao` e confirmar que o botão é renderizado.
+2. Entrar na aplicação com utilizador [mentor](file:///Users/gmsr44/Desktop/Outros%20Projetos/Rap%20Nova%20Escola/BPM_RAP_Nova_Escola-main/main.py#640-644) e confirmar que o botão **não** é renderizado.
+3. Testar pedir ao agente: *"Marca uma sessão autónoma para amanhã às 14h com o mentor João"*. Confirmar criação efetiva na base de dados.
