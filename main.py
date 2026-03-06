@@ -547,8 +547,94 @@ async def verificar_conflitos_equipamento(payload: ConflitosVerificar):
     conflitos = equipment_service.verificar_conflitos(
         payload.item_ids, payload.data_hora, payload.duracao_minutos, payload.excluir_aula_id
     )
+    # Enviar notificacoes de conflito
+    for c in conflitos:
+        if 'item_nome' in c and 'item_identificador' in c:
+            equipment_service.notificar_conflito(
+                c['item_nome'], c['item_identificador'],
+                f"Conflito com sessao #{c.get('aula_id', '?')}"
+            )
     return {"conflitos": conflitos, "tem_conflitos": len(conflitos) > 0}
 
+# --- Rotas para Equipamento Individual (CRUD) ---
+
+@app.get("/api/equipamento/itens", tags=["Equipamento"])
+async def get_equipamento_itens(
+    categoria_id: Optional[int] = None,
+    estado: Optional[str] = None,
+):
+    """Lista todos os itens individuais de equipamento (localizacao/responsavel derivados de sessoes)."""
+    return equipment_service.listar_itens(categoria_id, estado)
+
+@app.get("/api/equipamento/stats", tags=["Equipamento"])
+async def get_equipamento_stats():
+    """Estatisticas globais de equipamento."""
+    return equipment_service.obter_stats()
+
+class ItemCreate(BaseModel):
+    categoria_id: int
+    nome: str
+    identificador: str
+    estado: str = 'excelente'
+    observacoes: Optional[str] = None
+
+@app.post("/api/equipamento/itens", tags=["Equipamento"])
+async def post_equipamento_item(item: ItemCreate):
+    """Cria um novo item de equipamento individual."""
+    resultado = equipment_service.criar_item(item.dict())
+    if not resultado:
+        raise HTTPException(status_code=500, detail="Erro ao criar item")
+    return resultado
+
+class ItemUpdate(BaseModel):
+    nome: Optional[str] = None
+    identificador: Optional[str] = None
+    estado: Optional[str] = None
+    observacoes: Optional[str] = None
+    categoria_id: Optional[int] = None
+
+@app.put("/api/equipamento/itens/{item_id}", tags=["Equipamento"])
+async def put_equipamento_item(item_id: int, item: ItemUpdate):
+    """Atualiza um item de equipamento."""
+    dados = {k: v for k, v in item.dict().items() if v is not None}
+    sucesso = equipment_service.atualizar_item(item_id, dados)
+    if not sucesso:
+        raise HTTPException(status_code=404, detail="Item nao encontrado ou erro ao atualizar")
+    return {"message": "Item atualizado"}
+
+@app.delete("/api/equipamento/itens/{item_id}", tags=["Equipamento"])
+async def delete_equipamento_item(item_id: int):
+    """Remove um item de equipamento."""
+    sucesso = equipment_service.apagar_item(item_id)
+    if not sucesso:
+        raise HTTPException(status_code=404, detail="Item nao encontrado")
+    return {"message": "Item removido"}
+
+class UtilizacaoCreate(BaseModel):
+    user_id: str
+    user_nome: Optional[str] = None
+    aula_id: Optional[int] = None
+    observacoes: Optional[str] = None
+
+@app.post("/api/equipamento/itens/{item_id}/utilizacao", tags=["Equipamento"])
+async def post_utilizacao(item_id: int, payload: UtilizacaoCreate):
+    """Regista utilizacao de um item."""
+    sucesso = equipment_service.registar_utilizacao(
+        item_id, payload.user_id, payload.user_nome, payload.aula_id, payload.observacoes
+    )
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao registar utilizacao")
+    return {"message": "Utilizacao registada"}
+
+@app.get("/api/equipamento/itens/{item_id}/historico", tags=["Equipamento"])
+async def get_historico_item(item_id: int):
+    """Lista historico de utilizacao de um item."""
+    return equipment_service.listar_historico(item_id)
+
+@app.get("/api/equipamento/itens/{item_id}/ocupacoes", tags=["Equipamento"])
+async def get_ocupacoes_item(item_id: int):
+    """Lista sessoes futuras que usam este item."""
+    return equipment_service.listar_ocupacoes_item(item_id)
 
 
 

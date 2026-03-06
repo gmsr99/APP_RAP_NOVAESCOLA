@@ -43,10 +43,10 @@ import { api } from '@/lib/api';
 import { computeEventLayout } from '@/lib/eventLayout';
 import { setHours, setMinutes } from 'date-fns';
 
-// Types matched to API
+// Types matched to API (profiles table uses full_name)
 interface TeamMember {
   id: string;
-  nome: string;
+  full_name: string;
   role: string;
   email: string;
 }
@@ -396,7 +396,7 @@ export default function Estudio() {
                   </SelectTrigger>
                   <SelectContent>
                     {team.map(u => (
-                      <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>
+                      <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

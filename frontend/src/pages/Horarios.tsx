@@ -110,16 +110,31 @@ const statusDots: Record<string, string> = {
 
 /** Inline component to show equipment items for a session */
 const EquipamentoView = ({ aulaId }: { aulaId: number }) => {
-  const { data } = useQuery<{ id: number; nome: string; categoria_nome: string }[]>({
+  const { data } = useQuery<{ id: number; nome: string; identificador?: string; categoria_nome: string; estado?: string }[]>({
     queryKey: ['aula-equipamento', aulaId],
     queryFn: () => api.get(`/api/aulas/${aulaId}/equipamento`).then((r: any) => r.data ?? r),
   });
   if (!data || data.length === 0) return <p className="text-sm">Nenhum</p>;
+  const grouped = data.reduce<Record<string, typeof data>>((acc, item) => {
+    const cat = item.categoria_nome;
+    if (!acc[cat]) acc[cat] = [];
+    acc[cat].push(item);
+    return acc;
+  }, {});
   return (
-    <div className="space-y-0.5">
-      <p className="text-xs font-medium text-muted-foreground">{data[0].categoria_nome}</p>
-      {data.map(item => (
-        <p key={item.id} className="text-sm">• {item.nome}</p>
+    <div className="space-y-1">
+      {Object.entries(grouped).map(([cat, items]) => (
+        <div key={cat}>
+          <p className="text-xs font-medium text-muted-foreground">{cat}</p>
+          {items.map(item => (
+            <p key={item.id} className="text-sm">
+              {'\u2022'} {item.identificador || item.nome}
+              {item.estado && item.estado !== 'excelente' && (
+                <span className="text-xs text-warning ml-1">({item.estado})</span>
+              )}
+            </p>
+          ))}
+        </div>
       ))}
     </div>
   );
@@ -190,8 +205,8 @@ const Horarios = () => {
     enabled: !!apiUrl,
   });
 
-  // Fetch Equipamento (categorias com itens)
-  const { data: kitCategorias } = useQuery<{ id: number; nome: string; itens: { id: number; nome: string }[] }[]>({
+  // Fetch Equipamento (categorias com itens individuais)
+  const { data: kitCategorias } = useQuery<{ id: number; nome: string; itens: { id: number; nome: string; identificador?: string; estado?: string }[] }[]>({
     queryKey: ['equipamento-categorias'],
     queryFn: () => api.get('/api/equipamento/categorias').then((r: any) => r.data ?? r),
     enabled: !!apiUrl,
@@ -404,18 +419,40 @@ const Horarios = () => {
     return `${format(weekStart, "d MMM", { locale: pt })} - ${format(weekEnd, "d MMM yyyy", { locale: pt })}`;
   };
 
-  const saveEquipamento = async (aulaId: number) => {
+  const saveEquipamento = async (aulaId: number, dataHora?: string, duracaoMinutos?: number) => {
     const itemIds = Array.from(checkedItemIds);
-    if (itemIds.length > 0) {
-      await api.put(`/api/aulas/${aulaId}/equipamento`, { item_ids: itemIds });
+    if (itemIds.length === 0) return;
+
+    // Verificar conflitos antes de guardar (inclui margem de 1h)
+    if (dataHora && duracaoMinutos) {
+      try {
+        const conflitosRes = await api.post('/api/equipamento/verificar-conflitos', {
+          item_ids: itemIds,
+          data_hora: dataHora,
+          duracao_minutos: duracaoMinutos,
+          excluir_aula_id: aulaId,
+        });
+        const conflitos = conflitosRes?.data?.conflitos ?? conflitosRes?.conflitos ?? [];
+        if (conflitos.length > 0) {
+          const msgs = conflitos.map((c: any) =>
+            `${c.item_identificador || c.item_nome}: ${c.motivo || 'Conflito temporal'}`
+          );
+          toast.error(`Conflitos de material:\n${msgs.join('\n')}`);
+          return;
+        }
+      } catch {
+        // Se falhar a verificacao, continuar com a atribuicao
+      }
     }
+
+    await api.put(`/api/aulas/${aulaId}/equipamento`, { item_ids: itemIds });
   };
 
   const createSessionMutation = useMutation({
     mutationFn: (data: AulaCreate) => api.post('/api/aulas', data),
-    onSuccess: async (response: any) => {
+    onSuccess: async (response: any, payload: AulaCreate) => {
       const aulaId = response?.data?.id ?? response?.id;
-      if (aulaId) await saveEquipamento(aulaId);
+      if (aulaId) await saveEquipamento(aulaId, payload.data_hora, payload.duracao_minutos);
       queryClient.invalidateQueries({ queryKey: ['aulas'] });
       setIsDialogOpen(false);
       resetForm();
@@ -428,7 +465,7 @@ const Horarios = () => {
     mutationFn: ({ id, data }: { id: number; data: Partial<AulaCreate> }) =>
       api.put(`/api/aulas/${id}`, data),
     onSuccess: async (_: any, variables: { id: number; data: Partial<AulaCreate> }) => {
-      await saveEquipamento(variables.id);
+      await saveEquipamento(variables.id, variables.data.data_hora, variables.data.duracao_minutos);
       queryClient.invalidateQueries({ queryKey: ['aulas'] });
       setIsDialogOpen(false);
       resetForm();
@@ -914,7 +951,7 @@ const Horarios = () => {
                                 setCheckedItemIds(new Set());
                               } else {
                                 const cat = kitCategorias?.find(c => String(c.id) === v);
-                                if (cat) setCheckedItemIds(new Set(cat.itens.map(i => i.id)));
+                                if (cat) setCheckedItemIds(new Set(cat.itens.filter(i => i.estado !== 'indisponivel' && i.estado !== 'em_manutencao').map(i => i.id)));
                               }
                             }}
                           >
@@ -933,11 +970,14 @@ const Horarios = () => {
                             if (!cat) return null;
                             return (
                               <div className="space-y-1.5 pl-1 pt-1">
-                                {cat.itens.map(item => (
-                                  <label key={item.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                                {cat.itens.map(item => {
+                                  const isUnavailable = item.estado === 'indisponivel' || item.estado === 'em_manutencao';
+                                  return (
+                                  <label key={item.id} className={`flex items-center gap-2 text-sm cursor-pointer ${isUnavailable ? 'opacity-50' : ''}`}>
                                     <input
                                       type="checkbox"
                                       checked={checkedItemIds.has(item.id)}
+                                      disabled={isUnavailable}
                                       onChange={() => {
                                         setCheckedItemIds(prev => {
                                           const next = new Set(prev);
@@ -948,9 +988,11 @@ const Horarios = () => {
                                       }}
                                       className="rounded border-border"
                                     />
-                                    {item.nome}
+                                    {item.identificador || item.nome}
+                                    {isUnavailable && <span className="text-xs text-destructive ml-1">({item.estado})</span>}
                                   </label>
-                                ))}
+                                  );
+                                })}
                               </div>
                             );
                           })()}

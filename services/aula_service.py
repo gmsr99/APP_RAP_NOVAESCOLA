@@ -398,7 +398,7 @@ def atribuir_mentor(aula_id, mentor_id):
         return False
 
 
-def mudar_estado_aula(aula_id, novo_estado, observacao=None):
+def mudar_estado_aula(aula_id, novo_estado):
     if novo_estado not in ESTADOS_VALIDOS:
         print(f"❌ Erro: Estado '{novo_estado}' não é válido!")
         print(f"   Estados válidos: {ESTADOS_VALIDOS}")
@@ -413,17 +413,8 @@ def mudar_estado_aula(aula_id, novo_estado, observacao=None):
                 return False
 
             estado_anterior = aula.estado
-            nota_mudanca = (
-                f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] "
-                f"Estado: '{estado_anterior}' → '{novo_estado}'"
-            )
-            if observacao:
-                nota_mudanca += f" | {observacao}"
 
             aula.estado = novo_estado
-            aula.observacoes = (
-                f"{aula.observacoes}\n{nota_mudanca}" if aula.observacoes else nota_mudanca
-            )
             aula.atualizado_em = datetime.utcnow()
 
             session.add(aula)
@@ -485,21 +476,9 @@ def terminar_aula(aula_id, avaliacao, obs_termino=None):
             if aula.data_hora > datetime.utcnow():
                 return {"ok": False, "erro": "A sessão ainda não começou."}
 
-            estado_anterior = aula.estado
-            nota = (
-                f"[{datetime.now().strftime('%Y-%m-%d %H:%M')}] "
-                f"Estado: '{estado_anterior}' → '{ESTADO_TERMINADA}'"
-                f" | Avaliação: {avaliacao}/5"
-            )
-            if obs_termino:
-                nota += f" | {obs_termino}"
-
             aula.estado = ESTADO_TERMINADA
             aula.avaliacao = avaliacao
             aula.obs_termino = obs_termino
-            aula.observacoes = (
-                f"{aula.observacoes}\n{nota}" if aula.observacoes else nota
-            )
             aula.atualizado_em = datetime.utcnow()
 
             session.add(aula)

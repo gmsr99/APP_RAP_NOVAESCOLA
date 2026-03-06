@@ -67,6 +67,8 @@ export interface Music {
 export interface KitItem {
   id: number;
   nome: string;
+  identificador?: string;
+  estado?: string;
 }
 
 export interface KitCategoria {
@@ -78,8 +80,54 @@ export interface KitCategoria {
 export interface AulaEquipItem {
   id: number;
   nome: string;
+  identificador?: string;
   categoria_id: number;
   categoria_nome: string;
+  estado?: string;
+}
+
+export interface EquipamentoItem {
+  id: number;
+  nome: string;
+  identificador: string;
+  estado: string;
+  observacoes: string | null;
+  categoria_id: number;
+  categoria_nome: string;
+  uuid: string | null;
+  // Derivados automaticamente das sessoes
+  localizacao_id: number | null;
+  localizacao_nome: string | null;
+  ultimo_responsavel_id: string | null;
+  responsavel_nome: string | null;
+  ultima_utilizacao: string | null;
+}
+
+export interface EquipamentoStats {
+  total: number;
+  categorias: number;
+  por_estado: Record<string, number>;
+  disponiveis: number;
+}
+
+export interface EquipamentoHistorico {
+  tipo: 'sessao' | 'manual';
+  id: number;
+  user_id: string | null;
+  user_nome: string | null;
+  data_utilizacao: string | null;
+  aula_id: number | null;
+  local_nome: string | null;
+  observacoes: string | null;
+}
+
+export interface EquipamentoOcupacao {
+  aula_id: number;
+  data_hora: string;
+  duracao_minutos: number;
+  turma_nome: string | null;
+  estabelecimento_nome: string | null;
+  mentor_nome: string | null;
 }
 
 // Notifications
