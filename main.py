@@ -201,18 +201,25 @@ async def create_aula(aula: AulaCreate):
 class AulaRecorrenteCreate(BaseModel):
     data_hora: str
     duracao_minutos: int = 120
-    tipo_atividade: str
-    responsavel_user_id: str
+    tipo_atividade: Optional[str] = None
+    responsavel_user_id: Optional[str] = None
     observacoes: Optional[str] = None
     semanas: int = 4
     tema: Optional[str] = None
     projeto_id: Optional[int] = None
+    # Adicionado para aulas regulares:
+    turma_id: Optional[int] = None
+    mentor_id: Optional[int] = None
+    local: Optional[str] = None
+    atividade_id: Optional[int] = None
+    is_autonomous: bool = True
+    tipo: str = "trabalho_autonomo"
 
 
 @app.post("/api/aulas/recorrentes", tags=["Aulas"])
 async def create_aulas_recorrentes(payload: AulaRecorrenteCreate):
     """
-    Cria N sessões de trabalho autónomo com recorrência semanal.
+    Cria N sessões com recorrência semanal. Funciona para Trabalho Autónomo e Aulas.
     """
     try:
         resultados = aula_service.criar_aulas_recorrentes(
@@ -224,6 +231,12 @@ async def create_aulas_recorrentes(payload: AulaRecorrenteCreate):
             semanas=payload.semanas,
             tema=payload.tema,
             projeto_id=payload.projeto_id,
+            turma_id=payload.turma_id,
+            mentor_id=payload.mentor_id,
+            local=payload.local,
+            atividade_id=payload.atividade_id,
+            is_autonomous=payload.is_autonomous,
+            tipo=payload.tipo,
         )
         return {"criadas": len(resultados), "sessoes": resultados}
     except Exception as e:

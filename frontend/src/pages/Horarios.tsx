@@ -243,7 +243,7 @@ const Horarios = () => {
     ? turmas?.filter(t => t.estabelecimento_id === selectedEstabId)
     : turmas;
 
-  const [formData, setFormData] = useState<Partial<AulaCreate>>({
+  const [formData, setFormData] = useState<Partial<AulaCreate> & { repetir_semanalmente?: boolean; semanas?: number }>({
     duracao_minutos: 120,
     tipo: 'ensaio',
     atividade_id: null,
@@ -461,6 +461,27 @@ const Horarios = () => {
     onError: () => toast.error('Erro ao criar sessão.'),
   });
 
+  const createRecurringSessionMutation = useMutation({
+    mutationFn: (data: { payload: AulaCreate; semanas: number }) => {
+      const payload = { ...data.payload, semanas: data.semanas };
+      return api.post('/api/aulas/recorrentes', payload);
+    },
+    onSuccess: async (response: any, vars) => {
+      const sessoes = response?.data?.sessoes || [];
+      for (const sessao of sessoes) {
+        if (sessao.id) {
+          await saveEquipamento(sessao.id, sessao.data_hora, sessao.duracao_minutos);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['aulas'] });
+      setIsDialogOpen(false);
+      resetForm();
+      const count = vars.semanas > 1 ? `${vars.semanas} sessões criadas!` : 'Sessão criada!';
+      toast.success(count);
+    },
+    onError: () => toast.error('Erro ao criar sessões recorrentes.'),
+  });
+
   const updateSessionMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Partial<AulaCreate> }) =>
       api.put(`/api/aulas/${id}`, data),
@@ -580,7 +601,9 @@ const Horarios = () => {
       duracao_minutos: 120,
       tipo: 'ensaio',
       atividade_id: null,
-      observacoes: ''
+      observacoes: '',
+      repetir_semanalmente: false,
+      semanas: 4,
     });
     setAutonomousForm({
       responsavel_user_id: '',
@@ -715,7 +738,14 @@ const Horarios = () => {
     if (editingSession) {
       updateSessionMutation.mutate({ id: editingSession.id, data: payload });
     } else {
-      createSessionMutation.mutate(payload);
+      if ((formData as any).repetir_semanalmente) {
+        createRecurringSessionMutation.mutate({
+          payload: { ...payload, is_autonomous: false },
+          semanas: (formData as any).semanas || 4,
+        });
+      } else {
+        createSessionMutation.mutate(payload);
+      }
     }
   };
 
@@ -973,24 +1003,24 @@ const Horarios = () => {
                                 {cat.itens.map(item => {
                                   const isUnavailable = item.estado === 'indisponivel' || item.estado === 'em_manutencao';
                                   return (
-                                  <label key={item.id} className={`flex items-center gap-2 text-sm cursor-pointer ${isUnavailable ? 'opacity-50' : ''}`}>
-                                    <input
-                                      type="checkbox"
-                                      checked={checkedItemIds.has(item.id)}
-                                      disabled={isUnavailable}
-                                      onChange={() => {
-                                        setCheckedItemIds(prev => {
-                                          const next = new Set(prev);
-                                          if (next.has(item.id)) next.delete(item.id);
-                                          else next.add(item.id);
-                                          return next;
-                                        });
-                                      }}
-                                      className="rounded border-border"
-                                    />
-                                    {item.identificador || item.nome}
-                                    {isUnavailable && <span className="text-xs text-destructive ml-1">({item.estado})</span>}
-                                  </label>
+                                    <label key={item.id} className={`flex items-center gap-2 text-sm cursor-pointer ${isUnavailable ? 'opacity-50' : ''}`}>
+                                      <input
+                                        type="checkbox"
+                                        checked={checkedItemIds.has(item.id)}
+                                        disabled={isUnavailable}
+                                        onChange={() => {
+                                          setCheckedItemIds(prev => {
+                                            const next = new Set(prev);
+                                            if (next.has(item.id)) next.delete(item.id);
+                                            else next.add(item.id);
+                                            return next;
+                                          });
+                                        }}
+                                        className="rounded border-border"
+                                      />
+                                      {item.identificador || item.nome}
+                                      {isUnavailable && <span className="text-xs text-destructive ml-1">({item.estado})</span>}
+                                    </label>
                                   );
                                 })}
                               </div>
@@ -1005,6 +1035,39 @@ const Horarios = () => {
                             value={formData.observacoes || ''}
                             onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
                           />
+                        </div>
+                        {/* Recorrência */}
+                        <div className="space-y-3 rounded-md border border-dashed border-border p-3">
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="aula-recorr"
+                              checked={(formData as any).repetir_semanalmente || false}
+                              onCheckedChange={(v) =>
+                                setFormData({ ...formData, repetir_semanalmente: !!v })
+                              }
+                            />
+                            <Label htmlFor="aula-recorr" className="cursor-pointer font-normal">
+                              Repetir semanalmente
+                            </Label>
+                          </div>
+                          {(formData as any).repetir_semanalmente && (
+                            <div className="flex items-center gap-2 pl-6">
+                              <Label htmlFor="aula-semanas" className="text-sm text-muted-foreground whitespace-nowrap">
+                                Nº de semanas:
+                              </Label>
+                              <Input
+                                id="aula-semanas"
+                                type="number"
+                                min={2}
+                                max={52}
+                                className="w-20"
+                                value={(formData as any).semanas || 4}
+                                onChange={(e) =>
+                                  setFormData({ ...formData, semanas: Number(e.target.value) })
+                                }
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
                     </TabsContent>
@@ -1276,7 +1339,7 @@ const Horarios = () => {
                     </Button>
                     <Button
                       onClick={handleSave}
-                      disabled={createSessionMutation.isPending || createAutonomousMutation.isPending || updateSessionMutation.isPending}
+                      disabled={createSessionMutation.isPending || createAutonomousMutation.isPending || updateSessionMutation.isPending || createRecurringSessionMutation.isPending}
                     >
                       <Save className="h-4 w-4 mr-2" />
                       {editingSession ? 'Atualizar' : modalTab === 'autonomo' ? 'Agendar Trabalho' : 'Criar Sessão'}

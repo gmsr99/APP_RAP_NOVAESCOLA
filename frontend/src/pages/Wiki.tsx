@@ -243,10 +243,14 @@ const Wiki = () => {
       }
       return api.post('/api/estabelecimentos', data);
     },
-    onSuccess: () => {
+    onSuccess: (response: any) => {
       queryClient.invalidateQueries({ queryKey: ['estabelecimentos'] });
       toast.success(editingEstab ? 'Estabelecimento atualizado!' : 'Estabelecimento criado!');
       setIsEstabDialogOpen(false);
+
+      if (!editingEstab && selectedProjetoId && response?.data?.id) {
+        assocEstabMutation.mutate(response.data.id);
+      }
     },
     onError: () => toast.error('Erro ao salvar estabelecimento.')
   });

@@ -235,24 +235,46 @@ def criar_aulas_recorrentes(
     semanas,
     tema=None,
     projeto_id=None,
+    turma_id=None,
+    mentor_id=None,
+    local=None,
+    atividade_id=None,
+    is_autonomous=True,
+    tipo="trabalho_autonomo",
 ):
-    """Cria N sessões de trabalho autónomo com intervalo semanal."""
+    """Cria N sessões com intervalo semanal."""
     from datetime import timedelta
 
     data_hora_dt = _parse_data_hora(data_hora)
     resultados = []
+    
+    # helper para iterar o N. de Sessão caso seja um número (ex: "1" vira "1", "2", "3")
+    try:
+        tema_is_num = tema and str(tema).isdigit()
+    except Exception:
+        tema_is_num = False
+        
     for i in range(semanas):
         data = data_hora_dt + timedelta(weeks=i)
+        
+        tema_sessao = tema
+        if tema_is_num:
+            tema_sessao = str(int(tema) + i)
+            
         resultado = criar_aula(
-            turma_id=None,
+            turma_id=turma_id,
             data_hora=data,
+            tipo=tipo,
             duracao_minutos=duracao_minutos,
-            is_autonomous=True,
+            mentor_id=mentor_id,
+            local=local,
+            tema=tema_sessao,
+            projeto_id=projeto_id,
+            observacoes=observacoes,
+            atividade_id=atividade_id,
+            is_autonomous=is_autonomous,
             tipo_atividade=tipo_atividade,
             responsavel_user_id=responsavel_user_id,
-            observacoes=observacoes,
-            tema=tema,
-            projeto_id=projeto_id,
         )
         if resultado:
             resultados.append(resultado)

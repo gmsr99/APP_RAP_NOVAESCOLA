@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { BarChart3, Clock, Music, Star, MessageSquare, Building2, Calendar } from 'lucide-react';
+import { BarChart3, Clock, Music, Star, MessageSquare, Building2, Calendar, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -178,11 +178,37 @@ export default function Estatisticas() {
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <BarChart3 className="h-6 w-6" /> Estatísticas
           </h1>
-          <ProjetoSelect projetos={projetos} value={selectedProjetoId} onChange={setSelectedProjetoId} />
         </div>
-        <div className="text-center py-20 text-muted-foreground">
-          <BarChart3 className="h-12 w-12 mx-auto mb-3 opacity-30" />
-          <p className="text-lg">Seleciona um projeto para ver as estatísticas.</p>
+
+        <div className="max-w-4xl mx-auto mt-12 space-y-8">
+          <div className="text-center space-y-2">
+            <BarChart3 className="h-12 w-12 mx-auto sm:mb-2 text-primary/60" />
+            <h2 className="text-2xl font-bold tracking-tight">Bem-vindo(a) às Estatísticas</h2>
+            <p className="text-muted-foreground">Por favor, selecione um projeto na lista abaixo para visualizar o seu progresso, feedback e detalhes.</p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {projetos.map((projeto) => (
+              <Card
+                key={projeto.id}
+                className="cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all duration-200 group"
+                onClick={() => setSelectedProjetoId(String(projeto.id))}
+              >
+                <CardContent className="h-full flex flex-col items-center justify-center p-6 text-center space-y-4">
+                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <Layers className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="font-semibold text-lg line-clamp-2">{projeto.nome}</h3>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {projetos.length === 0 && (
+            <div className="text-center py-12 text-muted-foreground border border-dashed rounded-lg">
+              Não existem projetos disponíveis.
+            </div>
+          )}
         </div>
       </div>
     );
