@@ -9,11 +9,30 @@ supabase = create_client(supabase_url, supabase_key)
 def listar_perfis():
     """
     Lista todos os perfis de utilizadores (equipa) da tabela public.profiles.
-    Retorna uma lista de dicionários com id, nome, email, role, avatar.
+    O avatar_url é lido do auth metadata (fonte de verdade) com fallback para profiles.avatar_url.
     """
     try:
-        response = supabase.table("profiles").select("*").execute()
-        return response.data
+        from db import get_db_connection
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT
+                p.id,
+                p.email,
+                p.full_name,
+                p.role,
+                COALESCE(au.raw_user_meta_data->>'avatar_url', p.avatar_url) AS avatar_url,
+                p.created_at,
+                p.updated_at
+            FROM profiles p
+            JOIN auth.users au ON au.id = p.id
+            ORDER BY p.full_name
+        """)
+        cols = [desc[0] for desc in cur.description]
+        rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+        cur.close()
+        conn.close()
+        return rows
     except Exception as e:
         print(f"Erro ao listar perfis: {e}")
         return []

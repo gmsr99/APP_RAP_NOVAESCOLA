@@ -7,7 +7,7 @@ import { Hash, MessageCircle, Send, Users, Plus, Bot } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Dialog,
   DialogContent,
@@ -388,6 +388,7 @@ export default function Chat() {
                   )}
                 >
                   <Avatar className="h-5 w-5">
+                    <AvatarImage src={dm.dm_partner?.avatar_url} />
                     <AvatarFallback className="text-[10px] bg-muted">
                       {getChannelDisplayName(dm).charAt(0)}
                     </AvatarFallback>
@@ -483,6 +484,7 @@ export default function Chat() {
               messages.map((message) => (
                 <div key={message.id} className="flex gap-3 group">
                   <Avatar className="h-9 w-9 shrink-0">
+                    <AvatarImage src={profiles[message.sender_id]?.avatar_url} />
                     <AvatarFallback className="bg-primary text-primary-foreground text-sm">
                       {getSenderInitial(message.sender_id)}
                     </AvatarFallback>
@@ -538,6 +540,7 @@ export default function Chat() {
                   className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted transition-colors text-left"
                 >
                   <Avatar className="h-8 w-8">
+                    <AvatarImage src={member.avatar_url} />
                     <AvatarFallback className="bg-primary text-primary-foreground text-sm">
                       {member.full_name?.charAt(0) || '?'}
                     </AvatarFallback>
