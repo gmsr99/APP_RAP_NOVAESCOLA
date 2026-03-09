@@ -301,23 +301,39 @@ const Horarios = () => {
     ? curriculo?.find(d => d.id === selectedDisciplinaId)?.atividades || []
     : [];
 
-  // Pré-preencher Nº Sessão (N+1) — N = total de sessões aula na turma (todos os estados)
+  // Pré-preencher Nº Sessão aula (N+1) via BD
+  const { data: proximoNumeroAula } = useQuery({
+    queryKey: ['proximo-numero-sessao', 'aula', formData.turma_id, selectedProjetoId],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (formData.turma_id) params.set('turma_id', String(formData.turma_id));
+      if (selectedProjetoId) params.set('projeto_id', String(selectedProjetoId));
+      return api.get<{ proximo: number }>(`/api/aulas/proximo-numero?${params}`);
+    },
+    enabled: !!formData.turma_id && !editingSession,
+  });
   useEffect(() => {
-    if (!formData.turma_id || !aulasApi || editingSession) return;
-    const n = aulasApi.filter(a => !a.is_autonomous && a.turma_id === formData.turma_id).length;
-    setFormData(prev => ({ ...prev, tema: String(n + 1) }));
-  }, [formData.turma_id, aulasApi, editingSession]);
+    if (proximoNumeroAula?.proximo != null && !editingSession) {
+      setFormData(prev => ({ ...prev, tema: String(proximoNumeroAula.proximo) }));
+    }
+  }, [proximoNumeroAula, editingSession]);
 
-  // Pré-preencher Nº Sessão autónoma (N+1) — N = total de sessões do responsável (todos os estados)
+  // Pré-preencher Nº Sessão autónoma (N+1) via BD
+  const { data: proximoNumeroAutonomo } = useQuery({
+    queryKey: ['proximo-numero-sessao', 'autonomo', autonomousForm.responsavel_user_id, autonomousForm.projeto_id],
+    queryFn: async () => {
+      const params = new URLSearchParams({ is_autonomous: 'true' });
+      if (autonomousForm.responsavel_user_id) params.set('responsavel_user_id', autonomousForm.responsavel_user_id);
+      if (autonomousForm.projeto_id) params.set('projeto_id', autonomousForm.projeto_id);
+      return api.get<{ proximo: number }>(`/api/aulas/proximo-numero?${params}`);
+    },
+    enabled: !!autonomousForm.responsavel_user_id,
+  });
   useEffect(() => {
-    if (!autonomousForm.responsavel_user_id || !aulasApi) return;
-    const userId = autonomousForm.responsavel_user_id;
-    const n = aulasApi.filter(a =>
-      (a.is_autonomous && a.responsavel_user_id === userId) ||
-      (!a.is_autonomous && a.mentor_user_id === userId)
-    ).length;
-    setAutonomousForm(prev => ({ ...prev, tema: String(n + 1) }));
-  }, [autonomousForm.responsavel_user_id, aulasApi]);
+    if (proximoNumeroAutonomo?.proximo != null) {
+      setAutonomousForm(prev => ({ ...prev, tema: String(proximoNumeroAutonomo.proximo) }));
+    }
+  }, [proximoNumeroAutonomo]);
 
   // Calcular distâncias mentor→estabelecimento quando turma muda
   const calcDistances = useCallback(async (turmaId: number) => {

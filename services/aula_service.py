@@ -893,6 +893,50 @@ def contar_sessoes_user(user_id):
             conn.close()
 
 
+def obter_proximo_numero_sessao(
+    turma_id: int = None,
+    projeto_id: int = None,
+    is_autonomous: bool = False,
+    responsavel_user_id: str = None,
+) -> int:
+    """Retorna o próximo número de sessão (MAX(tema numérico) + 1) para a combinação dada."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        if is_autonomous:
+            conditions = ["a.is_autonomous = TRUE", "a.tema ~ '^[0-9]+$'"]
+            params = []
+            if responsavel_user_id:
+                conditions.append("a.responsavel_user_id = %s")
+                params.append(responsavel_user_id)
+            if projeto_id:
+                conditions.append("a.projeto_id = %s")
+                params.append(projeto_id)
+        else:
+            conditions = ["a.is_autonomous = FALSE", "a.tema ~ '^[0-9]+$'"]
+            params = []
+            if turma_id:
+                conditions.append("a.turma_id = %s")
+                params.append(turma_id)
+            if projeto_id:
+                conditions.append("a.projeto_id = %s")
+                params.append(projeto_id)
+
+        where = " AND ".join(conditions)
+        cur.execute(f"SELECT COALESCE(MAX(CAST(a.tema AS INTEGER)), 0) FROM aulas a WHERE {where}", params)
+        row = cur.fetchone()
+        return (row[0] if row else 0) + 1
+    except Exception as e:
+        print(f"❌ Erro ao obter próximo número de sessão: {e}")
+        return 1
+    finally:
+        if 'cur' in locals() and cur:
+            cur.close()
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
 def listar_feedback_sessoes(projeto_id=None):
     """Lista avaliações e observações de sessões terminadas, com info de turma/mentor/disciplina."""
     try:

@@ -17,6 +17,7 @@ Versão: 2.0
 
 # Importações de bibliotecas
 import uvicorn
+from typing import Optional
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -144,6 +145,23 @@ async def get_todas_aulas():
         # Em produção, seria melhor ter um tratamento de erros mais robusto
         return {"error": str(e)}
 
+@app.get("/api/aulas/proximo-numero", tags=["Aulas"])
+async def get_proximo_numero_sessao(
+    turma_id: Optional[int] = None,
+    projeto_id: Optional[int] = None,
+    is_autonomous: bool = False,
+    responsavel_user_id: Optional[str] = None,
+):
+    """Retorna o próximo número de sessão (N+1) baseado no MAX(tema numérico) na BD."""
+    proximo = aula_service.obter_proximo_numero_sessao(
+        turma_id=turma_id,
+        projeto_id=projeto_id,
+        is_autonomous=is_autonomous,
+        responsavel_user_id=responsavel_user_id,
+    )
+    return {"proximo": proximo}
+
+
 @app.get("/api/aulas/registaveis", tags=["Registos"])
 async def get_sessoes_registaveis(user=Depends(get_current_user_required)):
     """Sessões confirmadas/realizadas do user ainda sem registo."""
@@ -164,7 +182,6 @@ async def get_aula_by_id(aula_id: int):
         return {"error": str(e)}
 
 # Modelos Pydantic para validação
-from typing import Optional
 from models.sqlmodel_models import AulaCreate, AulaUpdate
 
 @app.post("/api/aulas", tags=["Aulas"])

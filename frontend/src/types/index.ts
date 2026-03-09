@@ -180,6 +180,7 @@ export interface AulaAPI {
   tipo_atividade?: string | null;
   responsavel_user_id?: string | null;
   musica_id?: number | null;
+  projeto_id?: number | null;
 }
 
 export interface Turma {
