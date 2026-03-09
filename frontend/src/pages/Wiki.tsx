@@ -30,7 +30,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -44,7 +43,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from "@/components/ui/badge";
 import {
-  Book, School, Layers, Calendar, Edit2, Plus, Trash2, Save, Users, Building2, X
+  Book, Layers, Calendar, Edit2, Plus, Trash2, Save, Users, Building2, X, Music, Clock
 } from "lucide-react";
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -66,29 +65,39 @@ interface Turma {
   estabelecimento_id: number;
 }
 
-interface Atividade {
-  id: number;
-  codigo: string;
+interface TurmaAtividade {
+  uuid: string;
   nome: string;
-  sessoes_padrao: number;
-  horas_padrao: number;
-  total_horas: number;
-  producoes_esperadas: number;
+  codigo: string;
+  sessoes_previstas: number;
+  horas_por_sessao: number;
+  musicas_previstas: number;
   perfil_mentor: string;
+  sessoes_realizadas?: number;
+  horas_realizadas?: number;
 }
 
-interface Disciplina {
+interface TurmaDisciplina {
   id: number;
-  disciplina: string;
+  nome: string;
   descricao: string;
   musicas_previstas: number;
-  horas_previstas: number | null;
-  atividades: Atividade[];
+  atividades: TurmaAtividade[];
 }
 
-interface TurmaDisciplinaEntry {
-  disciplina_id: number;
-  horas_previstas: string; // string for input control
+interface WikiTurma {
+  id: number;
+  nome: string;
+  sessoes_previstas: number;
+  musicas_previstas: number;
+  disciplinas: TurmaDisciplina[];
+}
+
+interface WikiEstabelecimento {
+  id: number;
+  nome: string;
+  sigla: string;
+  turmas: WikiTurma[];
 }
 
 const Wiki = () => {
@@ -114,28 +123,23 @@ const Wiki = () => {
   const [newTurmaName, setNewTurmaName] = useState('');
   const [selectedEstabId, setSelectedEstabId] = useState<string>('');
   const [alunosNomes, setAlunosNomes] = useState<string[]>([]);
-  const [selectedDisciplinas, setSelectedDisciplinas] = useState<TurmaDisciplinaEntry[]>([]);
 
-  // State for Curriculum
-  const [isActivityDialogOpen, setIsActivityDialogOpen] = useState(false);
-  const [editingActivity, setEditingActivity] = useState<Atividade | null>(null);
-  const [selectedDisciplinaId, setSelectedDisciplinaId] = useState<number | null>(null);
-  const [activityForm, setActivityForm] = useState({
-    codigo: '',
-    nome: '',
-    sessoes_padrao: 0,
-    horas_padrao: 0,
-    producoes_esperadas: 0,
-    perfil_mentor: ''
-  });
-
-  // State for Disciplinas
+  // State for Local Disciplina dialog
   const [isDisciplinaDialogOpen, setIsDisciplinaDialogOpen] = useState(false);
-  const [editingDisciplina, setEditingDisciplina] = useState<Disciplina | null>(null);
-  const [newDisciplinaName, setNewDisciplinaName] = useState('');
-  const [newDisciplinaDesc, setNewDisciplinaDesc] = useState('');
-  const [newDisciplinaMusicasPrevistas, setNewDisciplinaMusicasPrevistas] = useState<string>('7');
-  const [newDisciplinaHorasPrevistas, setNewDisciplinaHorasPrevistas] = useState<string>('');
+  const [editingDisciplina, setEditingDisciplina] = useState<TurmaDisciplina | null>(null);
+  const [disciplinaTargetTurmaId, setDisciplinaTargetTurmaId] = useState<number | null>(null);
+  const [discForm, setDiscForm] = useState({ nome: '', descricao: '', musicas_previstas: '0' });
+  const [batchAtividades, setBatchAtividades] = useState<Array<{
+    nome: string; codigo: string; sessoes_previstas: string; horas_por_sessao: string; musicas_previstas: string; perfil_mentor: string;
+  }>>([]);
+
+  // State for Local Atividade dialog
+  const [isAtividadeDialogOpen, setIsAtividadeDialogOpen] = useState(false);
+  const [editingAtividade, setEditingAtividade] = useState<TurmaAtividade | null>(null);
+  const [atividadeTargetDiscId, setAtividadeTargetDiscId] = useState<number | null>(null);
+  const [ativForm, setAtivForm] = useState({
+    nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', perfil_mentor: ''
+  });
 
   // --- QUERIES ---
   interface Projeto { id: number; nome: string; descricao?: string; estado?: string; }
@@ -148,6 +152,14 @@ const Wiki = () => {
     }
   });
 
+  const { data: estabelecimentos = [] } = useQuery({
+    queryKey: ['estabelecimentos'],
+    queryFn: async () => {
+      const res = await api.get('/api/estabelecimentos');
+      return res.data as Estabelecimento[];
+    }
+  });
+
   const { data: projetoEstabs = [] } = useQuery({
     queryKey: ['projeto-estabs', selectedProjetoId],
     queryFn: async () => {
@@ -157,38 +169,19 @@ const Wiki = () => {
     enabled: !!selectedProjetoId,
   });
 
-  const { data: estabelecimentos = [] } = useQuery({
-    queryKey: ['estabelecimentos'],
+  // Wiki hierarchy: Estabelecimentos > Turmas > Disciplinas > Atividades (local)
+  const { data: wikiHierarquia = [] } = useQuery({
+    queryKey: ['wiki-hierarquia', selectedProjetoId],
     queryFn: async () => {
-      const res = await api.get('/api/estabelecimentos');
-      return res.data as Estabelecimento[];
-    }
+      const res = await api.get(`/api/wiki/projeto/${selectedProjetoId}`);
+      return res.data as WikiEstabelecimento[];
+    },
+    enabled: !!selectedProjetoId,
   });
 
-  const { data: turmas = [] } = useQuery({
-    queryKey: ['turmas'],
-    queryFn: async () => {
-      const res = await api.get('/api/turmas');
-      return res.data as Turma[];
-    }
-  });
-
-  const { data: curriculo = [] } = useQuery({
-    queryKey: ['curriculo'],
-    queryFn: async () => {
-      const res = await api.get('/api/curriculo');
-      return res.data as Disciplina[];
-    }
-  });
-
-  // Estabelecimentos e turmas filtrados pelo projeto selecionado
+  // Filtered data
   const filteredEstabs = selectedProjetoId ? projetoEstabs : estabelecimentos;
   const filteredEstabIds = new Set(filteredEstabs.map(e => e.id));
-  const filteredTurmas = selectedProjetoId
-    ? turmas.filter((t: Turma) => filteredEstabIds.has(t.estabelecimento_id))
-    : turmas;
-
-  // Estabelecimentos que ainda NÃO estão no projeto (para o dropdown de associar)
   const unlinkedEstabs = selectedProjetoId
     ? estabelecimentos.filter(e => !filteredEstabIds.has(e.id))
     : [];
@@ -221,6 +214,7 @@ const Wiki = () => {
       api.post(`/api/projetos/${selectedProjetoId}/estabelecimentos`, { estabelecimento_id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projeto-estabs', selectedProjetoId] });
+      queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
       setAddEstabToProjetoId('');
       toast.success('Estabelecimento associado ao projeto!');
     },
@@ -231,6 +225,7 @@ const Wiki = () => {
       api.delete(`/api/projetos/${selectedProjetoId}/estabelecimentos/${estabId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projeto-estabs', selectedProjetoId] });
+      queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
       toast.success('Estabelecimento desassociado!');
     },
   });
@@ -245,6 +240,7 @@ const Wiki = () => {
     },
     onSuccess: (response: any) => {
       queryClient.invalidateQueries({ queryKey: ['estabelecimentos'] });
+      queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
       toast.success(editingEstab ? 'Estabelecimento atualizado!' : 'Estabelecimento criado!');
       setIsEstabDialogOpen(false);
 
@@ -259,6 +255,7 @@ const Wiki = () => {
     mutationFn: (id: number) => api.delete(`/api/estabelecimentos/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['estabelecimentos'] });
+      queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
       toast.success('Estabelecimento removido!');
     }
   });
@@ -273,6 +270,7 @@ const Wiki = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['turmas'] });
+      queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
       setIsTurmaDialogOpen(false);
       setNewTurmaName('');
       setSelectedEstabId('');
@@ -285,63 +283,67 @@ const Wiki = () => {
     mutationFn: (id: number) => api.delete(`/api/turmas/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['turmas'] });
+      queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
       setIsTurmaDialogOpen(false);
       toast.success('Turma removida!');
     },
     onError: () => toast.error('Erro ao remover turma.')
   });
 
-  // --- MUTATIONS: ATIVIDADES ---
-  const saveActivityMutation = useMutation({
-    mutationFn: (data: any) => {
-      if (editingActivity) {
-        return api.put(`/api/atividades/${editingActivity.id}`, data);
-      }
-      return api.post('/api/atividades', { ...data, disciplina_id: selectedDisciplinaId });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['curriculo'] });
-      toast.success(editingActivity ? 'Atividade atualizada!' : 'Atividade criada!');
-      setIsActivityDialogOpen(false);
-    },
-    onError: () => toast.error('Erro ao salvar atividade.')
-  });
-
-  const deleteActivityMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/api/atividades/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['curriculo'] });
-      toast.success('Atividade removida!');
-    }
-  });
-
-  // --- MUTATIONS: DISCIPLINAS ---
+  // --- MUTATIONS: LOCAL DISCIPLINAS ---
   const saveDisciplinaMutation = useMutation({
-    mutationFn: (data: any) => editingDisciplina
-      ? api.put(`/api/disciplinas/${editingDisciplina.id}`, data)
-      : api.post('/api/disciplinas', data),
+    mutationFn: (data: any) => {
+      if (editingDisciplina) {
+        return api.put(`/api/wiki/disciplinas/${editingDisciplina.id}`, {
+          nome: data.nome,
+          descricao: data.descricao,
+          musicas_previstas: data.musicas_previstas,
+        });
+      }
+      return api.post(`/api/wiki/turma/${disciplinaTargetTurmaId}/disciplinas`, data);
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['curriculo'] });
+      queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
       toast.success(editingDisciplina ? 'Disciplina atualizada!' : 'Disciplina criada!');
       setIsDisciplinaDialogOpen(false);
-      setEditingDisciplina(null);
-      setNewDisciplinaName('');
-      setNewDisciplinaDesc('');
-      setNewDisciplinaMusicasPrevistas('7');
-      setNewDisciplinaHorasPrevistas('');
     },
     onError: () => toast.error('Erro ao guardar disciplina.')
   });
 
   const deleteDisciplinaMutation = useMutation({
-    mutationFn: (id: number) => api.delete(`/api/disciplinas/${id}`),
+    mutationFn: (id: number) => api.delete(`/api/wiki/disciplinas/${id}`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['curriculo'] });
+      queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
       toast.success('Disciplina apagada!');
       setIsDisciplinaDialogOpen(false);
-      setEditingDisciplina(null);
     },
     onError: () => toast.error('Erro ao apagar disciplina.')
+  });
+
+  // --- MUTATIONS: LOCAL ATIVIDADES ---
+  const saveAtividadeMutation = useMutation({
+    mutationFn: (data: any) => {
+      if (editingAtividade) {
+        return api.put(`/api/wiki/atividades/${editingAtividade.uuid}`, data);
+      }
+      return api.post('/api/wiki/atividades', { ...data, turma_disciplina_id: atividadeTargetDiscId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
+      toast.success(editingAtividade ? 'Atividade atualizada!' : 'Atividade criada!');
+      setIsAtividadeDialogOpen(false);
+    },
+    onError: () => toast.error('Erro ao guardar atividade.')
+  });
+
+  const deleteAtividadeMutation = useMutation({
+    mutationFn: (uuid: string) => api.delete(`/api/wiki/atividades/${uuid}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
+      toast.success('Atividade removida!');
+      setIsAtividadeDialogOpen(false);
+    },
+    onError: () => toast.error('Erro ao apagar atividade.')
   });
 
   // --- HANDLERS ---
@@ -357,32 +359,26 @@ const Wiki = () => {
     setIsEstabDialogOpen(true);
   };
 
-  const openNewTurma = () => {
+  const openNewTurma = (estabId?: number) => {
     setEditingTurma(null);
     setNewTurmaName('');
-    setSelectedEstabId('');
+    setSelectedEstabId(estabId ? String(estabId) : '');
     setAlunosNomes([]);
-    setSelectedDisciplinas([]);
     setIsTurmaDialogOpen(true);
   };
 
-  const openEditTurma = async (turma: Turma) => {
-    setEditingTurma(turma);
-    setNewTurmaName(turma.nome);
-    setSelectedEstabId(turma.estabelecimento_id.toString());
+  const openEditTurma = async (turma: Turma | WikiTurma, estabId?: number) => {
+    const t = 'estabelecimento_id' in turma
+      ? turma
+      : { ...turma, estabelecimento_nome: '', estabelecimento_id: estabId || 0 };
+    setEditingTurma(t as Turma);
+    setNewTurmaName(t.nome);
+    setSelectedEstabId(String((t as any).estabelecimento_id));
     try {
-      const [alunosRes, discRes] = await Promise.all([
-        api.get(`/api/turmas/${turma.id}/alunos`),
-        api.get(`/api/turmas/${turma.id}/disciplinas`),
-      ]);
+      const alunosRes = await api.get(`/api/turmas/${t.id}/alunos`);
       setAlunosNomes(alunosRes.data.map((a: any) => a.nome));
-      setSelectedDisciplinas(discRes.data.map((d: any) => ({
-        disciplina_id: d.id,
-        horas_previstas: d.horas_previstas != null ? String(d.horas_previstas) : '',
-      })));
     } catch {
       setAlunosNomes([]);
-      setSelectedDisciplinas([]);
     }
     setIsTurmaDialogOpen(true);
   };
@@ -392,14 +388,7 @@ const Wiki = () => {
 
     const saveExtras = async (turmaId: number) => {
       const filteredNomes = alunosNomes.filter(n => n.trim());
-      const discPayload = selectedDisciplinas.map(d => ({
-        disciplina_id: d.disciplina_id,
-        horas_previstas: d.horas_previstas ? parseFloat(d.horas_previstas) : null,
-      }));
-      await Promise.all([
-        api.put(`/api/turmas/${turmaId}/alunos`, { nomes: filteredNomes }).catch(() => toast.error('Erro ao guardar alunos.')),
-        api.put(`/api/turmas/${turmaId}/disciplinas`, { disciplinas: discPayload }).catch(() => toast.error('Erro ao guardar disciplinas.')),
-      ]);
+      await api.put(`/api/turmas/${turmaId}/alunos`, { nomes: filteredNomes }).catch(() => toast.error('Erro ao guardar alunos.'));
     };
 
     saveTurmaMutation.mutate(
@@ -413,66 +402,82 @@ const Wiki = () => {
     );
   };
 
-  const openNewActivity = (disciplinaId: number) => {
-    setSelectedDisciplinaId(disciplinaId);
-    setEditingActivity(null);
-    setActivityForm({
-      codigo: '',
-      nome: '',
-      sessoes_padrao: 1,
-      horas_padrao: 1,
-      producoes_esperadas: 0,
-      perfil_mentor: ''
-    });
-    setIsActivityDialogOpen(true);
-  };
-
-  const openNewDisciplina = () => {
+  const openNewDisciplina = (turmaId: number) => {
     setEditingDisciplina(null);
-    setNewDisciplinaName('');
-    setNewDisciplinaDesc('');
-    setNewDisciplinaMusicasPrevistas('7');
-    setNewDisciplinaHorasPrevistas('');
+    setDisciplinaTargetTurmaId(turmaId);
+    setDiscForm({ nome: '', descricao: '', musicas_previstas: '0' });
+    setBatchAtividades([]);
     setIsDisciplinaDialogOpen(true);
   };
 
-  const openEditDisciplina = (disc: Disciplina) => {
+  const openEditDisciplina = (disc: TurmaDisciplina) => {
     setEditingDisciplina(disc);
-    setNewDisciplinaName(disc.disciplina);
-    setNewDisciplinaDesc(disc.descricao || '');
-    setNewDisciplinaMusicasPrevistas(String(disc.musicas_previstas ?? 7));
-    setNewDisciplinaHorasPrevistas(disc.horas_previstas != null ? String(disc.horas_previstas) : '');
+    setDisciplinaTargetTurmaId(null);
+    setDiscForm({
+      nome: disc.nome,
+      descricao: disc.descricao || '',
+      musicas_previstas: String(disc.musicas_previstas ?? 0),
+    });
+    setBatchAtividades([]);
     setIsDisciplinaDialogOpen(true);
   };
 
   const handleSaveDisciplina = () => {
-    if (!newDisciplinaName) return;
-    saveDisciplinaMutation.mutate({
-      nome: newDisciplinaName,
-      descricao: newDisciplinaDesc,
-      musicas_previstas: parseInt(newDisciplinaMusicasPrevistas) || 0,
-      horas_previstas: newDisciplinaHorasPrevistas ? parseFloat(newDisciplinaHorasPrevistas) : null,
+    if (!discForm.nome) return;
+    const payload: any = {
+      nome: discForm.nome,
+      descricao: discForm.descricao || null,
+      musicas_previstas: parseInt(discForm.musicas_previstas) || 0,
+    };
+    if (!editingDisciplina && batchAtividades.length > 0) {
+      payload.atividades = batchAtividades.map(a => ({
+        nome: a.nome,
+        codigo: a.codigo,
+        sessoes_previstas: parseInt(a.sessoes_previstas) || 0,
+        horas_por_sessao: parseFloat(a.horas_por_sessao) || 0,
+        musicas_previstas: parseInt(a.musicas_previstas) || 0,
+        perfil_mentor: a.perfil_mentor || null,
+      }));
+    }
+    saveDisciplinaMutation.mutate(payload);
+  };
+
+  const openNewAtividade = (discId: number) => {
+    setEditingAtividade(null);
+    setAtividadeTargetDiscId(discId);
+    setAtivForm({ nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', perfil_mentor: '' });
+    setIsAtividadeDialogOpen(true);
+  };
+
+  const openEditAtividade = (ativ: TurmaAtividade) => {
+    setEditingAtividade(ativ);
+    setAtividadeTargetDiscId(null);
+    setAtivForm({
+      nome: ativ.nome,
+      codigo: ativ.codigo || '',
+      sessoes_previstas: String(ativ.sessoes_previstas || 0),
+      horas_por_sessao: String(ativ.horas_por_sessao || 0),
+      musicas_previstas: String(ativ.musicas_previstas || 0),
+      perfil_mentor: ativ.perfil_mentor || '',
+    });
+    setIsAtividadeDialogOpen(true);
+  };
+
+  const handleSaveAtividade = () => {
+    if (!ativForm.nome) return;
+    saveAtividadeMutation.mutate({
+      nome: ativForm.nome,
+      codigo: ativForm.codigo || null,
+      sessoes_previstas: parseInt(ativForm.sessoes_previstas) || 0,
+      horas_por_sessao: parseFloat(ativForm.horas_por_sessao) || 0,
+      musicas_previstas: parseInt(ativForm.musicas_previstas) || 0,
+      perfil_mentor: ativForm.perfil_mentor || null,
     });
   };
 
-  const openEditActivity = (act: Atividade) => {
-    setEditingActivity(act);
-    setActivityForm({
-      codigo: act.codigo,
-      nome: act.nome,
-      sessoes_padrao: act.sessoes_padrao || 0,
-      horas_padrao: act.horas_padrao || 0,
-      producoes_esperadas: act.producoes_esperadas || 0,
-      perfil_mentor: act.perfil_mentor || ''
-    });
-    setIsActivityDialogOpen(true);
+  const addBatchAtividade = () => {
+    setBatchAtividades(prev => [...prev, { nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', perfil_mentor: '' }]);
   };
-
-  // Group turmas by estabelecimento (filtered by projeto)
-  const turmasByEstab = filteredEstabs.map(estab => ({
-    ...estab,
-    turmas: filteredTurmas.filter((t: Turma) => t.estabelecimento_id === estab.id)
-  }));
 
   return (
     <div className="space-y-6">
@@ -483,7 +488,7 @@ const Wiki = () => {
           Wiki / Base de Conhecimento
         </h1>
         <p className="text-muted-foreground mt-1">
-          Documentação da lógica da aplicação, hierarquias e dados de referência.
+          Gestão de projetos, estabelecimentos, turmas, disciplinas e atividades.
         </p>
       </div>
 
@@ -496,7 +501,7 @@ const Wiki = () => {
               Projeto
             </CardTitle>
             <CardDescription>
-              Seleciona um projeto para ver os seus estabelecimentos e turmas.
+              Seleciona um projeto para ver a sua hierarquia.
             </CardDescription>
           </div>
           {isCoordinator && (
@@ -538,7 +543,7 @@ const Wiki = () => {
                   <Edit2 className="h-4 w-4" />
                 </Button>
                 <Button variant="ghost" size="icon" className="text-destructive" onClick={() => {
-                  if (confirm('Apagar este projeto? Os estabelecimentos não são apagados, apenas desassociados.')) {
+                  if (confirm('Apagar este projeto?')) {
                     deleteProjetoMutation.mutate(selectedProjetoId);
                   }
                 }}>
@@ -547,76 +552,55 @@ const Wiki = () => {
               </>
             )}
           </div>
-          {selectedProjetoId && isCoordinator && unlinkedEstabs.length > 0 && (
-            <div className="flex items-center gap-2 mt-4">
-              <Select value={addEstabToProjetoId} onValueChange={setAddEstabToProjetoId}>
-                <SelectTrigger className="w-[250px]">
-                  <SelectValue placeholder="Associar estabelecimento..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {unlinkedEstabs.map((e) => (
-                    <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button size="sm" disabled={!addEstabToProjetoId} onClick={() => {
-                assocEstabMutation.mutate(Number(addEstabToProjetoId));
-              }}>
-                Associar
-              </Button>
-            </div>
-          )}
         </CardContent>
       </Card>
 
+      {/* Info Cards */}
       <div className="grid gap-6 md:grid-cols-2">
-        {/* Contexto e Hierarquia - (Mantido igual) */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Layers className="h-5 w-5 text-blue-500" />
-              1. Contexto e Hierarquia
+              Contexto e Hierarquia
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
             <p className="text-muted-foreground">
-              A estrutura lógica da aplicação segue uma hierarquia estrita:
+              A estrutura lógica segue uma hierarquia por turma:
             </p>
             <div className="bg-muted p-4 rounded-md space-y-2 font-mono text-sm">
               <div className="flex items-center gap-2">
-                <Badge variant="default">PROJETOS</Badge>
-                <span>contêm</span>
+                <Badge variant="default">PROJETO</Badge>
+                <span>contém</span>
               </div>
               <div className="flex items-center gap-2 pl-4">
-                <span className="text-muted-foreground">↳</span>
+                <span className="text-muted-foreground">&#8627;</span>
                 <Badge variant="secondary">ESTABELECIMENTOS</Badge>
-                <span>(escolas/prisões), que contêm</span>
+                <span>que contêm</span>
               </div>
               <div className="flex items-center gap-2 pl-8">
-                <span className="text-muted-foreground">↳</span>
+                <span className="text-muted-foreground">&#8627;</span>
                 <Badge variant="outline">TURMAS</Badge>
-                <span>têm</span>
+                <span>que têm</span>
               </div>
               <div className="flex items-center gap-2 pl-12">
-                <span className="text-muted-foreground">↳</span>
-                <Badge variant="outline" className="border-primary text-primary">DISCIPLINAS</Badge>
-                <span>são compostas por</span>
+                <span className="text-muted-foreground">&#8627;</span>
+                <Badge variant="outline" className="border-primary text-primary">DISCIPLINAS (locais)</Badge>
+                <span>compostas por</span>
               </div>
               <div className="flex items-center gap-2 pl-16">
-                <span className="text-muted-foreground">↳</span>
-                <Badge variant="destructive">ATIVIDADES</Badge>
-                <span>(currículo/temas)</span>
+                <span className="text-muted-foreground">&#8627;</span>
+                <Badge variant="destructive">ATIVIDADES (UUID)</Badge>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Conceito de Sessão - (Mantido igual) */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5 text-green-500" />
-              2. Conceito de "Sessão" (Evento Real)
+              Conceito de "Sessão"
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4 text-sm">
@@ -624,384 +608,228 @@ const Wiki = () => {
               A unidade fundamental de agendamento é a <strong>SESSÃO</strong>.
             </p>
             <ul className="list-disc pl-4 space-y-2">
-              <li>Uma Sessão ocorre numa <strong>Turma</strong> específica.</li>
-              <li>Corresponde à execução de uma <strong>ATIVIDADE</strong> específica do catálogo.</li>
-              <li>Tem um <strong>MENTOR</strong> associado (utilizador real).</li>
-              <li>
-                O perfil do mentor deve corresponder ao campo <code>perfil_mentor</code> definido na Atividade
-                (ex: se pede "Rapper", o mentor tem de ter essa tag).
-              </li>
-              <li>Consome/utiliza um <strong>KIT DE EQUIPAMENTO</strong> (asset físico).</li>
+              <li>Ocorre numa <strong>Turma</strong> específica.</li>
+              <li>Corresponde a uma <strong>Atividade</strong> local da turma (UUID).</li>
+              <li>Tem um <strong>Mentor</strong> associado cujo perfil corresponde ao <code>perfil_mentor</code> da atividade.</li>
+              <li>Cada turma tem as suas próprias disciplinas e atividades (modelo local).</li>
             </ul>
           </CardContent>
         </Card>
       </div>
 
-      {/* 3. DADOS DE REFERÊNCIA - ESTABELECIMENTOS */}
+      {/* HIERARQUIA UNIFICADA: Estabelecimentos > Turmas > Disciplinas > Atividades */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
           <div>
             <CardTitle className="flex items-center gap-2">
-              <School className="h-5 w-5 text-orange-500" />
-              3. Estabelecimentos
+              <Building2 className="h-5 w-5 text-indigo-500" />
+              Estabelecimentos, Turmas e Atividades
             </CardTitle>
             <CardDescription>
-              Entidades onde os projetos decorrem.
+              Hierarquia completa do projeto selecionado.
             </CardDescription>
           </div>
           {isCoordinator && (
-            <Button onClick={openNewEstab} size="sm" className="gap-2">
-              <Plus className="h-4 w-4" />
-              Adicionar Estabelecimento
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-[100px]">Sigla</TableHead>
-                <TableHead>Nome do Estabelecimento</TableHead>
-                <TableHead className="w-[100px] text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredEstabs.map((estab) => (
-                <TableRow key={estab.id}>
-                  <TableCell className="font-bold">{estab.sigla}</TableCell>
-                  <TableCell>{estab.nome}</TableCell>
-                  <TableCell className="text-right flex items-center justify-end gap-1">
-                    {isCoordinator && (
-                      <Button variant="ghost" size="icon" onClick={() => openEditEstab(estab)}>
-                        <Edit2 className="h-4 w-4 text-blue-500" />
-                      </Button>
-                    )}
-                    {isCoordinator && selectedProjetoId && (
-                      <Button variant="ghost" size="icon" onClick={() => desassocEstabMutation.mutate(estab.id)} title="Desassociar do projeto">
-                        <X className="h-4 w-4 text-destructive" />
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {/* 4. GESTÃO DE TURMAS */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-indigo-500" />
-              4. Gestão de Turmas
-            </CardTitle>
-            <CardDescription>
-              Organização das turmas por instituição.
-            </CardDescription>
-          </div>
-          {isCoordinator && (
-            <Dialog open={isTurmaDialogOpen} onOpenChange={setIsTurmaDialogOpen}>
-              <DialogTrigger asChild>
-                <Button size="sm" className="gap-2" onClick={openNewTurma}>
-                  <Plus className="h-4 w-4" />
-                  Nova Turma
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>{editingTurma ? 'Editar Turma' : 'Nova Turma'}</DialogTitle>
-                  <DialogDescription>
-                    {editingTurma ? 'Alterar dados da turma existente.' : 'Adiciona uma nova turma a uma instituição existente.'}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label>Estabelecimento</Label>
-                    <Select value={selectedEstabId} onValueChange={setSelectedEstabId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o estabelecimento" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {estabelecimentos.map((inst) => (
-                          <SelectItem key={inst.id} value={inst.id.toString()}>
-                            {inst.nome}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="turma-name">Nome da Turma</Label>
-                    <Input
-                      id="turma-name"
-                      placeholder="Ex: 12º B"
-                      value={newTurmaName}
-                      onChange={(e) => setNewTurmaName(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Lista de Alunos */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="font-medium">Alunos</Label>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        type="button"
-                        onClick={() => setAlunosNomes(prev => [...prev, ''])}
-                      >
-                        <Plus className="h-3.5 w-3.5 mr-1" />
-                        Adicionar
-                      </Button>
-                    </div>
-                    {alunosNomes.length === 0 && (
-                      <p className="text-sm text-muted-foreground">Nenhum aluno registado.</p>
-                    )}
-                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                      {alunosNomes.map((nome, i) => (
-                        <div key={i} className="flex gap-2">
-                          <Input
-                            placeholder={`Aluno ${i + 1}`}
-                            value={nome}
-                            onChange={e => {
-                              const updated = [...alunosNomes];
-                              updated[i] = e.target.value;
-                              setAlunosNomes(updated);
-                            }}
-                            className="text-sm"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            type="button"
-                            onClick={() => setAlunosNomes(prev => prev.filter((_, idx) => idx !== i))}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {selectedProjetoId && unlinkedEstabs.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Select value={addEstabToProjetoId} onValueChange={setAddEstabToProjetoId}>
+                    <SelectTrigger className="w-[200px]">
+                      <SelectValue placeholder="Associar estabelecimento..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {unlinkedEstabs.map((e) => (
+                        <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>
                       ))}
-                    </div>
-                  </div>
-
-                  {/* Disciplinas matriculadas */}
-                  <div className="space-y-2">
-                    <Label className="font-medium">Disciplinas matriculadas</Label>
-                    <div className="space-y-2 rounded-md border p-3 max-h-[200px] overflow-y-auto">
-                      {curriculo.length === 0 && (
-                        <p className="text-sm text-muted-foreground">Nenhuma disciplina disponível.</p>
-                      )}
-                      {curriculo.map((disc) => {
-                        const entry = selectedDisciplinas.find(d => d.disciplina_id === disc.id);
-                        const checked = !!entry;
-                        const defaultHoras = disc.horas_previstas != null ? String(disc.horas_previstas) : '';
-                        return (
-                          <div key={disc.id} className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              id={`disc-${disc.id}`}
-                              checked={checked}
-                              onChange={e => {
-                                if (e.target.checked) {
-                                  setSelectedDisciplinas(prev => [...prev, { disciplina_id: disc.id, horas_previstas: defaultHoras }]);
-                                } else {
-                                  setSelectedDisciplinas(prev => prev.filter(d => d.disciplina_id !== disc.id));
-                                }
-                              }}
-                              className="h-4 w-4 rounded border-gray-300"
-                            />
-                            <label htmlFor={`disc-${disc.id}`} className="flex-1 text-sm cursor-pointer">
-                              {disc.disciplina}
-                              <span className="text-xs text-muted-foreground ml-1.5">({disc.musicas_previstas} músicas)</span>
-                            </label>
-                            {checked && (
-                              <Input
-                                type="number"
-                                min={0}
-                                step={0.5}
-                                placeholder="Horas"
-                                value={entry!.horas_previstas}
-                                onChange={e => setSelectedDisciplinas(prev => prev.map(d =>
-                                  d.disciplina_id === disc.id ? { ...d, horas_previstas: e.target.value } : d
-                                ))}
-                                className="w-24 text-sm h-7"
-                              />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter className="flex sm:justify-between w-full">
-                  {editingTurma ? (
-                    <Button
-                      variant="destructive"
-                      onClick={() => {
-                        if (confirm('Tem a certeza que deseja apagar esta turma?')) {
-                          deleteTurmaMutation.mutate(editingTurma.id);
-                          setIsTurmaDialogOpen(false);
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Apagar
-                    </Button>
-                  ) : <div />}
-                  <Button onClick={handleSaveTurma}>
-                    Gravar
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" disabled={!addEstabToProjetoId} onClick={() => assocEstabMutation.mutate(Number(addEstabToProjetoId))}>
+                    Associar
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </div>
+              )}
+              <Button onClick={openNewEstab} size="sm" className="gap-2">
+                <Plus className="h-4 w-4" />
+                Novo Estabelecimento
+              </Button>
+            </div>
           )}
         </CardHeader>
         <CardContent>
-          <Accordion type="multiple" className="w-full">
-            {turmasByEstab.map((estab) => (
-              <AccordionItem key={estab.id} value={estab.id.toString()}>
-                <AccordionTrigger className="hover:no-underline">
-                  <div className="flex items-center gap-3">
-                    <Building2 className="h-4 w-4 text-primary" />
-                    <span className="font-medium text-lg">{estab.nome}</span>
-                    <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full ml-2">
-                      {estab.turmas.length} turmas
-                    </span>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="pl-6 space-y-1">
-                    {estab.turmas.length === 0 ? (
-                      <p className="text-sm text-muted-foreground italic py-2">
-                        Nenhuma turma registada.
-                      </p>
-                    ) : (
-                      estab.turmas.map((turma) => (
-                        <div
-                          key={turma.id}
-                          className="flex items-center justify-between p-2 rounded-md hover:bg-secondary/50 group"
-                        >
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Users className="h-4 w-4 text-muted-foreground shrink-0" />
-                            <span>{turma.nome}</span>
-                          </div>
-                          {isCoordinator && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditTurma(turma);
-                              }}
-                            >
-                              <Edit2 className="h-3 w-3 text-blue-500" />
-                            </Button>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </CardContent>
-      </Card>
-
-      {/* 5. CURRÍCULO E ATIVIDADES */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Book className="h-5 w-5 text-purple-500" />
-              5. Currículo e Atividades
-            </CardTitle>
-            <CardDescription>
-              Catálogo de disciplinas e atividades disponíveis.
-            </CardDescription>
-          </div>
-          {isCoordinator && (
-            <Button onClick={openNewDisciplina} size="sm" className="gap-2">
-              <Plus className="h-4 w-4" />
-              Nova Disciplina
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          <Accordion type="single" collapsible className="w-full">
-            {curriculo.map((item) => (
-              <AccordionItem key={item.id} value={`item-${item.id}`}>
-                <AccordionTrigger className="text-lg font-semibold hover:no-underline hover:text-primary">
-                  <span className="flex items-center gap-2 flex-1">
-                    {item.disciplina}
-                    <span className="text-xs font-normal text-muted-foreground">({item.musicas_previstas} músicas)</span>
+          {!selectedProjetoId ? (
+            <p className="text-sm text-muted-foreground italic py-4 text-center">
+              Seleciona um projeto acima para ver a hierarquia completa.
+            </p>
+          ) : wikiHierarquia.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">Nenhum estabelecimento associado ao projeto.</p>
+          ) : (
+            <Accordion type="multiple" className="w-full">
+              {wikiHierarquia.map((estab) => (
+                <AccordionItem key={`est-${estab.id}`} value={`est-${estab.id}`}>
+                  <div className="flex items-center">
+                    <AccordionTrigger className="hover:no-underline flex-1">
+                      <div className="flex items-center gap-3">
+                        <Building2 className="h-4 w-4 text-primary" />
+                        <span className="font-medium text-lg">{estab.nome}</span>
+                        {estab.sigla && <Badge variant="secondary" className="text-xs">{estab.sigla}</Badge>}
+                        <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                          {estab.turmas.length} turmas
+                        </span>
+                      </div>
+                    </AccordionTrigger>
                     {isCoordinator && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-6 w-6 ml-1 opacity-0 group-hover:opacity-100"
-                        onClick={(e) => { e.stopPropagation(); openEditDisciplina(item); }}
-                      >
-                        <Edit2 className="h-3.5 w-3.5 text-blue-500" />
-                      </Button>
-                    )}
-                  </span>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <div className="mb-4 flex justify-end">
-                    {isCoordinator && (
-                      <Button size="sm" variant="outline" onClick={() => openNewActivity(item.id)}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Nova Atividade
-                      </Button>
+                      <div className="flex items-center gap-1 ml-1 shrink-0">
+                        <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => {
+                          const e = estabelecimentos.find(x => x.id === estab.id);
+                          if (e) openEditEstab(e);
+                        }}>
+                          <Edit2 className="h-3 w-3" /> Editar Estabelecimento
+                        </Button>
+                        <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openNewTurma(estab.id)}>
+                          <Plus className="h-3 w-3" /> Nova Turma
+                        </Button>
+                      </div>
                     )}
                   </div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Código</TableHead>
-                        <TableHead>Atividade</TableHead>
-                        <TableHead className="text-center">Sessões</TableHead>
-                        <TableHead className="text-center">Horas</TableHead>
-                        <TableHead className="text-center">Total H</TableHead>
-                        <TableHead className="text-center">Prod. Esp.</TableHead>
-                        <TableHead>Perfil Mentor</TableHead>
-                        <TableHead className="text-right">Ações</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {item.atividades.map((act) => (
-                        <TableRow key={act.id}>
-                          <TableCell className="font-mono font-bold text-xs">{act.codigo}</TableCell>
-                          <TableCell>{act.nome}</TableCell>
-                          <TableCell className="text-center">{act.sessoes_padrao || '-'}</TableCell>
-                          <TableCell className="text-center">{act.horas_padrao || '-'}</TableCell>
-                          <TableCell className="text-center font-bold">{act.total_horas}</TableCell>
-                          <TableCell className="text-center">{act.producoes_esperadas}</TableCell>
-                          <TableCell>
-                            {act.perfil_mentor ? (
-                              <Badge variant="outline">{act.perfil_mentor}</Badge>
-                            ) : '-'}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            {isCoordinator && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditActivity(act)}>
-                                <Edit2 className="h-3 w-3 text-blue-500" />
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </CardContent>
-      </Card>
+                  <AccordionContent>
+                      <div className="pl-4 space-y-2">
+                        {estab.turmas.length === 0 ? (
+                          <p className="text-sm text-muted-foreground italic py-2">Nenhuma turma registada.</p>
+                        ) : (
+                          <Accordion type="multiple" className="w-full">
+                            {estab.turmas.map((turma) => (
+                              <AccordionItem key={`turma-${turma.id}`} value={`turma-${turma.id}`}>
+                                <div className="flex items-center">
+                                  <AccordionTrigger className="hover:no-underline flex-1">
+                                    <div className="flex items-center gap-3">
+                                      <Users className="h-4 w-4 text-muted-foreground" />
+                                      <span className="font-medium">{turma.nome}</span>
+                                      <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                                        {turma.disciplinas.length} disciplinas
+                                      </span>
+                                    </div>
+                                  </AccordionTrigger>
+                                  {isCoordinator && (
+                                    <div className="flex items-center gap-1 ml-1 shrink-0">
+                                      <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openEditTurma(turma, estab.id)}>
+                                        <Edit2 className="h-3 w-3" /> Editar Turma
+                                      </Button>
+                                      <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openNewDisciplina(turma.id)}>
+                                        <Plus className="h-3 w-3" /> Nova Disciplina
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                                <AccordionContent>
+                                  <div className="pl-4 space-y-3">
+                                    {/* Disciplinas da turma */}
+                                    {turma.disciplinas.length === 0 ? (
+                                      <p className="text-sm text-muted-foreground italic">Nenhuma disciplina atribuída.</p>
+                                    ) : (
+                                      <Accordion type="multiple" className="w-full">
+                                        {turma.disciplinas.map((disc) => (
+                                          <AccordionItem key={`disc-${disc.id}`} value={`disc-${disc.id}`}>
+                                            <div className="flex items-center">
+                                              <AccordionTrigger className="hover:no-underline py-2 flex-1">
+                                                <div className="flex items-center gap-2">
+                                                  <Book className="h-4 w-4 text-purple-500" />
+                                                  <span className="font-medium">{disc.nome}</span>
+                                                  {disc.musicas_previstas > 0 && (
+                                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                                      <Music className="h-3 w-3" /> {disc.musicas_previstas}
+                                                    </span>
+                                                  )}
+                                                  <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                                                    {disc.atividades.length} atividades
+                                                  </span>
+                                                </div>
+                                              </AccordionTrigger>
+                                              {isCoordinator && (
+                                                <div className="flex items-center gap-1 ml-1 shrink-0">
+                                                  <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openEditDisciplina(disc)}>
+                                                    <Edit2 className="h-3 w-3" /> Editar Disciplina
+                                                  </Button>
+                                                  <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openNewAtividade(disc.id)}>
+                                                    <Plus className="h-3 w-3" /> Nova Atividade
+                                                  </Button>
+                                                </div>
+                                              )}
+                                            </div>
+                                            <AccordionContent>
+                                              <div className="pl-2">
+                                                {disc.atividades.length === 0 ? (
+                                                  <p className="text-sm text-muted-foreground italic">Nenhuma atividade.</p>
+                                                ) : (
+                                                  <Table>
+                                                    <TableHeader>
+                                                      <TableRow>
+                                                        <TableHead>Código</TableHead>
+                                                        <TableHead>Atividade</TableHead>
+                                                        <TableHead className="text-center">Sessões Prev.</TableHead>
+                                                        <TableHead className="text-center">H/Sessão</TableHead>
+                                                        <TableHead className="text-center">Músicas</TableHead>
+                                                        <TableHead>Perfil</TableHead>
+                                                        <TableHead className="text-center">Realizadas</TableHead>
+                                                        {isCoordinator && <TableHead className="text-right">Ações</TableHead>}
+                                                      </TableRow>
+                                                    </TableHeader>
+                                                    <TableBody>
+                                                      {disc.atividades.map((ativ) => (
+                                                        <TableRow key={ativ.uuid}>
+                                                          <TableCell className="font-mono font-bold text-xs">{ativ.codigo || '—'}</TableCell>
+                                                          <TableCell>{ativ.nome}</TableCell>
+                                                          <TableCell className="text-center">{ativ.sessoes_previstas || '—'}</TableCell>
+                                                          <TableCell className="text-center">{ativ.horas_por_sessao || '—'}</TableCell>
+                                                          <TableCell className="text-center">{ativ.musicas_previstas || '—'}</TableCell>
+                                                          <TableCell>
+                                                            {ativ.perfil_mentor ? (
+                                                              <Badge variant="outline">{ativ.perfil_mentor}</Badge>
+                                                            ) : '—'}
+                                                          </TableCell>
+                                                          <TableCell className="text-center">
+                                                            <div className="flex items-center justify-center gap-2 text-xs">
+                                                              <span className="flex items-center gap-1" title="Sessões realizadas">
+                                                                <Calendar className="h-3 w-3" />
+                                                                {ativ.sessoes_realizadas ?? 0}/{ativ.sessoes_previstas || '?'}
+                                                              </span>
+                                                              <span className="flex items-center gap-1" title="Horas realizadas">
+                                                                <Clock className="h-3 w-3" />
+                                                                {ativ.horas_realizadas ?? 0}h
+                                                              </span>
+                                                            </div>
+                                                          </TableCell>
+                                                          {isCoordinator && (
+                                                            <TableCell className="text-right">
+                                                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditAtividade(ativ)}>
+                                                                <Edit2 className="h-3 w-3 text-blue-500" />
+                                                              </Button>
+                                                            </TableCell>
+                                                          )}
+                                                        </TableRow>
+                                                      ))}
+                                                    </TableBody>
+                                                  </Table>
+                                                )}
+                                              </div>
+                                            </AccordionContent>
+                                          </AccordionItem>
+                                        ))}
+                                      </Accordion>
+                                    )}
+                                  </div>
+                                </AccordionContent>
+                              </AccordionItem>
+                            ))}
+                          </Accordion>
+                        )}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                ))}
+              </Accordion>
+            )}
+          </CardContent>
+        </Card>
 
       {/* DIALOG FOR PROJETOS */}
       <Dialog open={isProjetoDialogOpen} onOpenChange={setIsProjetoDialogOpen}>
@@ -1051,202 +879,257 @@ const Wiki = () => {
           <div className="space-y-4 py-4">
             <div className="grid gap-2">
               <Label htmlFor="inst-sigla">Sigla</Label>
-              <Input
-                id="inst-sigla"
-                value={estabForm.sigla}
-                onChange={(e) => setEstabForm({ ...estabForm, sigla: e.target.value })}
-                placeholder="EX: EPL"
-              />
+              <Input id="inst-sigla" value={estabForm.sigla} onChange={(e) => setEstabForm({ ...estabForm, sigla: e.target.value })} placeholder="EX: EPL" />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="inst-nome">Nome</Label>
-              <Input
-                id="inst-nome"
-                value={estabForm.nome}
-                onChange={(e) => setEstabForm({ ...estabForm, nome: e.target.value })}
-                placeholder="Nome completo do estabelecimento"
-              />
+              <Input id="inst-nome" value={estabForm.nome} onChange={(e) => setEstabForm({ ...estabForm, nome: e.target.value })} placeholder="Nome completo" />
             </div>
             <div className="grid gap-2">
               <Label>Morada</Label>
               <AddressAutocomplete
                 value={estabForm.morada}
                 onSelect={(r) => setEstabForm({ ...estabForm, morada: r.display_name, latitude: r.lat, longitude: r.lon })}
-                placeholder="Pesquisar morada do estabelecimento..."
+                placeholder="Pesquisar morada..."
               />
             </div>
           </div>
           <DialogFooter className="flex sm:justify-between w-full">
             {editingEstab ? (
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  if (confirm('Tem a certeza que deseja apagar este estabelecimento?')) {
-                    deleteEstabMutation.mutate(editingEstab.id);
-                    setIsEstabDialogOpen(false);
-                  }
-                }}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Apagar
+              <Button variant="destructive" onClick={() => {
+                if (confirm('Apagar este estabelecimento?')) {
+                  deleteEstabMutation.mutate(editingEstab.id);
+                  setIsEstabDialogOpen(false);
+                }
+              }}>
+                <Trash2 className="h-4 w-4 mr-2" /> Apagar
               </Button>
             ) : <div />}
             <Button onClick={() => saveEstabMutation.mutate(estabForm)}>
-              <Save className="h-4 w-4 mr-2" />
-              Gravar
+              <Save className="h-4 w-4 mr-2" /> Gravar
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* DIALOG FOR ACTIVITIES */}
-      <Dialog open={isActivityDialogOpen} onOpenChange={setIsActivityDialogOpen}>
+      {/* DIALOG FOR TURMAS */}
+      <Dialog open={isTurmaDialogOpen} onOpenChange={setIsTurmaDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingTurma ? 'Editar Turma' : 'Nova Turma'}</DialogTitle>
+            <DialogDescription>
+              {editingTurma ? 'Alterar dados da turma.' : 'Criar nova turma num estabelecimento.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Estabelecimento</Label>
+              <Select value={selectedEstabId} onValueChange={setSelectedEstabId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o estabelecimento" />
+                </SelectTrigger>
+                <SelectContent>
+                  {estabelecimentos.map((inst) => (
+                    <SelectItem key={inst.id} value={inst.id.toString()}>{inst.nome}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="turma-name">Nome da Turma</Label>
+              <Input id="turma-name" placeholder="Ex: 12.º B" value={newTurmaName} onChange={(e) => setNewTurmaName(e.target.value)} />
+            </div>
+
+            {/* Lista de Alunos */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="font-medium">Alunos</Label>
+                <Button variant="outline" size="sm" type="button" onClick={() => setAlunosNomes(prev => [...prev, ''])}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar
+                </Button>
+              </div>
+              {alunosNomes.length === 0 && (
+                <p className="text-sm text-muted-foreground">Nenhum aluno registado.</p>
+              )}
+              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                {alunosNomes.map((nome, i) => (
+                  <div key={i} className="flex gap-2">
+                    <Input placeholder={`Aluno ${i + 1}`} value={nome} onChange={e => {
+                      const updated = [...alunosNomes];
+                      updated[i] = e.target.value;
+                      setAlunosNomes(updated);
+                    }} className="text-sm" />
+                    <Button variant="ghost" size="icon" type="button" onClick={() => setAlunosNomes(prev => prev.filter((_, idx) => idx !== i))}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="flex sm:justify-between w-full">
+            {editingTurma ? (
+              <Button variant="destructive" onClick={() => {
+                if (confirm('Apagar esta turma?')) {
+                  deleteTurmaMutation.mutate(editingTurma.id);
+                  setIsTurmaDialogOpen(false);
+                }
+              }}>
+                <Trash2 className="h-4 w-4 mr-2" /> Apagar
+              </Button>
+            ) : <div />}
+            <Button onClick={handleSaveTurma}>Gravar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG FOR LOCAL DISCIPLINA */}
+      <Dialog open={isDisciplinaDialogOpen} onOpenChange={setIsDisciplinaDialogOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editingActivity ? 'Editar Atividade' : 'Nova Atividade'}</DialogTitle>
+            <DialogTitle>{editingDisciplina ? 'Editar Disciplina' : 'Nova Disciplina'}</DialogTitle>
+            <DialogDescription>
+              {editingDisciplina ? 'Alterar dados da disciplina local.' : 'Criar disciplina local para esta turma.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-2">
+                <Label>Nome da Disciplina</Label>
+                <Input value={discForm.nome} onChange={(e) => setDiscForm({ ...discForm, nome: e.target.value })} placeholder="Ex: Clube de RAP" />
+              </div>
+              <div className="grid gap-2">
+                <Label>Músicas Previstas</Label>
+                <Input type="number" min={0} value={discForm.musicas_previstas} onChange={(e) => setDiscForm({ ...discForm, musicas_previstas: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Descrição (opcional)</Label>
+              <Input value={discForm.descricao} onChange={(e) => setDiscForm({ ...discForm, descricao: e.target.value })} placeholder="Breve descrição" />
+            </div>
+
+            {/* Batch atividades (só para nova disciplina) */}
+            {!editingDisciplina && (
+              <div className="space-y-3 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <Label className="font-medium">Atividades (batch)</Label>
+                  <Button variant="outline" size="sm" type="button" onClick={addBatchAtividade}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar Atividade
+                  </Button>
+                </div>
+                {batchAtividades.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Pode adicionar atividades agora ou mais tarde.</p>
+                )}
+                <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                  {batchAtividades.map((a, i) => (
+                    <div key={i} className="border rounded-md p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Atividade {i + 1}</span>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setBatchAtividades(prev => prev.filter((_, idx) => idx !== i))}>
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <Input placeholder="Nome" value={a.nome} onChange={e => {
+                          const up = [...batchAtividades]; up[i] = { ...up[i], nome: e.target.value }; setBatchAtividades(up);
+                        }} />
+                        <Input placeholder="Código (ex: CR_TP_R)" value={a.codigo} onChange={e => {
+                          const up = [...batchAtividades]; up[i] = { ...up[i], codigo: e.target.value }; setBatchAtividades(up);
+                        }} />
+                      </div>
+                      <div className="grid gap-2 md:grid-cols-4">
+                        <div>
+                          <Label className="text-xs">Sessões</Label>
+                          <Input type="number" min={0} value={a.sessoes_previstas} onChange={e => {
+                            const up = [...batchAtividades]; up[i] = { ...up[i], sessoes_previstas: e.target.value }; setBatchAtividades(up);
+                          }} />
+                        </div>
+                        <div>
+                          <Label className="text-xs">H/Sessão</Label>
+                          <Input type="number" min={0} step={0.5} value={a.horas_por_sessao} onChange={e => {
+                            const up = [...batchAtividades]; up[i] = { ...up[i], horas_por_sessao: e.target.value }; setBatchAtividades(up);
+                          }} />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Músicas</Label>
+                          <Input type="number" min={0} value={a.musicas_previstas} onChange={e => {
+                            const up = [...batchAtividades]; up[i] = { ...up[i], musicas_previstas: e.target.value }; setBatchAtividades(up);
+                          }} />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Perfil Mentor</Label>
+                          <Input placeholder="Rapper, Produtor..." value={a.perfil_mentor} onChange={e => {
+                            const up = [...batchAtividades]; up[i] = { ...up[i], perfil_mentor: e.target.value }; setBatchAtividades(up);
+                          }} />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex sm:justify-between w-full">
+            {editingDisciplina ? (
+              <Button variant="destructive" onClick={() => {
+                if (confirm('Apagar esta disciplina e todas as suas atividades?')) {
+                  deleteDisciplinaMutation.mutate(editingDisciplina.id);
+                }
+              }}>
+                <Trash2 className="h-4 w-4 mr-2" /> Apagar
+              </Button>
+            ) : <div />}
+            <Button onClick={handleSaveDisciplina} disabled={!discForm.nome}>
+              <Save className="h-4 w-4 mr-2" /> Gravar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG FOR LOCAL ATIVIDADE */}
+      <Dialog open={isAtividadeDialogOpen} onOpenChange={setIsAtividadeDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{editingAtividade ? 'Editar Atividade' : 'Nova Atividade'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label>Código</Label>
-              <Input
-                value={activityForm.codigo}
-                onChange={(e) => setActivityForm({ ...activityForm, codigo: e.target.value })}
-                placeholder="EX: V-01"
-              />
+              <Input value={ativForm.codigo} onChange={(e) => setAtivForm({ ...ativForm, codigo: e.target.value })} placeholder="Ex: CR_TP_R" />
             </div>
             <div className="grid gap-2">
               <Label>Nome da Atividade</Label>
-              <Input
-                value={activityForm.nome}
-                onChange={(e) => setActivityForm({ ...activityForm, nome: e.target.value })}
-                placeholder="Nome descritivo"
-              />
+              <Input value={ativForm.nome} onChange={(e) => setAtivForm({ ...ativForm, nome: e.target.value })} placeholder="Nome descritivo" />
             </div>
             <div className="grid gap-2">
-              <Label>Sessões Padrão</Label>
-              <Input
-                type="number"
-                value={activityForm.sessoes_padrao}
-                onChange={(e) => setActivityForm({ ...activityForm, sessoes_padrao: parseInt(e.target.value) || 0 })}
-              />
+              <Label>Sessões Previstas</Label>
+              <Input type="number" min={0} value={ativForm.sessoes_previstas} onChange={(e) => setAtivForm({ ...ativForm, sessoes_previstas: e.target.value })} />
             </div>
             <div className="grid gap-2">
               <Label>Horas por Sessão</Label>
-              <Input
-                type="number"
-                value={activityForm.horas_padrao}
-                onChange={(e) => setActivityForm({ ...activityForm, horas_padrao: parseInt(e.target.value) || 0 })}
-              />
+              <Input type="number" min={0} step={0.5} value={ativForm.horas_por_sessao} onChange={(e) => setAtivForm({ ...ativForm, horas_por_sessao: e.target.value })} />
             </div>
             <div className="grid gap-2">
-              <Label>Produções Esperadas</Label>
-              <Input
-                type="number"
-                value={activityForm.producoes_esperadas}
-                onChange={(e) => setActivityForm({ ...activityForm, producoes_esperadas: parseInt(e.target.value) || 0 })}
-              />
+              <Label>Músicas Previstas</Label>
+              <Input type="number" min={0} value={ativForm.musicas_previstas} onChange={(e) => setAtivForm({ ...ativForm, musicas_previstas: e.target.value })} />
             </div>
             <div className="grid gap-2">
               <Label>Perfil Mentor</Label>
-              <Input
-                value={activityForm.perfil_mentor}
-                onChange={(e) => setActivityForm({ ...activityForm, perfil_mentor: e.target.value })}
-                placeholder="Ex: Rapper, Produtor"
-              />
+              <Input value={ativForm.perfil_mentor} onChange={(e) => setAtivForm({ ...ativForm, perfil_mentor: e.target.value })} placeholder="Rapper, Produtor..." />
             </div>
           </div>
           <DialogFooter className="flex sm:justify-between w-full">
-            {editingActivity ? (
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  if (confirm('Tem a certeza que deseja apagar esta atividade?')) {
-                    deleteActivityMutation.mutate(editingActivity.id);
-                    setIsActivityDialogOpen(false);
-                  }
-                }}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Apagar
+            {editingAtividade ? (
+              <Button variant="destructive" onClick={() => {
+                if (confirm('Apagar esta atividade?')) {
+                  deleteAtividadeMutation.mutate(editingAtividade.uuid);
+                }
+              }}>
+                <Trash2 className="h-4 w-4 mr-2" /> Apagar
               </Button>
             ) : <div />}
-            <Button onClick={() => saveActivityMutation.mutate(activityForm)}>
-              <Save className="h-4 w-4 mr-2" />
-              Gravar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* DIALOG FOR DISCIPLINA */}
-      <Dialog open={isDisciplinaDialogOpen} onOpenChange={setIsDisciplinaDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editingDisciplina ? 'Editar Disciplina' : 'Nova Disciplina'}</DialogTitle>
-            <DialogDescription>
-              {editingDisciplina ? 'Alterar dados da disciplina.' : 'Adicionar uma nova disciplina ao currículo.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="disc-nome">Nome da Disciplina</Label>
-              <Input
-                id="disc-nome"
-                value={newDisciplinaName}
-                onChange={(e) => setNewDisciplinaName(e.target.value)}
-                placeholder="Ex: Workshop de DJing"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="disc-desc">Descrição (Opcional)</Label>
-              <Input
-                id="disc-desc"
-                value={newDisciplinaDesc}
-                onChange={(e) => setNewDisciplinaDesc(e.target.value)}
-                placeholder="Breve descrição do conteúdo"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="disc-musicas">Músicas Previstas</Label>
-              <Input
-                id="disc-musicas"
-                type="number"
-                min={0}
-                value={newDisciplinaMusicasPrevistas}
-                onChange={(e) => setNewDisciplinaMusicasPrevistas(e.target.value)}
-                placeholder="Ex: 7"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="disc-horas">Horas Previstas (total da disciplina)</Label>
-              <Input
-                id="disc-horas"
-                type="number"
-                min={0}
-                step={0.5}
-                value={newDisciplinaHorasPrevistas}
-                onChange={(e) => setNewDisciplinaHorasPrevistas(e.target.value)}
-                placeholder="Ex: 64"
-              />
-            </div>
-          </div>
-          <DialogFooter className="flex sm:justify-between w-full">
-            {editingDisciplina ? (
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  if (confirm('Apagar esta disciplina? As atividades associadas também serão apagadas.')) {
-                    deleteDisciplinaMutation.mutate(editingDisciplina.id);
-                  }
-                }}
-              >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Apagar
-              </Button>
-            ) : <div />}
-            <Button onClick={handleSaveDisciplina}>
-              <Save className="h-4 w-4 mr-2" />
-              Gravar
+            <Button onClick={handleSaveAtividade} disabled={!ativForm.nome}>
+              <Save className="h-4 w-4 mr-2" /> Gravar
             </Button>
           </DialogFooter>
         </DialogContent>

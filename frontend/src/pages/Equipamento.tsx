@@ -61,15 +61,17 @@ import type {
 // ---------------------------------------------------------------------------
 
 const ESTADOS = [
+  { value: 'Novo', label: 'Novo', icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   { value: 'excelente', label: 'Excelente', icon: CheckCircle2, color: 'text-success', bg: 'bg-success/10' },
-  { value: 'funciona_com_observacoes', label: 'Funciona c/ obs.', icon: AlertTriangle, color: 'text-warning', bg: 'bg-warning/10' },
-  { value: 'falhas_pontuais', label: 'Falhas pontuais', icon: AlertTriangle, color: 'text-orange-500', bg: 'bg-orange-500/10' },
+  { value: 'Bom', label: 'Bom', icon: CheckCircle2, color: 'text-blue-500', bg: 'bg-blue-500/10' },
+  { value: 'Médio', label: 'Médio', icon: AlertTriangle, color: 'text-warning', bg: 'bg-warning/10' },
+  { value: 'Mau', label: 'Mau', icon: AlertTriangle, color: 'text-orange-500', bg: 'bg-orange-500/10' },
   { value: 'em_manutencao', label: 'Em manutencao', icon: Wrench, color: 'text-info', bg: 'bg-info/10' },
   { value: 'indisponivel', label: 'Indisponivel', icon: XCircle, color: 'text-destructive', bg: 'bg-destructive/10' },
 ];
 
 function getEstadoInfo(estado: string) {
-  return ESTADOS.find(e => e.value === estado) || ESTADOS[0];
+  return ESTADOS.find(e => e.value === estado) ?? { value: estado, label: estado || '—', icon: AlertTriangle, color: 'text-muted-foreground', bg: 'bg-muted/10' };
 }
 
 function EstadoBadge({ estado }: { estado: string }) {
@@ -107,7 +109,7 @@ const Equipamento = () => {
     nome: '',
     identificador: '',
     categoria_id: '',
-    estado: 'excelente',
+    estado: 'Novo',
     observacoes: '',
   });
 
@@ -186,7 +188,7 @@ const Equipamento = () => {
 
   const openCreate = () => {
     setEditingItem(null);
-    setFormData({ nome: '', identificador: '', categoria_id: '', estado: 'excelente', observacoes: '' });
+    setFormData({ nome: '', identificador: '', categoria_id: '', estado: 'Novo', observacoes: '' });
     setIsFormOpen(true);
   };
 

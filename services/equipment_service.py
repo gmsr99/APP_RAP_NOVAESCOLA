@@ -288,7 +288,7 @@ def criar_item(dados):
             dados['categoria_id'],
             dados['nome'],
             dados['identificador'],
-            dados.get('estado', 'excelente'),
+            dados.get('estado', 'Novo'),
             dados.get('observacoes'),
         ))
 

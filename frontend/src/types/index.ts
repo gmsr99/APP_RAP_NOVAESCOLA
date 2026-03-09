@@ -172,6 +172,7 @@ export interface AulaAPI {
   estabelecimento_nome: string | null;
   atividade_nome?: string;
   atividade_id?: number;
+  atividade_uuid?: string;
   disciplina_nome?: string;
   equipamento_nome?: string;
   // Trabalho Autónomo
@@ -217,6 +218,7 @@ export interface AulaCreate {
   observacoes?: string;
   tipo: string;
   atividade_id?: number | null;
+  atividade_uuid?: string | null;
   projeto_id?: number | null;
   is_autonomous?: boolean;
   is_realized?: boolean;

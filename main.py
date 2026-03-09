@@ -201,6 +201,7 @@ async def create_aula(aula: AulaCreate):
         projeto_id=aula.projeto_id,
         observacoes=aula.observacoes,
         atividade_id=aula.atividade_id,
+        atividade_uuid=aula.atividade_uuid,
         is_autonomous=aula.is_autonomous,
         is_realized=aula.is_realized,
         tipo_atividade=aula.tipo_atividade,
@@ -229,6 +230,7 @@ class AulaRecorrenteCreate(BaseModel):
     mentor_id: Optional[int] = None
     local: Optional[str] = None
     atividade_id: Optional[int] = None
+    atividade_uuid: Optional[str] = None
     is_autonomous: bool = True
     tipo: str = "trabalho_autonomo"
 
@@ -252,6 +254,7 @@ async def create_aulas_recorrentes(payload: AulaRecorrenteCreate):
             mentor_id=payload.mentor_id,
             local=payload.local,
             atividade_id=payload.atividade_id,
+            atividade_uuid=payload.atividade_uuid,
             is_autonomous=payload.is_autonomous,
             tipo=payload.tipo,
         )
@@ -733,24 +736,10 @@ async def update_alunos_turma(turma_id: int, payload: AlunosUpdate):
         raise HTTPException(status_code=500, detail="Erro ao atualizar alunos")
     return {"message": "Alunos atualizados"}
 
-class TurmaDisciplinaItem(BaseModel):
-    disciplina_id: int
-    horas_previstas: Optional[float] = None
-
-class TurmaDisciplinasUpdate(BaseModel):
-    disciplinas: list[TurmaDisciplinaItem]
-
 @app.get("/api/turmas/{turma_id}/disciplinas", tags=["Core"])
 async def get_turma_disciplinas(turma_id: int):
-    """Lista as disciplinas de uma turma."""
+    """Lista as disciplinas locais de uma turma."""
     return turma_service.listar_disciplinas_turma(turma_id)
-
-@app.put("/api/turmas/{turma_id}/disciplinas", tags=["Core"])
-async def update_turma_disciplinas(turma_id: int, payload: TurmaDisciplinasUpdate):
-    """Substitui as disciplinas de uma turma."""
-    sucesso = turma_service.definir_disciplinas_turma(turma_id, [d.dict() for d in payload.disciplinas])
-    if not sucesso:
-        raise HTTPException(status_code=500, detail="Erro ao atualizar disciplinas da turma")
     return {"message": "Disciplinas atualizadas"}
 
 @app.get("/api/mentores", tags=["Core"])
@@ -1085,75 +1074,134 @@ async def delete_estabelecimento(id: int):
 # Endpoints de Currículo (Wiki)
 # -----------------------------------------------------------------------------
 from services import curriculo_service
+from services import wiki_service
 
+# --- Legacy: currículo global (mantido para compatibilidade) ---
 @app.get("/api/curriculo", tags=["Wiki"])
 async def get_curriculo():
-    """Lista todo o currículo (disciplinas e atividades)."""
+    """Lista todo o currículo global (disciplinas e atividades)."""
     return curriculo_service.listar_curriculo()
 
-class DisciplinaCreate(BaseModel):
+# --- Wiki v2: disciplinas e atividades locais por turma ---
+
+@app.get("/api/wiki/projeto/{projeto_id}", tags=["Wiki"])
+async def get_wiki_hierarquia(projeto_id: int):
+    """Hierarquia completa: Projeto > Estabelecimentos > Turmas > Disciplinas > Atividades."""
+    result = wiki_service.listar_hierarquia_projeto(projeto_id)
+    print(f"[DEBUG wiki] projeto_id={projeto_id} → {len(result)} estabelecimentos")
+    return result
+
+@app.get("/api/wiki/debug/{projeto_id}", tags=["Wiki"])
+async def debug_wiki(projeto_id: int):
+    """Debug: mostra o que a DB retorna passo a passo."""
+    from database.connection import get_db_connection
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT e.id, e.nome FROM estabelecimentos e JOIN projeto_estabelecimentos pe ON pe.estabelecimento_id = e.id WHERE pe.projeto_id = %s", (projeto_id,))
+        estabs = cur.fetchall()
+        cur.execute("SELECT COUNT(*) FROM turma_disciplinas")
+        td_count = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) FROM turma_atividades")
+        ta_count = cur.fetchone()[0]
+        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='turmas' ORDER BY column_name")
+        turma_cols = [r[0] for r in cur.fetchall()]
+        return {
+            "estabelecimentos_no_projeto": [{"id": e[0], "nome": e[1]} for e in estabs],
+            "turma_disciplinas_count": td_count,
+            "turma_atividades_count": ta_count,
+            "turmas_columns": turma_cols,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        cur.close()
+        conn.close()
+
+@app.get("/api/wiki/turma/{turma_id}/disciplinas", tags=["Wiki"])
+async def get_wiki_turma_disciplinas(turma_id: int):
+    """Lista disciplinas locais de uma turma com atividades."""
+    return wiki_service.listar_disciplinas_turma(turma_id)
+
+class TurmaDisciplinaCreate(BaseModel):
     nome: str
     descricao: str = None
-    musicas_previstas: Optional[int] = 7
-    horas_previstas: Optional[float] = None
+    musicas_previstas: int = 0
+    atividades: list = []
 
-@app.post("/api/disciplinas", tags=["Wiki"])
-async def create_disciplina(disc: DisciplinaCreate):
-    """Cria uma nova disciplina."""
-    id = curriculo_service.adicionar_disciplina(disc.nome, disc.descricao, disc.musicas_previstas, disc.horas_previstas)
-    if not id:
+@app.post("/api/wiki/turma/{turma_id}/disciplinas", tags=["Wiki"])
+async def create_wiki_disciplina(turma_id: int, payload: TurmaDisciplinaCreate):
+    """Cria disciplina local com atividades em batch."""
+    result = wiki_service.criar_disciplina_turma(
+        turma_id, payload.nome, payload.descricao,
+        payload.musicas_previstas, payload.atividades
+    )
+    if not result:
         raise HTTPException(status_code=500, detail="Erro ao criar disciplina")
-    return {"id": id, "nome": disc.nome}
+    return result
 
-@app.put("/api/disciplinas/{id}", tags=["Wiki"])
-async def update_disciplina(id: int, disc: DisciplinaCreate):
-    """Atualiza uma disciplina existente."""
-    sucesso = curriculo_service.atualizar_disciplina(id, disc.nome, disc.descricao, disc.musicas_previstas, disc.horas_previstas)
+class TurmaDisciplinaUpdate(BaseModel):
+    nome: str
+    descricao: str = None
+    musicas_previstas: int = 0
+
+@app.put("/api/wiki/disciplinas/{td_id}", tags=["Wiki"])
+async def update_wiki_disciplina(td_id: int, payload: TurmaDisciplinaUpdate):
+    """Atualiza uma disciplina local."""
+    sucesso = wiki_service.atualizar_disciplina_turma(td_id, payload.nome, payload.descricao, payload.musicas_previstas)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar disciplina")
-    return {"id": id, "nome": disc.nome}
+    return {"id": td_id, "nome": payload.nome}
 
-@app.delete("/api/disciplinas/{id}", tags=["Wiki"])
-async def delete_disciplina(id: int):
-    """Remove uma disciplina."""
-    sucesso = curriculo_service.apagar_disciplina(id)
+@app.delete("/api/wiki/disciplinas/{td_id}", tags=["Wiki"])
+async def delete_wiki_disciplina(td_id: int):
+    """Remove disciplina local (cascade apaga atividades)."""
+    sucesso = wiki_service.apagar_disciplina_turma(td_id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar disciplina")
     return {"message": "Disciplina apagada"}
 
-class AtividadeCreate(BaseModel):
-    disciplina_id: int
-    codigo: str
+class TurmaAtividadeCreate(BaseModel):
+    turma_disciplina_id: int
     nome: str
-    sessoes_padrao: int = None
-    horas_padrao: int = None
-    producoes_esperadas: int = 0
+    codigo: str = None
+    sessoes_previstas: int = 0
+    horas_por_sessao: float = 0
+    musicas_previstas: int = 0
     perfil_mentor: str = None
 
-@app.post("/api/atividades", tags=["Wiki"])
-async def create_atividade(act: AtividadeCreate):
-    """Cria uma nova atividade."""
-    id = curriculo_service.adicionar_atividade(
-        act.disciplina_id, act.codigo, act.nome, 
-        act.sessoes_padrao, act.horas_padrao, 
-        act.producoes_esperadas, act.perfil_mentor
+@app.post("/api/wiki/atividades", tags=["Wiki"])
+async def create_wiki_atividade(payload: TurmaAtividadeCreate):
+    """Cria uma atividade local."""
+    result = wiki_service.criar_atividade(
+        payload.turma_disciplina_id, payload.nome, payload.codigo,
+        payload.sessoes_previstas, payload.horas_por_sessao,
+        payload.musicas_previstas, payload.perfil_mentor
     )
-    if not id:
+    if not result:
         raise HTTPException(status_code=500, detail="Erro ao criar atividade")
-    return {"id": id}
+    return result
 
-@app.put("/api/atividades/{id}", tags=["Wiki"])
-async def update_atividade(id: int, act: AtividadeCreate):
-    """Atualiza uma atividade existente."""
-    sucesso = curriculo_service.atualizar_atividade(id, act.dict())
+class TurmaAtividadeUpdate(BaseModel):
+    nome: str
+    codigo: str = None
+    sessoes_previstas: int = 0
+    horas_por_sessao: float = 0
+    musicas_previstas: int = 0
+    perfil_mentor: str = None
+
+@app.put("/api/wiki/atividades/{uuid}", tags=["Wiki"])
+async def update_wiki_atividade(uuid: str, payload: TurmaAtividadeUpdate):
+    """Atualiza uma atividade local por UUID."""
+    sucesso = wiki_service.atualizar_atividade(uuid, payload.dict())
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar atividade")
-    return {"message": "Atividade atualizada"}
+    return {"uuid": uuid, "nome": payload.nome}
 
-@app.delete("/api/atividades/{id}", tags=["Wiki"])
-async def delete_atividade(id: int):
-    """Remove uma atividade."""
-    sucesso = curriculo_service.apagar_atividade(id)
+@app.delete("/api/wiki/atividades/{uuid}", tags=["Wiki"])
+async def delete_wiki_atividade(uuid: str):
+    """Remove uma atividade local por UUID."""
+    sucesso = wiki_service.apagar_atividade(uuid)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar atividade")
     return {"message": "Atividade removida"}

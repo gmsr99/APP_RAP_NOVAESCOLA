@@ -199,9 +199,9 @@ def listar_mentores():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, latitude, longitude FROM mentores WHERE ativo = true ORDER BY nome")
+        cur.execute("SELECT id, nome, latitude, longitude, perfil FROM mentores WHERE ativo = true ORDER BY nome")
         mentores = cur.fetchall()
-        return [{'id': m[0], 'nome': m[1], 'latitude': m[2], 'longitude': m[3]} for m in mentores]
+        return [{'id': m[0], 'nome': m[1], 'latitude': m[2], 'longitude': m[3], 'perfil': m[4]} for m in mentores]
     except Exception as e:
         print(f"❌ Erro ao listar mentores: {e}")
         return []
@@ -290,44 +290,21 @@ def apagar_turma(id: int):
 
 
 def listar_disciplinas_turma(turma_id: int):
-    """Lista as disciplinas em que uma turma está matriculada, com horas previstas."""
+    """Lista as disciplinas locais de uma turma (novo modelo v2)."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute("""
-            SELECT d.id, d.nome, d.musicas_previstas, td.horas_previstas
-            FROM disciplinas d
-            JOIN turma_disciplinas td ON td.disciplina_id = d.id
+            SELECT td.id, td.nome, td.musicas_previstas, td.descricao
+            FROM turma_disciplinas td
             WHERE td.turma_id = %s
-            ORDER BY d.nome
+            ORDER BY td.nome
         """, (turma_id,))
         rows = cur.fetchall()
-        return [{'id': r[0], 'nome': r[1], 'musicas_previstas': r[2], 'horas_previstas': float(r[3]) if r[3] is not None else None} for r in rows]
+        return [{'id': r[0], 'nome': r[1], 'musicas_previstas': r[2], 'descricao': r[3]} for r in rows]
     except Exception as e:
         print(f"❌ Erro ao listar disciplinas da turma: {e}")
         return []
-    finally:
-        if 'cur' in locals() and cur: cur.close()
-        if 'conn' in locals() and conn: conn.close()
-
-
-def definir_disciplinas_turma(turma_id: int, disciplinas: list):
-    """Substitui as disciplinas de uma turma. disciplinas = [{disciplina_id, horas_previstas}]"""
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("DELETE FROM turma_disciplinas WHERE turma_id = %s", (turma_id,))
-        for d in disciplinas:
-            cur.execute(
-                "INSERT INTO turma_disciplinas (turma_id, disciplina_id, horas_previstas) VALUES (%s, %s, %s)",
-                (turma_id, d['disciplina_id'], d.get('horas_previstas'))
-            )
-        conn.commit()
-        return True
-    except Exception as e:
-        print(f"❌ Erro ao definir disciplinas da turma: {e}")
-        if 'conn' in locals() and conn: conn.rollback()
-        return False
     finally:
         if 'cur' in locals() and cur: cur.close()
         if 'conn' in locals() and conn: conn.close()

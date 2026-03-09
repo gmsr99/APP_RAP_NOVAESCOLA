@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
+from uuid import UUID
 
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -80,6 +81,7 @@ class Aula(SQLModel, table=True):
     objetivos: Optional[str] = None
     observacoes: Optional[str] = None
     atividade_id: Optional[int] = None
+    atividade_uuid: Optional[UUID] = None
 
     criado_em: Optional[datetime] = None
     atualizado_em: Optional[datetime] = None
@@ -130,6 +132,7 @@ class AulaCreate(SQLModel):
     observacoes: Optional[str] = None
     tipo: str = "pratica_escrita"
     atividade_id: Optional[int] = None
+    atividade_uuid: Optional[str] = None
 
     objetivos: Optional[str] = None
     projeto_id: Optional[int] = None
@@ -151,6 +154,7 @@ class AulaUpdate(SQLModel):
     tipo: Optional[str] = None
     estado: Optional[str] = None
     atividade_id: Optional[int] = None
+    atividade_uuid: Optional[str] = None
 
     objetivos: Optional[str] = None
     projeto_id: Optional[int] = None
@@ -175,6 +179,7 @@ class AulaRead(SQLModel):
     objetivos: Optional[str] = None
     observacoes: Optional[str] = None
     atividade_id: Optional[int] = None
+    atividade_uuid: Optional[str] = None
 
     criado_em: Optional[datetime] = None
     atualizado_em: Optional[datetime] = None
@@ -208,6 +213,7 @@ class AulaListItem(SQLModel):
     estabelecimento_sigla: Optional[str] = None
     projeto_nome: Optional[str] = None
     atividade_id: Optional[int] = None
+    atividade_uuid: Optional[str] = None
     atividade_nome: Optional[str] = None
     disciplina_nome: Optional[str] = None
 

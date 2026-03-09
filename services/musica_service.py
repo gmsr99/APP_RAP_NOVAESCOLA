@@ -371,10 +371,10 @@ def listar_stats_instituicao(projeto_id=None):
                 e.nome as estab_nome,
                 t.id as turma_id,
                 t.nome as turma_nome,
-                td.horas_previstas,
-                d.id as disciplina_id,
-                d.nome as disciplina_nome,
-                COALESCE(d.musicas_previstas, t.musicas_previstas, 7) as musicas_previstas,
+                0 as horas_previstas,
+                td.id as disciplina_id,
+                td.nome as disciplina_nome,
+                COALESCE(td.musicas_previstas, t.musicas_previstas, 7) as musicas_previstas,
                 COALESCE(sess.horas_realizadas, 0) as horas_realizadas,
                 COALESCE(sess.sessoes_realizadas, 0) as sessoes_realizadas,
                 COALESCE(mus.em_curso, 0) as musicas_em_curso,
@@ -383,7 +383,6 @@ def listar_stats_instituicao(projeto_id=None):
             {estab_filter}
             JOIN turmas t ON t.estabelecimento_id = e.id
             LEFT JOIN turma_disciplinas td ON td.turma_id = t.id
-            LEFT JOIN disciplinas d ON d.id = td.disciplina_id
             LEFT JOIN LATERAL (
                 SELECT ROUND(SUM(COALESCE(a.duracao_minutos, 0)) / 60.0) as horas_realizadas,
                        COUNT(*) as sessoes_realizadas
@@ -391,8 +390,8 @@ def listar_stats_instituicao(projeto_id=None):
                 WHERE a.turma_id = t.id
                   AND a.estado = 'terminada'
                   AND a.is_autonomous = FALSE
-                  AND (d.id IS NULL OR a.atividade_id IN (
-                      SELECT id FROM atividades WHERE disciplina_id = d.id
+                  AND (td.id IS NULL OR a.atividade_uuid IN (
+                      SELECT uuid FROM turma_atividades WHERE turma_disciplina_id = td.id
                   ))
                   {'AND (a.projeto_id = %s OR a.projeto_id IS NULL)' if projeto_id else ''}
             ) sess ON true
@@ -402,10 +401,9 @@ def listar_stats_instituicao(projeto_id=None):
                     COUNT(*) FILTER (WHERE m.estado = 'concluído') as concluidas
                 FROM musicas m
                 WHERE m.turma_id = t.id AND m.arquivado = FALSE
-                  AND (d.id IS NULL OR m.disciplina_id = d.id)
                   {'AND (m.projeto_id = %s OR m.projeto_id IS NULL)' if projeto_id else ''}
             ) mus ON true
-            ORDER BY e.nome, t.nome, d.nome NULLS FIRST
+            ORDER BY e.nome, t.nome, td.nome NULLS FIRST
         """, params + ([projeto_id] if projeto_id else []) + ([projeto_id] if projeto_id else []))
         rows = cur.fetchall()
 

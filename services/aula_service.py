@@ -106,6 +106,33 @@ def _resolver_atividades_bulk(atividade_ids):
             conn.close()
 
 
+def _resolver_atividades_uuid_bulk(uuids):
+    """Resolve multiple atividade_uuids → {uuid_str: (atividade_nome, disciplina_nome)}."""
+    valid = [u for u in uuids if u is not None]
+    if not valid:
+        return {}
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        placeholders = ','.join(['%s'] * len(valid))
+        # Convert UUID objects to strings for query
+        str_uuids = [str(u) for u in valid]
+        cur.execute(f"""
+            SELECT ta.uuid::text, ta.nome, td.nome
+            FROM turma_atividades ta
+            JOIN turma_disciplinas td ON td.id = ta.turma_disciplina_id
+            WHERE ta.uuid IN ({placeholders})
+        """, str_uuids)
+        return {row[0]: (row[1], row[2]) for row in cur.fetchall()}
+    except Exception:
+        return {}
+    finally:
+        if 'cur' in locals() and cur:
+            cur.close()
+        if 'conn' in locals() and conn:
+            conn.close()
+
+
 def _parse_data_hora(data_hora: Union[str, datetime]) -> datetime:
     if isinstance(data_hora, datetime):
         return data_hora
@@ -149,6 +176,7 @@ def criar_aula(
     projeto_id=None,
     observacoes=None,
     atividade_id=None,
+    atividade_uuid=None,
     is_autonomous=False,
     is_realized=False,
     tipo_atividade=None,
@@ -188,6 +216,7 @@ def criar_aula(
                 objetivos=objetivos,
                 observacoes=observacoes,
                 atividade_id=atividade_id,
+                atividade_uuid=atividade_uuid,
                 is_autonomous=is_autonomous,
                 is_realized=is_realized,
                 tipo_atividade=tipo_atividade,
@@ -239,6 +268,7 @@ def criar_aulas_recorrentes(
     mentor_id=None,
     local=None,
     atividade_id=None,
+    atividade_uuid=None,
     is_autonomous=True,
     tipo="trabalho_autonomo",
 ):
@@ -272,6 +302,7 @@ def criar_aulas_recorrentes(
             projeto_id=projeto_id,
             observacoes=observacoes,
             atividade_id=atividade_id,
+            atividade_uuid=atividade_uuid,
             is_autonomous=is_autonomous,
             tipo_atividade=tipo_atividade,
             responsavel_user_id=responsavel_user_id,
@@ -302,10 +333,15 @@ def listar_aulas_por_estado(estado, limite=50):
 
         # Resolver nomes de atividade/disciplina em bulk
         atividade_map = _resolver_atividades_bulk([a.atividade_id for a, *_ in rows])
+        uuid_map = _resolver_atividades_uuid_bulk([a.atividade_uuid for a, *_ in rows])
 
         aulas: List[Dict[str, Any]] = []
         for aula, turma, estabelecimento, mentor in rows:
-            atv_nome, disc_nome = atividade_map.get(aula.atividade_id, (None, None))
+            uuid_str = str(aula.atividade_uuid) if aula.atividade_uuid else None
+            if uuid_str and uuid_str in uuid_map:
+                atv_nome, disc_nome = uuid_map[uuid_str]
+            else:
+                atv_nome, disc_nome = atividade_map.get(aula.atividade_id, (None, None))
             payload = {
                 "id": aula.id,
                 "tipo": aula.tipo,
@@ -327,6 +363,7 @@ def listar_aulas_por_estado(estado, limite=50):
                 "atualizado_em": aula.atualizado_em,
                 "projeto_nome": None,
                 "atividade_id": aula.atividade_id,
+                "atividade_uuid": uuid_str,
                 "atividade_nome": atv_nome,
                 "disciplina_nome": disc_nome,
                 "equipamento_nome": None,
@@ -622,7 +659,12 @@ def obter_aula_por_id(aula_id):
             return None
 
         aula, turma, estabelecimento, mentor, projeto = row
-        atv_nome, disc_nome = _resolver_atividade(aula.atividade_id)
+        uuid_str = str(aula.atividade_uuid) if aula.atividade_uuid else None
+        if uuid_str:
+            uuid_map = _resolver_atividades_uuid_bulk([aula.atividade_uuid])
+            atv_nome, disc_nome = uuid_map.get(uuid_str, (None, None))
+        else:
+            atv_nome, disc_nome = _resolver_atividade(aula.atividade_id)
         payload = {
             "id": aula.id,
             "tipo": aula.tipo,
@@ -645,6 +687,7 @@ def obter_aula_por_id(aula_id):
             "projeto_nome": projeto.nome if projeto else None,
             "atividade_nome": atv_nome,
             "atividade_id": aula.atividade_id,
+            "atividade_uuid": uuid_str,
             "disciplina_nome": disc_nome,
             "equipamento_nome": None,
             "is_autonomous": aula.is_autonomous,
@@ -678,10 +721,15 @@ def listar_todas_aulas(limite=100):
 
         # Resolver nomes de atividade/disciplina em bulk
         atividade_map = _resolver_atividades_bulk([a.atividade_id for a, *_ in rows])
+        uuid_map = _resolver_atividades_uuid_bulk([a.atividade_uuid for a, *_ in rows])
 
         aulas: List[Dict[str, Any]] = []
         for aula, turma, estabelecimento, mentor in rows:
-            atv_nome, disc_nome = atividade_map.get(aula.atividade_id, (None, None))
+            uuid_str = str(aula.atividade_uuid) if aula.atividade_uuid else None
+            if uuid_str and uuid_str in uuid_map:
+                atv_nome, disc_nome = uuid_map[uuid_str]
+            else:
+                atv_nome, disc_nome = atividade_map.get(aula.atividade_id, (None, None))
             payload = {
                 "id": aula.id,
                 "tipo": aula.tipo,
@@ -703,6 +751,7 @@ def listar_todas_aulas(limite=100):
                 "estabelecimento_sigla": estabelecimento.sigla if estabelecimento else None,
                 "projeto_nome": None,
                 "atividade_id": aula.atividade_id,
+                "atividade_uuid": uuid_str,
                 "atividade_nome": atv_nome,
                 "equipamento_nome": None,
                 "disciplina_nome": disc_nome,
@@ -763,6 +812,7 @@ def atualizar_aula(aula_id, dados):
                 "objetivos",
                 "observacoes",
                 "atividade_id",
+                "atividade_uuid",
                 "estado",
             }
 
@@ -961,12 +1011,15 @@ def listar_feedback_sessoes(projeto_id=None):
                 t.id as turma_id, t.nome as turma_nome,
                 e.id as estab_id, e.nome as estab_nome,
                 p.full_name as mentor_nome, m.user_id as mentor_user_id,
-                d.id as disciplina_id, d.nome as disciplina_nome
+                COALESCE(td.id, d.id) as disciplina_id,
+                COALESCE(td.nome, d.nome) as disciplina_nome
             FROM aulas a
             LEFT JOIN turmas t ON t.id = a.turma_id
             LEFT JOIN estabelecimentos e ON e.id = t.estabelecimento_id
             LEFT JOIN mentores m ON m.id = a.mentor_id
             LEFT JOIN profiles p ON p.id = m.user_id
+            LEFT JOIN turma_atividades ta ON ta.uuid = a.atividade_uuid
+            LEFT JOIN turma_disciplinas td ON td.id = ta.turma_disciplina_id
             LEFT JOIN atividades atv ON atv.id = a.atividade_id
             LEFT JOIN disciplinas d ON d.id = atv.disciplina_id
             WHERE {" AND ".join(conditions)}
