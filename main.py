@@ -147,13 +147,17 @@ async def get_todas_aulas():
 
 @app.get("/api/aulas/proximo-numero", tags=["Aulas"])
 async def get_proximo_numero_sessao(
+    atividade_uuid: Optional[str] = None,
     turma_id: Optional[int] = None,
     projeto_id: Optional[int] = None,
     is_autonomous: bool = False,
     responsavel_user_id: Optional[str] = None,
 ):
-    """Retorna o próximo número de sessão (N+1) baseado no MAX(tema numérico) na BD."""
+    """Retorna o próximo número de sessão (N+1).
+    Preferência: conta por atividade_uuid. Fallback: por turma/projeto (legado).
+    """
     proximo = aula_service.obter_proximo_numero_sessao(
+        atividade_uuid=atividade_uuid,
         turma_id=turma_id,
         projeto_id=projeto_id,
         is_autonomous=is_autonomous,

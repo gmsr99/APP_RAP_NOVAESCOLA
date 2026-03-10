@@ -354,16 +354,13 @@ const Horarios = () => {
     )
     : [];
 
-  // Pré-preencher Nº Sessão aula (N+1) via BD
-  const { data: proximoNumeroAula } = useQuery({
-    queryKey: ['proximo-numero-sessao', 'aula', formData.turma_id, selectedProjetoId],
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      if (formData.turma_id) params.set('turma_id', String(formData.turma_id));
-      if (selectedProjetoId) params.set('projeto_id', String(selectedProjetoId));
-      return api.get<{ proximo: number }>(`/api/aulas/proximo-numero?${params}`);
-    },
-    enabled: !!formData.turma_id && !editingSession,
+  // Pré-preencher Nº Sessão aula (N+1) — dispara quando atividade é selecionada
+  const { data: proximoNumeroAula, isFetching: fetchingNumeroAula } = useQuery({
+    queryKey: ['proximo-numero-sessao', 'aula', formData.atividade_uuid],
+    queryFn: () => api.get<{ proximo: number }>(
+      `/api/aulas/proximo-numero?atividade_uuid=${formData.atividade_uuid}`
+    ),
+    enabled: !!formData.atividade_uuid && !editingSession,
   });
   useEffect(() => {
     if (proximoNumeroAula?.proximo != null && !editingSession) {
@@ -371,16 +368,13 @@ const Horarios = () => {
     }
   }, [proximoNumeroAula, editingSession]);
 
-  // Pré-preencher Nº Sessão autónoma (N+1) via BD
-  const { data: proximoNumeroAutonomo } = useQuery({
-    queryKey: ['proximo-numero-sessao', 'autonomo', autonomousForm.responsavel_user_id, autonomousForm.projeto_id],
-    queryFn: async () => {
-      const params = new URLSearchParams({ is_autonomous: 'true' });
-      if (autonomousForm.responsavel_user_id) params.set('responsavel_user_id', autonomousForm.responsavel_user_id);
-      if (autonomousForm.projeto_id) params.set('projeto_id', autonomousForm.projeto_id);
-      return api.get<{ proximo: number }>(`/api/aulas/proximo-numero?${params}`);
-    },
-    enabled: !!autonomousForm.responsavel_user_id,
+  // Pré-preencher Nº Sessão autónoma (N+1) — dispara quando atividade autónoma é selecionada
+  const { data: proximoNumeroAutonomo, isFetching: fetchingNumeroAutonomo } = useQuery({
+    queryKey: ['proximo-numero-sessao', 'autonomo', autoAtividadeUuid],
+    queryFn: () => api.get<{ proximo: number }>(
+      `/api/aulas/proximo-numero?atividade_uuid=${autoAtividadeUuid}&is_autonomous=true`
+    ),
+    enabled: !!autoAtividadeUuid,
   });
   useEffect(() => {
     if (proximoNumeroAutonomo?.proximo != null) {
@@ -1046,11 +1040,20 @@ const Horarios = () => {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="nSessao">Nº Sessão</Label>
+                            <div className="flex items-center justify-between">
+                              <Label htmlFor="nSessao">Nº Sessão</Label>
+                              {fetchingNumeroAula && (
+                                <span className="text-xs text-muted-foreground animate-pulse">a calcular...</span>
+                              )}
+                              {!fetchingNumeroAula && formData.atividade_uuid && formData.tema && (
+                                <span className="text-xs text-muted-foreground">auto</span>
+                              )}
+                            </div>
                             <Input
                               id="nSessao"
                               type="number"
-                              placeholder="Ex: 1"
+                              min={1}
+                              placeholder={formData.atividade_uuid ? '...' : 'Selecione atividade'}
                               value={formData.tema || ''}
                               onChange={(e) => setFormData({ ...formData, tema: e.target.value })}
                             />
@@ -1333,10 +1336,20 @@ const Horarios = () => {
 
                         {/* Nº Sessão (auto-preenchido) */}
                         <div className="space-y-2">
-                          <Label htmlFor="auto-tema">Nº Sessão</Label>
+                          <div className="flex items-center justify-between">
+                            <Label htmlFor="auto-tema">Nº Sessão</Label>
+                            {fetchingNumeroAutonomo && (
+                              <span className="text-xs text-muted-foreground animate-pulse">a calcular...</span>
+                            )}
+                            {!fetchingNumeroAutonomo && autoAtividadeUuid && autonomousForm.tema && (
+                              <span className="text-xs text-muted-foreground">auto</span>
+                            )}
+                          </div>
                           <Input
                             id="auto-tema"
-                            placeholder="Nº Sessão"
+                            type="number"
+                            min={1}
+                            placeholder={autoAtividadeUuid ? '...' : 'Selecione atividade'}
                             value={autonomousForm.tema}
                             onChange={(e) => setAutonomousForm({ ...autonomousForm, tema: e.target.value })}
                           />

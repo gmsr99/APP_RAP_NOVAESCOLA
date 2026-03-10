@@ -84,7 +84,7 @@ def listar_hierarquia_projeto(projeto_id: int):
                                 COALESCE(SUM(a.duracao_minutos), 0) AS horas_realizadas,
                                 ta.is_autonomous
                             FROM turma_atividades ta
-                            LEFT JOIN aulas a ON a.atividade_uuid = ta.uuid
+                            LEFT JOIN aulas a ON a.atividade_uuid = ta.uuid AND a.estado = 'terminada'
                             WHERE ta.turma_disciplina_id = %s
                             GROUP BY ta.uuid, ta.nome, ta.codigo, ta.sessoes_previstas,
                                      ta.horas_por_sessao, ta.musicas_previstas, ta.perfil_mentor,
@@ -100,7 +100,7 @@ def listar_hierarquia_projeto(projeto_id: int):
                                 COALESCE(SUM(a.duracao_minutos), 0) AS horas_realizadas,
                                 FALSE AS is_autonomous
                             FROM turma_atividades ta
-                            LEFT JOIN aulas a ON a.atividade_uuid = ta.uuid
+                            LEFT JOIN aulas a ON a.atividade_uuid = ta.uuid AND a.estado = 'terminada'
                             WHERE ta.turma_disciplina_id = %s
                             GROUP BY ta.uuid, ta.nome, ta.codigo, ta.sessoes_previstas,
                                      ta.horas_por_sessao, ta.musicas_previstas, ta.perfil_mentor
@@ -119,7 +119,7 @@ def listar_hierarquia_projeto(projeto_id: int):
                             'musicas_previstas': a[5] or 0,
                             'perfil_mentor': a[6],
                             'sessoes_realizadas': a[7],
-                            'horas_realizadas': float(a[8]),
+                            'horas_realizadas': round(float(a[8]) / 60.0, 1),
                             'is_autonomous': bool(a[9]),
                         })
 

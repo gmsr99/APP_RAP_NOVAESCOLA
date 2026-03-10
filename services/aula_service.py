@@ -944,16 +944,30 @@ def contar_sessoes_user(user_id):
 
 
 def obter_proximo_numero_sessao(
+    atividade_uuid: str = None,
     turma_id: int = None,
     projeto_id: int = None,
     is_autonomous: bool = False,
     responsavel_user_id: str = None,
 ) -> int:
-    """Retorna o próximo número de sessão (MAX(tema numérico) + 1) para a combinação dada."""
+    """Retorna o próximo número de sessão (COUNT + 1) para a atividade dada.
+    Se atividade_uuid for fornecido, conta todas as aulas para esse UUID (critério preferido).
+    Caso contrário usa o fallback por turma/projeto (legado).
+    """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
+        if atividade_uuid:
+            # Critério principal: contar sessões por atividade UUID
+            cur.execute(
+                "SELECT COUNT(*) FROM aulas WHERE atividade_uuid = %s",
+                (atividade_uuid,)
+            )
+            row = cur.fetchone()
+            return (row[0] if row else 0) + 1
+
+        # Fallback legado (sem atividade selecionada)
         if is_autonomous:
             conditions = ["a.is_autonomous = TRUE", "a.tema ~ '^[0-9]+$'"]
             params = []
