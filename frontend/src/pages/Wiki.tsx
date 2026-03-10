@@ -32,6 +32,21 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -40,10 +55,13 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Book, Layers, Calendar, Edit2, Plus, Trash2, Save, Users, Building2, X, Music, Clock
+  Book, Layers, Calendar, Edit2, Plus, Trash2, Save, Users, Building2, X, Music, Clock, HelpCircle, ChevronDown, Link2Off,
 } from "lucide-react";
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -73,6 +91,7 @@ interface TurmaAtividade {
   horas_por_sessao: number;
   musicas_previstas: number;
   perfil_mentor: string;
+  is_autonomous: boolean;
   sessoes_realizadas?: number;
   horas_realizadas?: number;
 }
@@ -138,8 +157,23 @@ const Wiki = () => {
   const [editingAtividade, setEditingAtividade] = useState<TurmaAtividade | null>(null);
   const [atividadeTargetDiscId, setAtividadeTargetDiscId] = useState<number | null>(null);
   const [ativForm, setAtivForm] = useState({
-    nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', perfil_mentor: ''
+    nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', perfil_mentor: '', is_autonomous: false
   });
+
+  // Confirm dialog
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean;
+    title: string;
+    description: string;
+    onConfirm: () => void;
+  }>({ open: false, title: '', description: '', onConfirm: () => {} });
+
+  const askConfirm = (title: string, description: string, onConfirm: () => void) => {
+    setConfirmDialog({ open: true, title, description, onConfirm });
+  };
+
+  // Info cards visibility
+  const [showInfoCards, setShowInfoCards] = useState(false);
 
   // --- QUERIES ---
   interface Projeto { id: number; nome: string; descricao?: string; estado?: string; }
@@ -169,7 +203,6 @@ const Wiki = () => {
     enabled: !!selectedProjetoId,
   });
 
-  // Wiki hierarchy: Estabelecimentos > Turmas > Disciplinas > Atividades (local)
   const { data: wikiHierarquia = [] } = useQuery({
     queryKey: ['wiki-hierarquia', selectedProjetoId],
     queryFn: async () => {
@@ -185,6 +218,8 @@ const Wiki = () => {
   const unlinkedEstabs = selectedProjetoId
     ? estabelecimentos.filter(e => !filteredEstabIds.has(e.id))
     : [];
+
+  const selectedProjeto = projetos.find(p => p.id === selectedProjetoId);
 
   // --- MUTATIONS: PROJETOS ---
   const saveProjetoMutation = useMutation({
@@ -226,6 +261,7 @@ const Wiki = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projeto-estabs', selectedProjetoId] });
       queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
+      setIsEstabDialogOpen(false);
       toast.success('Estabelecimento desassociado!');
     },
   });
@@ -243,7 +279,6 @@ const Wiki = () => {
       queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
       toast.success(editingEstab ? 'Estabelecimento atualizado!' : 'Estabelecimento criado!');
       setIsEstabDialogOpen(false);
-
       if (!editingEstab && selectedProjetoId && response?.data?.id) {
         assocEstabMutation.mutate(response.data.id);
       }
@@ -256,6 +291,7 @@ const Wiki = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['estabelecimentos'] });
       queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
+      setIsEstabDialogOpen(false);
       toast.success('Estabelecimento removido!');
     }
   });
@@ -445,7 +481,7 @@ const Wiki = () => {
   const openNewAtividade = (discId: number) => {
     setEditingAtividade(null);
     setAtividadeTargetDiscId(discId);
-    setAtivForm({ nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', perfil_mentor: '' });
+    setAtivForm({ nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', perfil_mentor: '', is_autonomous: false });
     setIsAtividadeDialogOpen(true);
   };
 
@@ -459,6 +495,7 @@ const Wiki = () => {
       horas_por_sessao: String(ativ.horas_por_sessao || 0),
       musicas_previstas: String(ativ.musicas_previstas || 0),
       perfil_mentor: ativ.perfil_mentor || '',
+      is_autonomous: ativ.is_autonomous ?? false,
     });
     setIsAtividadeDialogOpen(true);
   };
@@ -472,6 +509,7 @@ const Wiki = () => {
       horas_por_sessao: parseFloat(ativForm.horas_por_sessao) || 0,
       musicas_previstas: parseInt(ativForm.musicas_previstas) || 0,
       perfil_mentor: ativForm.perfil_mentor || null,
+      is_autonomous: ativForm.is_autonomous,
     });
   };
 
@@ -482,14 +520,63 @@ const Wiki = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-display font-bold flex items-center gap-2">
-          <Book className="h-8 w-8 text-primary" />
-          Wiki / Base de Conhecimento
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Gestão de projetos, estabelecimentos, turmas, disciplinas e atividades.
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-display font-bold flex items-center gap-2">
+            <Book className="h-8 w-8 text-primary" />
+            Wiki / Base de Conhecimento
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Gestão de projetos, estabelecimentos, turmas, disciplinas e atividades.
+          </p>
+        </div>
+        {/* Info cards toggle */}
+        <Collapsible open={showInfoCards} onOpenChange={setShowInfoCards}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground shrink-0 mt-1">
+              <HelpCircle className="h-4 w-4" />
+              Ajuda
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showInfoCards ? 'rotate-180' : ''}`} />
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="grid gap-4 md:grid-cols-2 mt-3">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Layers className="h-4 w-4 text-blue-500" />
+                    Contexto e Hierarquia
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm">
+                  <div className="bg-muted p-3 rounded-md space-y-2 font-mono text-xs">
+                    <div className="flex items-center gap-2"><Badge variant="default" className="text-xs">PROJETO</Badge><span>contém</span></div>
+                    <div className="flex items-center gap-2 pl-4"><span className="text-muted-foreground">↳</span><Badge variant="secondary" className="text-xs">ESTABELECIMENTOS</Badge><span>que contêm</span></div>
+                    <div className="flex items-center gap-2 pl-8"><span className="text-muted-foreground">↳</span><Badge variant="outline" className="text-xs">TURMAS</Badge><span>que têm</span></div>
+                    <div className="flex items-center gap-2 pl-12"><span className="text-muted-foreground">↳</span><Badge variant="outline" className="border-primary text-primary text-xs">DISCIPLINAS</Badge><span>compostas por</span></div>
+                    <div className="flex items-center gap-2 pl-16"><span className="text-muted-foreground">↳</span><Badge variant="destructive" className="text-xs">ATIVIDADES (UUID)</Badge></div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Calendar className="h-4 w-4 text-green-500" />
+                    Conceito de "Sessão"
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="text-sm">
+                  <ul className="list-disc pl-4 space-y-1.5 text-muted-foreground">
+                    <li>Ocorre numa <strong className="text-foreground">Turma</strong> específica.</li>
+                    <li>Corresponde a uma <strong className="text-foreground">Atividade</strong> local da turma (UUID).</li>
+                    <li>Tem um <strong className="text-foreground">Mentor</strong> cujo perfil corresponde ao <code>perfil_mentor</code> da atividade.</li>
+                    <li>Cada turma tem as suas próprias disciplinas e atividades (modelo local).</li>
+                  </ul>
+                </CardContent>
+              </Card>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
 
       {/* Seletor de Projeto */}
@@ -516,7 +603,7 @@ const Wiki = () => {
           )}
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <Select
               value={selectedProjetoId ? String(selectedProjetoId) : undefined}
               onValueChange={(v) => setSelectedProjetoId(Number(v))}
@@ -532,7 +619,7 @@ const Wiki = () => {
             </Select>
             {selectedProjetoId && isCoordinator && (
               <>
-                <Button variant="ghost" size="icon" onClick={() => {
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
                   const p = projetos.find(x => x.id === selectedProjetoId);
                   if (p) {
                     setEditingProjeto(p);
@@ -540,14 +627,16 @@ const Wiki = () => {
                     setIsProjetoDialogOpen(true);
                   }
                 }}>
-                  <Edit2 className="h-4 w-4" />
+                  <Edit2 className="h-3.5 w-3.5" /> Editar
                 </Button>
-                <Button variant="ghost" size="icon" className="text-destructive" onClick={() => {
-                  if (confirm('Apagar este projeto?')) {
-                    deleteProjetoMutation.mutate(selectedProjetoId);
-                  }
+                <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => {
+                  askConfirm(
+                    'Apagar projeto?',
+                    `O projeto "${selectedProjeto?.nome}" será permanentemente apagado.`,
+                    () => deleteProjetoMutation.mutate(selectedProjetoId)
+                  );
                 }}>
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-3.5 w-3.5" /> Apagar
                 </Button>
               </>
             )}
@@ -555,75 +644,15 @@ const Wiki = () => {
         </CardContent>
       </Card>
 
-      {/* Info Cards */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Layers className="h-5 w-5 text-blue-500" />
-              Contexto e Hierarquia
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <p className="text-muted-foreground">
-              A estrutura lógica segue uma hierarquia por turma:
-            </p>
-            <div className="bg-muted p-4 rounded-md space-y-2 font-mono text-sm">
-              <div className="flex items-center gap-2">
-                <Badge variant="default">PROJETO</Badge>
-                <span>contém</span>
-              </div>
-              <div className="flex items-center gap-2 pl-4">
-                <span className="text-muted-foreground">&#8627;</span>
-                <Badge variant="secondary">ESTABELECIMENTOS</Badge>
-                <span>que contêm</span>
-              </div>
-              <div className="flex items-center gap-2 pl-8">
-                <span className="text-muted-foreground">&#8627;</span>
-                <Badge variant="outline">TURMAS</Badge>
-                <span>que têm</span>
-              </div>
-              <div className="flex items-center gap-2 pl-12">
-                <span className="text-muted-foreground">&#8627;</span>
-                <Badge variant="outline" className="border-primary text-primary">DISCIPLINAS (locais)</Badge>
-                <span>compostas por</span>
-              </div>
-              <div className="flex items-center gap-2 pl-16">
-                <span className="text-muted-foreground">&#8627;</span>
-                <Badge variant="destructive">ATIVIDADES (UUID)</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-green-500" />
-              Conceito de "Sessão"
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm">
-            <p className="text-muted-foreground">
-              A unidade fundamental de agendamento é a <strong>SESSÃO</strong>.
-            </p>
-            <ul className="list-disc pl-4 space-y-2">
-              <li>Ocorre numa <strong>Turma</strong> específica.</li>
-              <li>Corresponde a uma <strong>Atividade</strong> local da turma (UUID).</li>
-              <li>Tem um <strong>Mentor</strong> associado cujo perfil corresponde ao <code>perfil_mentor</code> da atividade.</li>
-              <li>Cada turma tem as suas próprias disciplinas e atividades (modelo local).</li>
-            </ul>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* HIERARQUIA UNIFICADA: Estabelecimentos > Turmas > Disciplinas > Atividades */}
+      {/* HIERARQUIA UNIFICADA */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
           <div>
             <CardTitle className="flex items-center gap-2">
               <Building2 className="h-5 w-5 text-indigo-500" />
-              Estabelecimentos, Turmas e Atividades
+              {selectedProjeto
+                ? `Hierarquia — ${selectedProjeto.nome}`
+                : 'Estabelecimentos, Turmas e Atividades'}
             </CardTitle>
             <CardDescription>
               Hierarquia completa do projeto selecionado.
@@ -661,7 +690,15 @@ const Wiki = () => {
               Seleciona um projeto acima para ver a hierarquia completa.
             </p>
           ) : wikiHierarquia.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">Nenhum estabelecimento associado ao projeto.</p>
+            <div className="py-10 text-center space-y-3">
+              <Building2 className="h-10 w-10 text-muted-foreground/30 mx-auto" />
+              <p className="text-sm text-muted-foreground">Nenhum estabelecimento associado ao projeto.</p>
+              {isCoordinator && (
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={openNewEstab}>
+                  <Plus className="h-3.5 w-3.5" /> Adicionar Estabelecimento
+                </Button>
+              )}
+            </div>
           ) : (
             <Accordion type="multiple" className="w-full">
               {wikiHierarquia.map((estab) => (
@@ -692,89 +729,115 @@ const Wiki = () => {
                     )}
                   </div>
                   <AccordionContent>
-                      <div className="pl-4 space-y-2">
-                        {estab.turmas.length === 0 ? (
-                          <p className="text-sm text-muted-foreground italic py-2">Nenhuma turma registada.</p>
-                        ) : (
-                          <Accordion type="multiple" className="w-full">
-                            {estab.turmas.map((turma) => (
-                              <AccordionItem key={`turma-${turma.id}`} value={`turma-${turma.id}`}>
-                                <div className="flex items-center">
-                                  <AccordionTrigger className="hover:no-underline flex-1">
-                                    <div className="flex items-center gap-3">
-                                      <Users className="h-4 w-4 text-muted-foreground" />
-                                      <span className="font-medium">{turma.nome}</span>
-                                      <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
-                                        {turma.disciplinas.length} disciplinas
-                                      </span>
-                                    </div>
-                                  </AccordionTrigger>
-                                  {isCoordinator && (
-                                    <div className="flex items-center gap-1 ml-1 shrink-0">
-                                      <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openEditTurma(turma, estab.id)}>
-                                        <Edit2 className="h-3 w-3" /> Editar Turma
-                                      </Button>
-                                      <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openNewDisciplina(turma.id)}>
-                                        <Plus className="h-3 w-3" /> Nova Disciplina
-                                      </Button>
-                                    </div>
-                                  )}
-                                </div>
-                                <AccordionContent>
-                                  <div className="pl-4 space-y-3">
-                                    {/* Disciplinas da turma */}
-                                    {turma.disciplinas.length === 0 ? (
+                    <div className="border-l-2 border-primary/20 pl-4 ml-2 space-y-2">
+                      {estab.turmas.length === 0 ? (
+                        <div className="py-3 flex items-center gap-3">
+                          <p className="text-sm text-muted-foreground italic">Nenhuma turma registada.</p>
+                          {isCoordinator && (
+                            <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openNewTurma(estab.id)}>
+                              <Plus className="h-3 w-3" /> Nova Turma
+                            </Button>
+                          )}
+                        </div>
+                      ) : (
+                        <Accordion type="multiple" className="w-full">
+                          {estab.turmas.map((turma) => (
+                            <AccordionItem key={`turma-${turma.id}`} value={`turma-${turma.id}`}>
+                              <div className="flex items-center">
+                                <AccordionTrigger className="hover:no-underline flex-1">
+                                  <div className="flex items-center gap-3">
+                                    <Users className="h-4 w-4 text-muted-foreground" />
+                                    <span className="font-medium">{turma.nome}</span>
+                                    <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                                      {turma.disciplinas.length} disciplinas
+                                    </span>
+                                  </div>
+                                </AccordionTrigger>
+                                {isCoordinator && (
+                                  <div className="flex items-center gap-1 ml-1 shrink-0">
+                                    <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openEditTurma(turma, estab.id)}>
+                                      <Edit2 className="h-3 w-3" /> Editar Turma
+                                    </Button>
+                                    <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openNewDisciplina(turma.id)}>
+                                      <Plus className="h-3 w-3" /> Nova Disciplina
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                              <AccordionContent>
+                                <div className="border-l-2 border-blue-400/25 pl-4 ml-2 space-y-3">
+                                  {turma.disciplinas.length === 0 ? (
+                                    <div className="py-3 flex items-center gap-3">
                                       <p className="text-sm text-muted-foreground italic">Nenhuma disciplina atribuída.</p>
-                                    ) : (
-                                      <Accordion type="multiple" className="w-full">
-                                        {turma.disciplinas.map((disc) => (
-                                          <AccordionItem key={`disc-${disc.id}`} value={`disc-${disc.id}`}>
-                                            <div className="flex items-center">
-                                              <AccordionTrigger className="hover:no-underline py-2 flex-1">
-                                                <div className="flex items-center gap-2">
-                                                  <Book className="h-4 w-4 text-purple-500" />
-                                                  <span className="font-medium">{disc.nome}</span>
-                                                  {disc.musicas_previstas > 0 && (
-                                                    <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                                      <Music className="h-3 w-3" /> {disc.musicas_previstas}
-                                                    </span>
-                                                  )}
-                                                  <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
-                                                    {disc.atividades.length} atividades
+                                      {isCoordinator && (
+                                        <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openNewDisciplina(turma.id)}>
+                                          <Plus className="h-3 w-3" /> Nova Disciplina
+                                        </Button>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <Accordion type="multiple" className="w-full">
+                                      {turma.disciplinas.map((disc) => (
+                                        <AccordionItem key={`disc-${disc.id}`} value={`disc-${disc.id}`}>
+                                          <div className="flex items-center">
+                                            <AccordionTrigger className="hover:no-underline py-2 flex-1">
+                                              <div className="flex items-center gap-2">
+                                                <Book className="h-4 w-4 text-purple-500" />
+                                                <span className="font-medium">{disc.nome}</span>
+                                                {disc.musicas_previstas > 0 && (
+                                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                                    <Music className="h-3 w-3" /> {disc.musicas_previstas}
                                                   </span>
-                                                </div>
-                                              </AccordionTrigger>
-                                              {isCoordinator && (
-                                                <div className="flex items-center gap-1 ml-1 shrink-0">
-                                                  <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openEditDisciplina(disc)}>
-                                                    <Edit2 className="h-3 w-3" /> Editar Disciplina
-                                                  </Button>
-                                                  <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openNewAtividade(disc.id)}>
-                                                    <Plus className="h-3 w-3" /> Nova Atividade
-                                                  </Button>
-                                                </div>
-                                              )}
-                                            </div>
-                                            <AccordionContent>
-                                              <div className="pl-2">
-                                                {disc.atividades.length === 0 ? (
+                                                )}
+                                                <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
+                                                  {disc.atividades.length} atividades
+                                                </span>
+                                              </div>
+                                            </AccordionTrigger>
+                                            {isCoordinator && (
+                                              <div className="flex items-center gap-1 ml-1 shrink-0">
+                                                <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openEditDisciplina(disc)}>
+                                                  <Edit2 className="h-3 w-3" /> Editar Disciplina
+                                                </Button>
+                                                <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openNewAtividade(disc.id)}>
+                                                  <Plus className="h-3 w-3" /> Nova Atividade
+                                                </Button>
+                                              </div>
+                                            )}
+                                          </div>
+                                          <AccordionContent>
+                                            <div className="border-l-2 border-purple-400/25 pl-4 ml-2">
+                                              {disc.atividades.length === 0 ? (
+                                                <div className="py-3 flex items-center gap-3">
                                                   <p className="text-sm text-muted-foreground italic">Nenhuma atividade.</p>
-                                                ) : (
-                                                  <Table>
-                                                    <TableHeader>
-                                                      <TableRow>
-                                                        <TableHead>Código</TableHead>
-                                                        <TableHead>Atividade</TableHead>
-                                                        <TableHead className="text-center">Sessões Prev.</TableHead>
-                                                        <TableHead className="text-center">H/Sessão</TableHead>
-                                                        <TableHead className="text-center">Músicas</TableHead>
-                                                        <TableHead>Perfil</TableHead>
-                                                        <TableHead className="text-center">Realizadas</TableHead>
-                                                        {isCoordinator && <TableHead className="text-right">Ações</TableHead>}
-                                                      </TableRow>
-                                                    </TableHeader>
-                                                    <TableBody>
-                                                      {disc.atividades.map((ativ) => (
+                                                  {isCoordinator && (
+                                                    <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openNewAtividade(disc.id)}>
+                                                      <Plus className="h-3 w-3" /> Nova Atividade
+                                                    </Button>
+                                                  )}
+                                                </div>
+                                              ) : (
+                                                <Table>
+                                                  <TableHeader>
+                                                    <TableRow>
+                                                      <TableHead>Código</TableHead>
+                                                      <TableHead>Atividade</TableHead>
+                                                      <TableHead className="text-center">Sessões Prev.</TableHead>
+                                                      <TableHead className="text-center">H/Sessão</TableHead>
+                                                      <TableHead className="text-center">Músicas</TableHead>
+                                                      <TableHead>Perfil</TableHead>
+                                                      <TableHead>Progresso</TableHead>
+                                                      {isCoordinator && <TableHead className="text-right">Ações</TableHead>}
+                                                    </TableRow>
+                                                  </TableHeader>
+                                                  <TableBody>
+                                                    {disc.atividades.map((ativ) => {
+                                                      const sessRealizadas = ativ.sessoes_realizadas ?? 0;
+                                                      const sessPrevistas = ativ.sessoes_previstas || 0;
+                                                      const progressPct = sessPrevistas > 0
+                                                        ? Math.min(100, Math.round((sessRealizadas / sessPrevistas) * 100))
+                                                        : 0;
+                                                      return (
                                                         <TableRow key={ativ.uuid}>
                                                           <TableCell className="font-mono font-bold text-xs">{ativ.codigo || '—'}</TableCell>
                                                           <TableCell>{ativ.nome}</TableCell>
@@ -782,20 +845,31 @@ const Wiki = () => {
                                                           <TableCell className="text-center">{ativ.horas_por_sessao || '—'}</TableCell>
                                                           <TableCell className="text-center">{ativ.musicas_previstas || '—'}</TableCell>
                                                           <TableCell>
-                                                            {ativ.perfil_mentor ? (
-                                                              <Badge variant="outline">{ativ.perfil_mentor}</Badge>
-                                                            ) : '—'}
+                                                            <div className="flex flex-col gap-1">
+                                                              {ativ.perfil_mentor ? (
+                                                                <Badge variant="outline">{ativ.perfil_mentor}</Badge>
+                                                              ) : null}
+                                                              {ativ.is_autonomous && (
+                                                                <Badge variant="secondary" className="text-xs w-fit">TA</Badge>
+                                                              )}
+                                                              {!ativ.perfil_mentor && !ativ.is_autonomous && '—'}
+                                                            </div>
                                                           </TableCell>
-                                                          <TableCell className="text-center">
-                                                            <div className="flex items-center justify-center gap-2 text-xs">
-                                                              <span className="flex items-center gap-1" title="Sessões realizadas">
-                                                                <Calendar className="h-3 w-3" />
-                                                                {ativ.sessoes_realizadas ?? 0}/{ativ.sessoes_previstas || '?'}
-                                                              </span>
-                                                              <span className="flex items-center gap-1" title="Horas realizadas">
-                                                                <Clock className="h-3 w-3" />
-                                                                {ativ.horas_realizadas ?? 0}h
-                                                              </span>
+                                                          <TableCell>
+                                                            <div className="space-y-1 min-w-[110px]">
+                                                              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                                                                <span className="flex items-center gap-1">
+                                                                  <Calendar className="h-3 w-3" />
+                                                                  {sessRealizadas}/{sessPrevistas || '?'}
+                                                                </span>
+                                                                <span className="flex items-center gap-1">
+                                                                  <Clock className="h-3 w-3" />
+                                                                  {ativ.horas_realizadas ?? 0}h
+                                                                </span>
+                                                              </div>
+                                                              {sessPrevistas > 0 && (
+                                                                <Progress value={progressPct} className="h-1.5" />
+                                                              )}
                                                             </div>
                                                           </TableCell>
                                                           {isCoordinator && (
@@ -806,30 +880,31 @@ const Wiki = () => {
                                                             </TableCell>
                                                           )}
                                                         </TableRow>
-                                                      ))}
-                                                    </TableBody>
-                                                  </Table>
-                                                )}
-                                              </div>
-                                            </AccordionContent>
-                                          </AccordionItem>
-                                        ))}
-                                      </Accordion>
-                                    )}
-                                  </div>
-                                </AccordionContent>
-                              </AccordionItem>
-                            ))}
-                          </Accordion>
-                        )}
-                      </div>
-                    </AccordionContent>
-                  </AccordionItem>
-                ))}
-              </Accordion>
-            )}
-          </CardContent>
-        </Card>
+                                                      );
+                                                    })}
+                                                  </TableBody>
+                                                </Table>
+                                              )}
+                                            </div>
+                                          </AccordionContent>
+                                        </AccordionItem>
+                                      ))}
+                                    </Accordion>
+                                  )}
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          ))}
+                        </Accordion>
+                      )}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          )}
+        </CardContent>
+      </Card>
 
       {/* DIALOG FOR PROJETOS */}
       <Dialog open={isProjetoDialogOpen} onOpenChange={setIsProjetoDialogOpen}>
@@ -896,14 +971,28 @@ const Wiki = () => {
           </div>
           <DialogFooter className="flex sm:justify-between w-full">
             {editingEstab ? (
-              <Button variant="destructive" onClick={() => {
-                if (confirm('Apagar este estabelecimento?')) {
-                  deleteEstabMutation.mutate(editingEstab.id);
-                  setIsEstabDialogOpen(false);
-                }
-              }}>
-                <Trash2 className="h-4 w-4 mr-2" /> Apagar
-              </Button>
+              <div className="flex gap-2">
+                {selectedProjetoId && (
+                  <Button variant="outline" onClick={() => {
+                    askConfirm(
+                      'Desassociar estabelecimento?',
+                      `"${editingEstab.nome}" será removido deste projeto, mas não apagado da base de dados.`,
+                      () => desassocEstabMutation.mutate(editingEstab.id)
+                    );
+                  }}>
+                    <Link2Off className="h-4 w-4 mr-2" /> Desassociar
+                  </Button>
+                )}
+                <Button variant="destructive" onClick={() => {
+                  askConfirm(
+                    'Apagar estabelecimento?',
+                    `"${editingEstab.nome}" será permanentemente apagado, incluindo as suas turmas.`,
+                    () => deleteEstabMutation.mutate(editingEstab.id)
+                  );
+                }}>
+                  <Trash2 className="h-4 w-4 mr-2" /> Apagar
+                </Button>
+              </div>
             ) : <div />}
             <Button onClick={() => saveEstabMutation.mutate(estabForm)}>
               <Save className="h-4 w-4 mr-2" /> Gravar
@@ -939,7 +1028,6 @@ const Wiki = () => {
               <Label htmlFor="turma-name">Nome da Turma</Label>
               <Input id="turma-name" placeholder="Ex: 12.º B" value={newTurmaName} onChange={(e) => setNewTurmaName(e.target.value)} />
             </div>
-
             {/* Lista de Alunos */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -970,10 +1058,11 @@ const Wiki = () => {
           <DialogFooter className="flex sm:justify-between w-full">
             {editingTurma ? (
               <Button variant="destructive" onClick={() => {
-                if (confirm('Apagar esta turma?')) {
-                  deleteTurmaMutation.mutate(editingTurma.id);
-                  setIsTurmaDialogOpen(false);
-                }
+                askConfirm(
+                  'Apagar turma?',
+                  `A turma "${editingTurma.nome}" e todas as suas disciplinas e atividades serão permanentemente apagadas.`,
+                  () => deleteTurmaMutation.mutate(editingTurma.id)
+                );
               }}>
                 <Trash2 className="h-4 w-4 mr-2" /> Apagar
               </Button>
@@ -1005,9 +1094,14 @@ const Wiki = () => {
             </div>
             <div className="grid gap-2">
               <Label>Descrição (opcional)</Label>
-              <Input value={discForm.descricao} onChange={(e) => setDiscForm({ ...discForm, descricao: e.target.value })} placeholder="Breve descrição" />
+              <Textarea
+                value={discForm.descricao}
+                onChange={(e) => setDiscForm({ ...discForm, descricao: e.target.value })}
+                placeholder="Breve descrição"
+                className="resize-none"
+                rows={2}
+              />
             </div>
-
             {/* Batch atividades (só para nova disciplina) */}
             {!editingDisciplina && (
               <div className="space-y-3 border-t pt-4">
@@ -1072,9 +1166,11 @@ const Wiki = () => {
           <DialogFooter className="flex sm:justify-between w-full">
             {editingDisciplina ? (
               <Button variant="destructive" onClick={() => {
-                if (confirm('Apagar esta disciplina e todas as suas atividades?')) {
-                  deleteDisciplinaMutation.mutate(editingDisciplina.id);
-                }
+                askConfirm(
+                  'Apagar disciplina?',
+                  `"${editingDisciplina.nome}" e todas as suas atividades serão permanentemente apagadas.`,
+                  () => deleteDisciplinaMutation.mutate(editingDisciplina.id)
+                );
               }}>
                 <Trash2 className="h-4 w-4 mr-2" /> Apagar
               </Button>
@@ -1117,13 +1213,26 @@ const Wiki = () => {
               <Label>Perfil Mentor</Label>
               <Input value={ativForm.perfil_mentor} onChange={(e) => setAtivForm({ ...ativForm, perfil_mentor: e.target.value })} placeholder="Rapper, Produtor..." />
             </div>
+            <div className="md:col-span-2 flex items-center gap-3 rounded-md border p-3 bg-muted/30">
+              <Checkbox
+                id="ativ-autonomous"
+                checked={ativForm.is_autonomous}
+                onCheckedChange={(checked) => setAtivForm({ ...ativForm, is_autonomous: !!checked })}
+              />
+              <div>
+                <Label htmlFor="ativ-autonomous" className="cursor-pointer font-medium">Trabalho Autónomo</Label>
+                <p className="text-xs text-muted-foreground">Esta atividade aparece no separador "Trabalho Autónomo" em /Horários</p>
+              </div>
+            </div>
           </div>
           <DialogFooter className="flex sm:justify-between w-full">
             {editingAtividade ? (
               <Button variant="destructive" onClick={() => {
-                if (confirm('Apagar esta atividade?')) {
-                  deleteAtividadeMutation.mutate(editingAtividade.uuid);
-                }
+                askConfirm(
+                  'Apagar atividade?',
+                  `"${editingAtividade.nome}" será permanentemente apagada.`,
+                  () => deleteAtividadeMutation.mutate(editingAtividade.uuid)
+                );
               }}>
                 <Trash2 className="h-4 w-4 mr-2" /> Apagar
               </Button>
@@ -1134,6 +1243,28 @@ const Wiki = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* SHARED CONFIRM DIALOG */}
+      <AlertDialog open={confirmDialog.open} onOpenChange={(open) => setConfirmDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmDialog.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmDialog.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                confirmDialog.onConfirm();
+                setConfirmDialog(prev => ({ ...prev, open: false }));
+              }}
+            >
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

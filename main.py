@@ -1169,6 +1169,7 @@ class TurmaAtividadeCreate(BaseModel):
     horas_por_sessao: float = 0
     musicas_previstas: int = 0
     perfil_mentor: str = None
+    is_autonomous: bool = False
 
 @app.post("/api/wiki/atividades", tags=["Wiki"])
 async def create_wiki_atividade(payload: TurmaAtividadeCreate):
@@ -1176,7 +1177,7 @@ async def create_wiki_atividade(payload: TurmaAtividadeCreate):
     result = wiki_service.criar_atividade(
         payload.turma_disciplina_id, payload.nome, payload.codigo,
         payload.sessoes_previstas, payload.horas_por_sessao,
-        payload.musicas_previstas, payload.perfil_mentor
+        payload.musicas_previstas, payload.perfil_mentor, payload.is_autonomous
     )
     if not result:
         raise HTTPException(status_code=500, detail="Erro ao criar atividade")
@@ -1189,6 +1190,7 @@ class TurmaAtividadeUpdate(BaseModel):
     horas_por_sessao: float = 0
     musicas_previstas: int = 0
     perfil_mentor: str = None
+    is_autonomous: bool = False
 
 @app.put("/api/wiki/atividades/{uuid}", tags=["Wiki"])
 async def update_wiki_atividade(uuid: str, payload: TurmaAtividadeUpdate):

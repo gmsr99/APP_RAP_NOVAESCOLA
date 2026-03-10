@@ -233,10 +233,12 @@ const Horarios = () => {
     enabled: !!selectedProjetoId,
   });
 
-  // Turmas filtradas pelo estabelecimento selecionado
-  const filteredTurmas = selectedEstabId
-    ? turmas?.filter(t => t.estabelecimento_id === selectedEstabId)
-    : turmas;
+  // Turmas filtradas pelo estabelecimento selecionado (reactive query)
+  const { data: filteredTurmas = [] } = useQuery({
+    queryKey: ['turmas', 'by-estab', selectedEstabId],
+    queryFn: () => api.get<Turma[]>(`/api/turmas?estabelecimento_id=${selectedEstabId}`),
+    enabled: !!selectedEstabId,
+  });
 
   const [formData, setFormData] = useState<Partial<AulaCreate> & { repetir_semanalmente?: boolean; semanas?: number }>({
     duracao_minutos: 120,
@@ -260,35 +262,36 @@ const Horarios = () => {
     observacoes: '',
   });
 
-  // ── Helper: filtra atividades por tipo de trabalho (TP/TA) e role do user ──
+  // ── Helper: filtra atividades por role do user (via sufixo do código: R/P/C) ──
   function canRoleDoActivity(codigo: string, role: string | null | undefined): boolean {
-    if (!codigo || !role) return false;
+    if (!role) return true; // sem role definido: mostra tudo
+    if (!codigo) return true;
     const suffix = codigo.slice(-1); // último caracter: R, P ou C
     const r = role.toLowerCase();
     if (suffix === 'C') return r === 'coordenador';
     if (suffix === 'P') return r === 'produtor';
     if (suffix === 'R') return ['mentor', 'coordenador', 'mentor_produtor'].includes(r);
-    return false;
+    return true; // código sem sufixo reconhecido: mostra para todos
   }
 
-  function filterActivitiesByCodeAndRole(activities: any[], codeType: '_TP_' | '_TA_', role: string | null | undefined): any[] {
-    return activities.filter((a: any) => a.codigo?.includes(codeType) && canRoleDoActivity(a.codigo, role));
+  function filterActivitiesByType(activities: any[], isAutonomous: boolean, role: string | null | undefined): any[] {
+    return activities.filter((a: any) => (!!a.is_autonomous) === isAutonomous && canRoleDoActivity(a.codigo, role));
   }
 
   // Disciplinas locais da turma selecionada (com atividades UUID)
   const { data: turmaDisciplinas = [] } = useQuery({
     queryKey: ['wiki-turma-disciplinas', formData.turma_id],
-    queryFn: async () => (await api.get(`/api/wiki/turma/${formData.turma_id}/disciplinas`)).data,
+    queryFn: () => api.get(`/api/wiki/turma/${formData.turma_id}/disciplinas`),
     enabled: !!formData.turma_id,
   });
 
   // Stats por instituição (para pré-preencher Nº Sessão)
   const { data: statsInstituicao } = useQuery({
     queryKey: ['producao-stats-inst', selectedProjetoId],
-    queryFn: async () => (await api.get(`/api/producao/stats/instituicao?projeto_id=${selectedProjetoId}`)).data as {
+    queryFn: () => api.get<{
       estabelecimento_id: number; estabelecimento_nome: string;
       turmas: { turma_id: number; disciplina_id: number | null; sessoes_realizadas: number }[];
-    }[],
+    }[]>(`/api/producao/stats/instituicao?projeto_id=${selectedProjetoId}`),
     enabled: !!selectedProjetoId,
   });
 
@@ -300,27 +303,41 @@ const Horarios = () => {
     ? mentoresApi?.find(m => m.id === formData.mentor_id)?.perfil ?? null
     : null;
 
-  // Filtra atividades: tab Aula = _TP_ + role do mentor (agora usa turmaDisciplinas locais)
+  // Filtra atividades: tab Aula = is_autonomous=false + role do mentor
   const availableActivities = selectedDisciplinaId
-    ? filterActivitiesByCodeAndRole(
+    ? filterActivitiesByType(
       turmaDisciplinas?.find((d: any) => d.id === selectedDisciplinaId)?.atividades || [],
-      '_TP_',
+      false,
       selectedMentorPerfil,
     )
     : [];
 
-  // ── Estado para tab Trabalho Autónomo: disciplina + atividade ──
+  // ── Estado para tab Trabalho Autónomo: estabelecimento + turma + disciplina + atividade ──
+  const [autoEstabId, setAutoEstabId] = useState<number | null>(null);
+  const [autoTurmaId, setAutoTurmaId] = useState<number | null>(null);
   const [autoDisciplinaId, setAutoDisciplinaId] = useState<number | null>(null);
   const [autoAtividadeUuid, setAutoAtividadeUuid] = useState<string | null>(null);
 
-  // Disciplinas locais para turma autónoma (pode não ter turma — usa todas do projeto)
-  const { data: autoTurmaDisciplinas = [] } = useQuery({
-    queryKey: ['wiki-turma-disciplinas-auto', autonomousForm.responsavel_user_id],
-    queryFn: async () => {
-      // Para trabalho autónomo, precisamos de disciplinas. Usamos as do primeiro turma do projeto se houver.
-      return [] as any[];
-    },
-    enabled: false, // disabled — usamos turmaDisciplinas da turma selecionada se existir
+  // Estabelecimentos do projeto autónomo
+  const autoProjetoId = autonomousForm.projeto_id ? Number(autonomousForm.projeto_id) : null;
+  const { data: autoProjetoEstabs } = useQuery({
+    queryKey: ['projeto-estabs', autoProjetoId],
+    queryFn: () => api.get<Estabelecimento[]>(`/api/projetos/${autoProjetoId}/estabelecimentos`),
+    enabled: !!autoProjetoId,
+  });
+
+  // Turmas do estabelecimento autónomo
+  const { data: autoFilteredTurmas = [] } = useQuery({
+    queryKey: ['turmas', 'by-estab', autoEstabId],
+    queryFn: () => api.get<Turma[]>(`/api/turmas?estabelecimento_id=${autoEstabId}`),
+    enabled: !!autoEstabId,
+  });
+
+  // Disciplinas da turma autónoma
+  const { data: autoDisciplinasList = [] } = useQuery({
+    queryKey: ['wiki-turma-disciplinas', autoTurmaId],
+    queryFn: () => api.get(`/api/wiki/turma/${autoTurmaId}/disciplinas`),
+    enabled: !!autoTurmaId,
   });
 
   // Role do membro selecionado (tab Trabalho Autónomo)
@@ -328,14 +345,11 @@ const Horarios = () => {
     ? equipa?.find(p => p.id === autonomousForm.responsavel_user_id)?.role ?? null
     : null;
 
-  // Disciplinas para autónomo: usar turmaDisciplinas (mesmo turma do form principal se existir)
-  const autoDisciplinasList = turmaDisciplinas;
-
-  // Filtra atividades: tab Autónomo = _TA_ + role do membro
+  // Filtra atividades: tab Autónomo = is_autonomous=true + role do membro
   const autoAvailableActivities = autoDisciplinaId
-    ? filterActivitiesByCodeAndRole(
+    ? filterActivitiesByType(
       autoDisciplinasList?.find((d: any) => d.id === autoDisciplinaId)?.atividades || [],
-      '_TA_',
+      true,
       selectedAutoRole,
     )
     : [];
@@ -886,7 +900,7 @@ const Horarios = () => {
                         <div className="space-y-2">
                           <Label htmlFor="projeto">Projeto</Label>
                           <Select
-                            value={selectedProjetoId ? String(selectedProjetoId) : undefined}
+                            value={selectedProjetoId ? String(selectedProjetoId) : ''}
                             onValueChange={(v) => {
                               setSelectedProjetoId(Number(v));
                               setSelectedEstabId(null);
@@ -909,7 +923,7 @@ const Horarios = () => {
                             <Label htmlFor="estabelecimento">Estabelecimento</Label>
                             <Select
                               disabled={!selectedProjetoId}
-                              value={selectedEstabId ? String(selectedEstabId) : undefined}
+                              value={selectedEstabId ? String(selectedEstabId) : ''}
                               onValueChange={(v) => {
                                 setSelectedEstabId(Number(v));
                                 setFormData({ ...formData, turma_id: undefined });
@@ -929,7 +943,7 @@ const Horarios = () => {
                             <Label htmlFor="turma">Turma</Label>
                             <Select
                               disabled={!selectedEstabId}
-                              value={formData.turma_id ? String(formData.turma_id) : undefined}
+                              value={formData.turma_id ? String(formData.turma_id) : ''}
                               onValueChange={(v) => {
                                 setFormData({ ...formData, turma_id: Number(v), atividade_id: null, atividade_uuid: null });
                                 setSelectedDisciplinaId(null);
@@ -963,7 +977,7 @@ const Horarios = () => {
                         <div className="space-y-2">
                           <Label htmlFor="mentor">Mentor</Label>
                           <Select
-                            value={formData.mentor_id ? String(formData.mentor_id) : undefined}
+                            value={formData.mentor_id ? String(formData.mentor_id) : ''}
                             onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v), atividade_id: null, atividade_uuid: null })}
                           >
                             <SelectTrigger id="mentor">
@@ -987,7 +1001,7 @@ const Horarios = () => {
                           <div className="space-y-2">
                             <Label htmlFor="disciplina">Disciplina</Label>
                             <Select
-                              value={selectedDisciplinaId ? String(selectedDisciplinaId) : undefined}
+                              value={selectedDisciplinaId ? String(selectedDisciplinaId) : ''}
                               onValueChange={(v) => {
                                 setSelectedDisciplinaId(Number(v));
                                 setFormData({ ...formData, atividade_id: null, atividade_uuid: null });
@@ -1007,7 +1021,7 @@ const Horarios = () => {
                             <Label htmlFor="atividade">Atividade</Label>
                             <Select
                               disabled={!selectedDisciplinaId || !formData.mentor_id}
-                              value={formData.atividade_uuid || undefined}
+                              value={formData.atividade_uuid || ''}
                               onValueChange={(v) => setFormData({ ...formData, atividade_uuid: v, atividade_id: null })}
                             >
                               <SelectTrigger id="atividade">
@@ -1151,7 +1165,13 @@ const Horarios = () => {
                           <Label htmlFor="auto-projeto">Projeto <span className="text-destructive">*</span></Label>
                           <Select
                             value={autonomousForm.projeto_id || 'none'}
-                            onValueChange={(v) => setAutonomousForm({ ...autonomousForm, projeto_id: v === 'none' ? '' : v })}
+                            onValueChange={(v) => {
+                              setAutonomousForm({ ...autonomousForm, projeto_id: v === 'none' ? '' : v });
+                              setAutoEstabId(null);
+                              setAutoTurmaId(null);
+                              setAutoDisciplinaId(null);
+                              setAutoAtividadeUuid(null);
+                            }}
                           >
                             <SelectTrigger id="auto-projeto">
                               <SelectValue placeholder="Selecionar projeto" />
@@ -1188,6 +1208,53 @@ const Horarios = () => {
                               ))}
                             </SelectContent>
                           </Select>
+                        </div>
+
+                        {/* Estabelecimento + Turma (cascading) */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="auto-estab">Estabelecimento</Label>
+                            <Select
+                              disabled={!autoProjetoId}
+                              value={autoEstabId ? String(autoEstabId) : ''}
+                              onValueChange={(v) => {
+                                setAutoEstabId(Number(v));
+                                setAutoTurmaId(null);
+                                setAutoDisciplinaId(null);
+                                setAutoAtividadeUuid(null);
+                              }}
+                            >
+                              <SelectTrigger id="auto-estab">
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover">
+                                {autoProjetoEstabs?.map((e) => (
+                                  <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="auto-turma">Turma</Label>
+                            <Select
+                              disabled={!autoEstabId}
+                              value={autoTurmaId ? String(autoTurmaId) : ''}
+                              onValueChange={(v) => {
+                                setAutoTurmaId(Number(v));
+                                setAutoDisciplinaId(null);
+                                setAutoAtividadeUuid(null);
+                              }}
+                            >
+                              <SelectTrigger id="auto-turma">
+                                <SelectValue placeholder="Selecione..." />
+                              </SelectTrigger>
+                              <SelectContent className="bg-popover">
+                                {autoFilteredTurmas?.map((t) => (
+                                  <SelectItem key={t.id} value={String(t.id)}>{t.nome}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
 
                         {/* Quando */}
@@ -1228,15 +1295,15 @@ const Horarios = () => {
                           <div className="space-y-2">
                             <Label htmlFor="auto-disciplina">Disciplina</Label>
                             <Select
-                              disabled={!autonomousForm.responsavel_user_id}
-                              value={autoDisciplinaId ? String(autoDisciplinaId) : undefined}
+                              disabled={!autoTurmaId}
+                              value={autoDisciplinaId ? String(autoDisciplinaId) : ''}
                               onValueChange={(v) => {
                                 setAutoDisciplinaId(Number(v));
                                 setAutoAtividadeUuid(null);
                               }}
                             >
                               <SelectTrigger id="auto-disciplina">
-                                <SelectValue placeholder={!autonomousForm.responsavel_user_id ? "Selecione quem..." : "Selecione..."} />
+                                <SelectValue placeholder={!autoTurmaId ? "Selecione turma..." : "Selecione..."} />
                               </SelectTrigger>
                               <SelectContent className="bg-popover">
                                 {autoDisciplinasList?.map((d: any) => (
@@ -1249,7 +1316,7 @@ const Horarios = () => {
                             <Label htmlFor="auto-atividade">Atividade</Label>
                             <Select
                               disabled={!autoDisciplinaId || !autonomousForm.responsavel_user_id}
-                              value={autoAtividadeUuid || undefined}
+                              value={autoAtividadeUuid || ''}
                               onValueChange={(v) => setAutoAtividadeUuid(v)}
                             >
                               <SelectTrigger id="auto-atividade">
@@ -1359,7 +1426,7 @@ const Horarios = () => {
                     <div className="space-y-2">
                       <Label htmlFor="turma">Turma</Label>
                       <Select
-                        value={formData.turma_id ? String(formData.turma_id) : undefined}
+                        value={formData.turma_id ? String(formData.turma_id) : ''}
                         onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
                       >
                         <SelectTrigger id="turma">
@@ -1375,7 +1442,7 @@ const Horarios = () => {
                     <div className="space-y-2">
                       <Label htmlFor="mentor">Mentor</Label>
                       <Select
-                        value={formData.mentor_id ? String(formData.mentor_id) : undefined}
+                        value={formData.mentor_id ? String(formData.mentor_id) : ''}
                         onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v) })}
                       >
                         <SelectTrigger id="mentor">
