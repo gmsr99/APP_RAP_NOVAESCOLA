@@ -201,16 +201,17 @@ async def create_aula(aula: AulaCreate):
         mentor_id=aula.mentor_id,
         local=aula.local,
         tema=aula.tema,
-        objetivos=None,
+        objetivos=aula.objetivos,
         projeto_id=aula.projeto_id,
         observacoes=aula.observacoes,
-        atividade_id=aula.atividade_id,
         atividade_uuid=aula.atividade_uuid,
         is_autonomous=aula.is_autonomous,
         is_realized=aula.is_realized,
         tipo_atividade=aula.tipo_atividade,
         responsavel_user_id=aula.responsavel_user_id,
         musica_id=aula.musica_id,
+        sumario=aula.sumario,
+        codigo_sessao=aula.codigo_sessao,
     )
     if nova_aula is None:
         raise HTTPException(
@@ -233,10 +234,11 @@ class AulaRecorrenteCreate(BaseModel):
     turma_id: Optional[int] = None
     mentor_id: Optional[int] = None
     local: Optional[str] = None
-    atividade_id: Optional[int] = None
     atividade_uuid: Optional[str] = None
     is_autonomous: bool = True
     tipo: str = "trabalho_autonomo"
+    sumario: Optional[str] = None
+    codigo_sessao: Optional[str] = None
 
 
 @app.post("/api/aulas/recorrentes", tags=["Aulas"])
@@ -257,10 +259,11 @@ async def create_aulas_recorrentes(payload: AulaRecorrenteCreate):
             turma_id=payload.turma_id,
             mentor_id=payload.mentor_id,
             local=payload.local,
-            atividade_id=payload.atividade_id,
             atividade_uuid=payload.atividade_uuid,
             is_autonomous=payload.is_autonomous,
             tipo=payload.tipo,
+            sumario=payload.sumario,
+            codigo_sessao=payload.codigo_sessao,
         )
         return {"criadas": len(resultados), "sessoes": resultados}
     except Exception as e:
@@ -750,6 +753,50 @@ async def get_turma_disciplinas(turma_id: int):
 async def get_mentores():
     """Lista todos os mentores para dropdown."""
     return turma_service.listar_mentores()
+
+
+@app.get("/api/codigos-sessao", tags=["Core"])
+async def get_codigos_sessao(perfil: str = "", disciplina: str = ""):
+    """
+    Retorna códigos de sessão (sumário + objetivo) filtrados por perfil do mentor e disciplina.
+    perfil: 'mentor' | 'produtor' | 'mentor_produtor' | 'coordenador' | 'direcao' | 'it_support'
+    disciplina: nome da turma_disciplina (ex: 'Clube de RAP')
+    """
+    import json, os
+    data_path = os.path.join(os.path.dirname(__file__), "services", "data", "codigos_sessao.json")
+    with open(data_path, encoding="utf-8") as f:
+        all_roles = json.load(f)
+
+    # Map perfil → JSON role labels
+    perfil_lower = perfil.lower()
+    if perfil_lower in ("coordenador", "direcao", "it_support"):
+        target_roles = {"Coordenador; Direcao; It_support"}
+    elif perfil_lower == "produtor":
+        target_roles = {"Produtor"}
+    elif perfil_lower == "mentor_produtor":
+        target_roles = {"Mentor", "Produtor"}
+    else:  # mentor or empty
+        target_roles = {"Mentor"}
+
+    result = []
+    seen = set()
+    for role_entry in all_roles:
+        if role_entry["role"] not in target_roles:
+            continue
+        for disc in role_entry["disciplinas"]:
+            if disciplina and disc["nome"].lower() != disciplina.lower():
+                continue
+            for cod in disc["codigos"]:
+                key = (disc["nome"], cod["codigo"])
+                if key not in seen:
+                    seen.add(key)
+                    result.append({
+                        "disciplina": disc["nome"],
+                        "codigo": cod["codigo"],
+                        "sumario": cod["sumario"],
+                        "objetivo": cod["objetivo"],
+                    })
+    return result
 
 @app.get("/api/produtores", tags=["Core"])
 async def get_produtores():

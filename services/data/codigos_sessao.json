@@ -1,0 +1,672 @@
+[
+  {
+    "role": "Mentor",
+    "disciplinas": [
+      {
+        "nome": "Oficina de Português",
+        "codigos": [
+          {
+            "codigo": "Esquemas rimáticos e rimas internas",
+            "sumario": "Estudo de esquemas rimáticos, rimas internas e rimas multissilábicas, seguido de exercícios de escrita criativa em grupo para início da composição da letra da turma.",
+            "objetivo": "- Compreender e aplicar esquemas rimáticos, rimas internas e rimas multissilábicas.\n- Iniciar a escrita criativa de uma letra coletiva, aplicando técnicas poéticas no contexto do\nRAP."
+          },
+          {
+            "codigo": "Recursos expressivos e escrita",
+            "sumario": "Exploração de diversos recursos expressivos eficazes no RAP e estudo dos seus efeitos,, com continuação e finalização da escrita da letra coletiva para posterior gravação.",
+            "objetivo": "- Compreender os efeitos dos recursos expressivos e aplicar na escrita de uma letra RAP.\n- Desenvolver e finalizar a letra coletiva, reforçando a capacidade de expressão escrita."
+          },
+          {
+            "codigo": "Sessão de gravação da turma",
+            "sumario": "Realização de sessão de gravação da música da turma, com captação de vozes em contexto de estúdio móvel, aplicando os conteúdos trabalhados nas aulas anteriores.",
+            "objetivo": "- Aplicar a letra criada em contexto de gravação musical.\n- Experienciar o processo de captação de voz como forma de expressão artística e\nconsolidação das aprendizagens."
+          }
+        ]
+      },
+      {
+        "nome": "Clube de RAP",
+        "codigos": [
+          {
+            "codigo": "Desafios de escrita: temas pessoais",
+            "sumario": "Realização de desafios criativos de escrita em RAP, centrados na abordagem de temas pessoais e na construção de significado, promovendo a auto-expressão.",
+            "objetivo": "Desenvolver a escrita como forma de expressão pessoal e criativa."
+          },
+          {
+            "codigo": "Exercícios de escrita: temas e recursos",
+            "sumario": "Desenvolvimento de exercícios de escrita em RAP, explorando temas e recursos expressivos, com momentos de partilha e escuta em grupo.",
+            "objetivo": "Explorar técnicas de escrita, de rima e recursos expressivos."
+          },
+          {
+            "codigo": "Desafios de escrita: temas específicos e debate",
+            "sumario": "Realização de desafios criativos de escrita em RAP, centrados na abordagem a temas específicos e na construção de significado, promovendo a estruturação e o debate.",
+            "objetivo": "Trabalhar temas, narrativas e desafios criativos em RAP."
+          },
+          {
+            "codigo": "Interpretação vocal e flow: presença artística",
+            "sumario": "Trabalho de interpretação vocal e flow em diferentes estilos de beat, explorando ritmo, intenção, estética e presença artística.",
+            "objetivo": "Desenvolver capacidades de interpretação vocal, flow e presença artística."
+          },
+          {
+            "codigo": "Interpretação vocal e flow: estilos e estéticas",
+            "sumario": "Trabalho de interpretação vocal e flow em diferentes estilos de beat, explorando ritmo, intenção, estética e presença artística.",
+            "objetivo": "Explorar diferentes estilos e estéticas em função dos beats."
+          },
+          {
+            "codigo": "Interpretação vocal e flow: ritmo e estrutura",
+            "sumario": "Trabalho de interpretação vocal e flow em diferentes estilos de beat, explorando ritmo, intenção, estética e presença artística.",
+            "objetivo": "Trabalhar ritmo, intenção e estrutura na performance vocal."
+          },
+          {
+            "codigo": "Gravação de voz: colocação e interpretação",
+            "sumario": "Desenvolvimento de atividades de gravação de voz, trabalhando colocação vocal e interpretação.",
+            "objetivo": "Desenvolver competências técnicas de gravação de voz."
+          },
+          {
+            "codigo": "Gravação de voz: dicção e respiração",
+            "sumario": "Desenvolvimento de atividades de gravação de voz, trabalhando dicção, a respiração e a execução técnica.",
+            "objetivo": "Trabalhar dicção, respiração e execução técnica."
+          },
+          {
+            "codigo": "Gravação de voz: interpretação em estúdio",
+            "sumario": "Desenvolvimento de atividades de gravação de voz, trabalhando a interpretação.",
+            "objetivo": "Aplicar conteúdos artísticos em contexto de estúdio."
+          },
+          {
+            "codigo": "Partilha e feedback: escuta ativa e respeito",
+            "sumario": "Sessão centrada na partilha de criações, escuta ativa e feedback construtivo, promovendo a confiança e o trabalho em equipa.",
+            "objetivo": "Promover a escuta ativa, a partilha e o respeito no grupo."
+          },
+          {
+            "codigo": "Partilha e feedback: confiança e autoestima",
+            "sumario": "Sessão centrada na partilha de criações, escuta ativa e feedback construtivo, promovendo a confiança e o trabalho em equipa.",
+            "objetivo": "Desenvolver confiança, autoestima e expressão em contexto coletivo."
+          },
+          {
+            "codigo": "Partilha e feedback: criação colaborativa",
+            "sumario": "Sessão centrada na partilha de criações, escuta ativa e feedback construtivo, promovendo a confiança e o trabalho em equipa.",
+            "objetivo": "Fomentar criação colaborativa e feedback construtivo."
+          },
+          {
+            "codigo": "Ensaios de interpretação e performance",
+            "sumario": "Realização de ensaios de interpretação e performance, preparando a apresentação das criações desenvolvidas.",
+            "objetivo": "Desenvolver competências de interpretação, presença e coordenação de grupo, para apresentação pública dos participantes das criações musicais desenvolvidas no âmbito do projeto."
+          },
+          {
+            "codigo": "Desenvolvimento de conceitos criativos",
+            "sumario": "Desenvolvimento de conceitos criativos para músicas ou projetos coletivos, promovendo identidade artística e criação em equipa.",
+            "objetivo": "Estimular a criatividade e o pensamento coletivo na construção de conceitos artísticos para músicas ou projetos musicais, promovendo identidade criativa, expressão individual e trabalho em equipa."
+          }
+        ]
+      },
+      {
+        "nome": "Trabalho Autónomo - Clube de RAP",
+        "codigos": [
+          {
+            "codigo": "Preparação de instrumentais e dinâmicas",
+            "sumario": "Recolha, seleção e preparação de instrumentais; escolha e adaptação de desafios e dinâmicas previstas no programa; criação de variações metodológicas ajustadas ao contexto e nível técnico dos participantes, garantindo intencionalidade pedagógica e fluidez na condução das sessões.",
+            "objetivo": "Planear e estruturar tecnicamente as sessões das Oficinas/Clubes, assegurando coerência com o programa pedagógico e adequação às características específicas de cada grupo de beneficiários."
+          },
+          {
+            "codigo": "Escuta crítica e articulação de melhorias",
+            "sumario": "Sessões de escuta crítica das músicas em fase de construção, com análise de letras, flows, métricas e coerência temática; identificação de pontos de melhoria; articulação com o produtor para ajustes técnicos, com devolução de feedback estruturado.",
+            "objetivo": "Acompanhar o desenvolvimento artístico das músicas em produção, promovendo evolução técnica, coerência estética e fortalecimento da identidade criativa dos beneficiários, em articulação com o produtor."
+          },
+          {
+            "codigo": "Revisão linguística e métrica de letras",
+            "sumario": "Revisão e refinamento das letras desenvolvidas em contexto escolar, com ajustes linguísticos e estilísticos; adaptação métrica aos BPMs definidos; construção de estruturas musicais (intro, verso, refrão, pontes) e elaboração de guias orientadores para as turmas, promovendo clareza no processo de ensaio e gravação.",
+            "objetivo": "Apoiar tecnicamente a consolidação das letras produzidas pelos alunos, garantindo rigor linguístico, adequação rítmica e estruturação musical, facilitando o processo de gravação e performance."
+          },
+          {
+            "codigo": "Edição inicial e alinhamento de takes",
+            "sumario": "Edição inicial das músicas gravadas com os participantes, incluindo organização de pistas, seleção de takes e alinhamentos básicos de voz, preparando os projetos para envio ao produtor da equipa para a fase de mistura.",
+            "objetivo": "Organizar e preparar tecnicamente as gravações realizadas em contexto de Clube de RAP, garantindo que o material captado com os participantes fica estruturado e pronto para a fase seguinte de produção musical."
+          }
+        ]
+      },
+      {
+        "nome": "Clube de Produção",
+        "codigos": [
+          {
+            "codigo": "Criação de bases de instrumental originais",
+            "sumario": "Desenvolvimento de atividades de produção musical para a criação de bases de instrumental originais.",
+            "objetivo": "Desenvolver competências técnicas de produção musical e beatmaking."
+          },
+          {
+            "codigo": "Exploração de ferramentas digitais",
+            "sumario": "Desenvolvimento de atividades de produção musical, explorando ferramentas digitais na criação de instrumentais.",
+            "objetivo": "Explorar ferramentas digitais de produção (DAW, samplers, instrumentos virtuais)."
+          },
+          {
+            "codigo": "Exercícios de ritmo, melodias e estrutura",
+            "sumario": "Desenvolvimento de atividades de produção musical, com exercícios ao nível do ritmo, melodias e estrutura na criação de instrumentais.",
+            "objetivo": "Trabalhar estrutura, ritmo, melodias e organização musical."
+          },
+          {
+            "codigo": "Experimentação sonora e ideias musicais",
+            "sumario": "Realização de exercícios de experimentação sonora e desafios criativos, promovendo a criação de ideias musicais e identidades sonoras.",
+            "objetivo": "Estimular a experimentação sonora e a criação de identidades musicais."
+          },
+          {
+            "codigo": "Referências e estéticas de sub-géneros",
+            "sumario": "Partilha de referências de diversos sub-géneros musicais e realização de exercícios de produção.",
+            "objetivo": "Explorar diferentes estéticas no universo musical RAP/HipHop."
+          },
+          {
+            "codigo": "Desafios criativos de exploração",
+            "sumario": "Realização de desafios criativos e exercícios de exploração musical.",
+            "objetivo": "Desenvolver ideias musicais a partir de desafios criativos."
+          },
+          {
+            "codigo": "Construção de instrumentais: organização",
+            "sumario": "Trabalho de construção e organização de instrumentais, explorando estrutura, dinâmica e progressão musical.",
+            "objetivo": "Trabalhar a construção e organização de instrumentais."
+          },
+          {
+            "codigo": "Construção de instrumentais: variação e dinâmica",
+            "sumario": "Trabalho de construção e organização de instrumentais, explorando estrutura, dinâmica e progressão musical.",
+            "objetivo": "Desenvolver noções de dinâmica, variação e progressão musical."
+          },
+          {
+            "codigo": "Construção de instrumentais: aplicação de estrutura",
+            "sumario": "Trabalho de construção e organização de instrumentais, explorando estrutura, dinâmica e progressão musical.",
+            "objetivo": "Aplicar conceitos de estrutura em diferentes contextos musicais."
+          },
+          {
+            "codigo": "Escuta e análise: reflexão crítica",
+            "sumario": "Sessão centrada na escuta e análise de referências musicais e instrumentais criados, promovendo reflexão crítica e partilha em grupo.",
+            "objetivo": "Desenvolver a escuta crítica e analítica."
+          },
+          {
+            "codigo": "Escuta e análise: referências musicais",
+            "sumario": "Sessão centrada na escuta e análise de referências musicais e instrumentais criados, promovendo reflexão crítica e partilha em grupo.",
+            "objetivo": "Analisar instrumentais e referências musicais."
+          },
+          {
+            "codigo": "Escuta e análise: escolhas estéticas e técnicas",
+            "sumario": "Sessão centrada na escuta e análise de referências musicais e instrumentais criados, promovendo reflexão crítica e partilha em grupo.",
+            "objetivo": "Refletir sobre escolhas estéticas e técnicas."
+          },
+          {
+            "codigo": "Produção em grupo: colaboração e partilha",
+            "sumario": "Desenvolvimento de atividades de produção em grupo, promovendo a colaboração, a comunicação e o feedback construtivo.",
+            "objetivo": "Promover a colaboração, a partilha e o feedback construtivo."
+          },
+          {
+            "codigo": "Produção em grupo: autonomia e responsabilidade",
+            "sumario": "Desenvolvimento de atividades de produção em grupo, promovendo a colaboração, a comunicação e o feedback construtivo.",
+            "objetivo": "Desenvolver autonomia, responsabilidade e trabalho em equipa."
+          },
+          {
+            "codigo": "Refinamento técnico e estético de instrumentais",
+            "sumario": "Desenvolvimento e refinamento de instrumentais, com foco na consolidação técnica e estética das criações.",
+            "objetivo": "Fomentar a comunicação e a escuta no processo criativo."
+          }
+        ]
+      },
+      {
+        "nome": "Trabalho Autónomo - Clube de Produção",
+        "codigos": [
+          {
+            "codigo": "Revisão e edição de bases do Clube",
+            "sumario": "Revisão e edição das bases produzidas pelos participantes em contexto de Clube, com organização de elementos musicais, ajustes estruturais e preparação dos projetos para continuidade do trabalho em estúdio, valorizando as criações dos beneficiários e assegurando a sua evolução técnica.",
+            "objetivo": "Consolidar e preparar as bases musicais criadas pelos participantes nos Clubes de Produção Instrumental para desenvolvimento técnico e integração nas etapas seguintes do processo de produção."
+          },
+          {
+            "codigo": "Edição de captações de voz das oficinas",
+            "sumario": "Edição das captações de voz realizadas nas oficinas, organização de pistas e seleção das melhores takes, construção de estruturas base das músicas e preparação dos projetos para envio ao produtor, assegurando continuidade e eficiência na fase seguinte de produção.",
+            "objetivo": "Preparar tecnicamente as músicas gravadas nas Oficinas de Português em contexto escolar para a fase de pós-produção, organizando e estruturando o material captado para passar ao trabalho de mistura e finalização pelo produtor da equipa."
+          },
+          {
+            "codigo": "Preparação de recursos de produção musical",
+            "sumario": "Preparação de bases de trabalho e recursos de produção musical; seleção e adaptação de desafios técnicos e criativos previstos no programa; organização de samples, referências sonoras e exercícios de criação de beats, criando variações metodológicas ajustadas ao contexto.",
+            "objetivo": "Planear e estruturar tecnicamente as sessões do Clube de Produção Instrumental, assegurando coerência com o programa pedagógico e adequação às características e níveis técnicos dos beneficiários."
+          }
+        ]
+      },
+      {
+        "nome": "Label",
+        "codigos": [
+          {
+            "codigo": "Dinamização de sessão com captação de voz",
+            "sumario": "Dinamização de sessão de estúdio com captação de voz e orientação artística, apoiando na interpretação, estruturação da música e condução do processo de gravação, e assegurando qualidade técnica e ambiente de trabalho criativo.",
+            "objetivo": "Acompanhar e orientar beneficiários em contexto de estúdio, promovendo uma experiência de criação musical profissional que estimule a expressão artística, a aprendizagem técnica e a confiança no processo criativo."
+          },
+          {
+            "codigo": "Edição inicial e estruturação de sessão",
+            "sumario": "Edição inicial das gravações realizadas em estúdio, incluindo organização de pistas, seleção de takes, alinhamentos básicos e estruturação da sessão, preparando o projeto para desenvolvimento posterior na fase de mistura.",
+            "objetivo": "Organizar e preparar tecnicamente o material captado em estúdio, assegurando que as gravações ficam estruturadas e prontas para as fases seguintes de produção e mistura."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "role": "Produtor",
+    "disciplinas": [
+      {
+        "nome": "Trabalho Autónomo - Clube de RAP",
+        "codigos": [
+          {
+            "codigo": "Mistura, edição de takes e ajustes",
+            "sumario": "Realização de mistura das músicas recebidas, incluindo alinhamento e edição de takes vocais, ajustes rítmicos, tratamento de vozes e elementos instrumentais, e construção do equilíbrio geral da faixa, preparando o projeto para envio à fase de supervisão e feedback.",
+            "objetivo": "Desenvolver a mistura técnica das músicas produzidas no âmbito do projeto, garantindo equilíbrio sonoro, coerência estética e qualidade técnica adequada para as etapas seguintes de supervisão e finalização."
+          },
+          {
+            "codigo": "Ajustes finais e masterização",
+            "sumario": "Aplicação de ajustes finais de mistura, tratamento global do som e processo de masterização das músicas, garantindo equilíbrio, dinâmica e uniformização do resultado final para entrega da versão definitiva.",
+            "objetivo": "Concluir tecnicamente as músicas produzidas no projeto, assegurando consistência sonora, qualidade final e preparação adequada para publicação, apresentação ou arquivo."
+          }
+        ]
+      },
+      {
+        "nome": "Label",
+        "codigos": [
+          {
+            "codigo": "Dinamização de sessão com captação de voz",
+            "sumario": "Dinamização de sessão de estúdio com captação de voz e orientação artística, apoiando na interpretação, estruturação da música e condução do processo de gravação, e assegurando qualidade técnica e ambiente de trabalho criativo.",
+            "objetivo": "Acompanhar e orientar beneficiários em contexto de estúdio, promovendo uma experiência de criação musical profissional que estimule a expressão artística, a aprendizagem técnica e a confiança no processo criativo."
+          },
+          {
+            "codigo": "Edição inicial e estruturação de sessão",
+            "sumario": "Edição inicial das gravações realizadas em estúdio, incluindo organização de pistas, seleção de takes, alinhamentos básicos e estruturação da sessão, preparando o projeto para desenvolvimento posterior na fase de mistura.",
+            "objetivo": "Organizar e preparar tecnicamente o material captado em estúdio, assegurando que as gravações ficam estruturadas e prontas para as fases seguintes de produção e mistura."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "role": "Coordenador; Direcao; It_support",
+    "disciplinas": [
+      {
+        "nome": "Coordenação Técnica da Operação",
+        "codigos": [
+          {
+            "codigo": "Proposta de horários para Oficinas",
+            "sumario": "Elaboração de proposta de horários para Oficinas de Português, articulando disponibilidade de turmas, equipa técnica e direção da escola.",
+            "objetivo": "Planear e estruturar a implementação das atividades em contexto escolar, garantindo viabilidade logística e alinhamento pedagógico."
+          },
+          {
+            "codigo": "Horários para gravações musicais",
+            "sumario": "Definição e articulação de horários para gravações musicais resultantes das oficinas, em coordenação com docentes e equipa artística.",
+            "objetivo": "Organizar o calendário operacional das gravações e momentos técnicos do projeto."
+          },
+          {
+            "codigo": "Contactos com profissionais de RAP",
+            "sumario": "Realização de contactos estratégicos com profissionais de RAP/Hip-Hop para identificação e aproximação de potenciais colaboradores.",
+            "objetivo": "Identificar e recrutar profissionais artísticos alinhados com os valores e objetivos do projeto."
+          },
+          {
+            "codigo": "Entrevistas a potenciais mentores",
+            "sumario": "Condução de entrevistas individuais a potenciais mentores/artistas, com análise de percurso, perfil e alinhamento metodológico.",
+            "objetivo": "Avaliar competências técnicas e artísticas de candidatos à equipa do projeto."
+          },
+          {
+            "codigo": "Alinhamento artístico de espetáculo",
+            "sumario": "Conceptualização do alinhamento artístico de espetáculo, incluindo seleção de instrumentais, ordem de atuações e integração audiovisual.",
+            "objetivo": "Estruturar o alinhamento artístico de eventos e apresentações públicas do projeto."
+          },
+          {
+            "codigo": "Acompanhamento presencial das oficinas",
+            "sumario": "Acompanhamento técnico presencial das oficinas, assegurando alinhamento com o programa pedagógico e padrões de qualidade definidos.",
+            "objetivo": "Garantir coerência metodológica e qualidade na implementação das atividades no terreno."
+          },
+          {
+            "codigo": "Levantamento de equipamento técnico",
+            "sumario": "Fazer levantamento do equipamento técnico disponível, do respetivo estado e organização das necessidades de aquisição de novos materiais para a execução do projeto",
+            "objetivo": "Organização do equipamento técnico existente e das necessidades de aquisição"
+          },
+          {
+            "codigo": "Coerência metodológica escolas",
+            "sumario": "Garantir coerência metodológica e qualidade na implementação das atividades no terreno e, em simultâneo, a boa integração do projeto na comunidade escolar",
+            "objetivo": "Acompanhamento técnico presencial das oficinas, assegurando alinhamento com o programa pedagógico e padrões de qualidade definidos, bem como a comunicação com os agentes escolares."
+          },
+          {
+            "codigo": "Planeamento implementação contextos",
+            "sumario": "Planear e estruturar a implementação das atividades em contexto das escolas, CAT e prisional, garantindo viabilidade logística e alinhamento pedagógico, assim como criar ajustes no processo de trabalho da equipa",
+            "objetivo": "Elaboração de proposta de horários para a implementação das atividades, articulando disponibilidade de turmas, equipa técnica, bem como refinamento dos métodos de trabalho da equipa"
+          },
+          {
+            "codigo": "Soluções espaço Colégio Dom Dinis",
+            "sumario": "Identificar e propor soluções de espaço para o arranque das atividades no Colégio Dom Dinis, na sequência da deslocação das crianças devido à tempestade Kristin.",
+            "objetivo": "Análise, pesquisa e estruturação de alternativas de espaço para a realização das atividades dos Clubes na nova zona residencial do Centro de Acolhimento, assegurando condições adequadas à implementação do projeto."
+          },
+          {
+            "codigo": "Retoma escolas Leiria e Marinha Grande",
+            "sumario": "Identificar e estruturar soluções de organização e calendarização para o arranque/retoma das atividades nas escolas de Leiria e Marinha Grande, considerando as condicionantes e desafios vividos pela comunidade escolar.",
+            "objetivo": "Análise e articulação com as estruturas escolares para avaliar disponibilidades, constrangimentos e alternativas de implementação, definindo condições ajustadas ao contexto para garantir o retorno sustentável das atividades do projeto."
+          },
+          {
+            "codigo": "Enquadramento Gestor Desenvolvimento",
+            "sumario": "Enquadrar o Gestor de Desenvolvimento Pessoal no funcionamento e metodologia do projeto através de acompanhamento em contexto real de Clube de RAP, promovendo uma compreensão prática da intervenção junto dos beneficiários e criando um espaço de exploração conjunta para definição do seu papel na equipa.",
+            "objetivo": "Acompanhamento do Gestor de Desenvolvimento Pessoal a uma sessão de Clube de RAP dinamizada pelo mentor, com observação direta das dinâmicas pedagógicas e relacionais, apresentação prática dos princípios de atuação do projeto e momento de reflexão conjunta para estruturar possibilidades de intervenção na integração com a equipa."
+          },
+          {
+            "codigo": "Apresentação clube instituição",
+            "sumario": "Realização de sessão de apresentação do clube na instituição, com partilha de músicas e videoclipes produzidos no projeto, explicação dos objetivos, metodologias e dinâmicas de trabalho, enquadrando os participantes no funcionamento das atividades e no percurso de criação que poderão desenvolver.",
+            "objetivo": "Apresentar o clube ao grupo de jovens da instituição, explicando o projeto, os seus objetivos pedagógicos e criativos, bem como o funcionamento das atividades e as oportunidades de participação no processo de criação musical."
+          },
+          {
+            "codigo": "Catalogação de equipamento",
+            "sumario": "Levantamento, teste e catalogação do equipamento disponível, identificando material funcional e não funcional, organizando os recursos existentes e sinalizando necessidades de substituição ou aquisição para prevenir falhas no terreno.",
+            "objetivo": "Assegurar a organização, verificação e preparação do equipamento técnico necessário às atividades do projeto."
+          }
+        ]
+      },
+      {
+        "nome": "Criação dos Programas dos Clubes",
+        "codigos": [
+          {
+            "codigo": "Matriz programática das Oficinas",
+            "sumario": "Criação da matriz programática das Oficinas de Português, definindo objetivos, conteúdos e metodologia de implementação.",
+            "objetivo": "Desenvolver estrutura pedagógica das Oficinas de Português com integração artística."
+          },
+          {
+            "codigo": "Estrutura do Clube de RAP",
+            "sumario": "Desenvolvimento da estrutura do Clube de RAP, incluindo fases de escrita, composição, gravação e performance.",
+            "objetivo": "Estruturar o programa pedagógico do Clube de RAP."
+          },
+          {
+            "codigo": "Conteúdos pedagógicos de RAP",
+            "sumario": "Definição de conteúdos pedagógicos que articulem escrita criativa, interpretação e produção musical.",
+            "objetivo": "Integrar componentes de expressão artística no desenvolvimento pessoal dos participantes."
+          },
+          {
+            "codigo": "Ajuste programático aos contextos",
+            "sumario": "Ajustamento da estrutura programática do clube às especificidades do contexto institucional.",
+            "objetivo": "Adaptar o programa a diferentes contextos institucionais (escolar, CAT, prisional)."
+          },
+          {
+            "codigo": "Grelhas de planeamento e avaliação",
+            "sumario": "Desenvolvimento de grelhas de planeamento de sessões e indicadores de avaliação de impacto.",
+            "objetivo": "Criar instrumentos de planeamento e avaliação pedagógica."
+          },
+          {
+            "codigo": "Processos de produção musical",
+            "sumario": "Estruturação dos processos de produção musical para otimização da dinâmica de trabalho entre equipa",
+            "objetivo": "Criar metodologia de operações para processos de produção musical"
+          },
+          {
+            "codigo": "Criação de instrumentos de avaliação",
+            "sumario": "Criar instrumentos de planeamento e avaliação pedagógica.",
+            "objetivo": "Desenvolvimento de quadros de planeamento de sessões e indicadores de resultados."
+          },
+          {
+            "codigo": "Criação de metodologia de produção",
+            "sumario": "Criar metodologia de operações para processos de produção musical",
+            "objetivo": "Estruturação dos processos de produção musical para otimização da dinâmica de trabalho entre equipa"
+          },
+          {
+            "codigo": "Adaptação do programa para inovação",
+            "sumario": "Adaptar o programa nas suas diferentes abordagens",
+            "objetivo": "Adaptação da estrutura programática dos clubes para maior distinção entre abordagem de inovação pedagógica e inovação social"
+          },
+          {
+            "codigo": "Novos gatilhos de escrita criativa",
+            "sumario": "Introduzir novos gatilhos e desafios criativos no programa na vertente da escrita criativa",
+            "objetivo": "Criação de técnicas de desbloqueio criativo para exercícios práticos de escrita"
+          },
+          {
+            "codigo": "Recursos para desafios criativos",
+            "sumario": "Materializar novos recursos para desafios criativos no programa na vertente da escrita",
+            "objetivo": "Criação de novos materiais de desbloqueio criativo para exercícios práticos de escrita"
+          },
+          {
+            "codigo": "Novo conceito de abordagem escolar",
+            "sumario": "Criar um novo conceito de abordagem escolar com dinâmicas menos estruturadas com vista a participações espontâneas de diversos grupos",
+            "objetivo": "Conceptualização de programa para intervenções em contexto escolar fora da disciplina de português"
+          },
+          {
+            "codigo": "Alinhamento de metas da equipa",
+            "sumario": "Garantir alinhamento de metas e visão entre coordenação, mentores e produtor.",
+            "objetivo": "Formação de equipa focada em apresentação da estratégia do projeto, objetivos a curto e médio e entrosamento entre membros da equipa"
+          },
+          {
+            "codigo": "Melhoria de procedimentos da equipa",
+            "sumario": "Provocar a melhoria de procedimentos e o alinhamento de postura entre membros da equipa",
+            "objetivo": "Formação de equipa focada em partilha de experiências e discussão de melhores procedimentos para consecução de objetivos"
+          }
+        ]
+      },
+      {
+        "nome": "Capacitação e Mentoria da Equipa",
+        "codigos": [
+          {
+            "codigo": "Formação inicial do projeto",
+            "sumario": "Sessão de formação inicial com apresentação do projeto, objetivos pedagógicos e modelo de intervenção.",
+            "objetivo": "Integrar novos mentores no ADN do projeto e alinhar metodologias."
+          },
+          {
+            "codigo": "Formação prática em oficina",
+            "sumario": "Sessão prática de formação em oficina, combinando observação, condução partilhada e feedback estruturado.",
+            "objetivo": "Consolidar competências pedagógicas do mentor de RAP em contexto real."
+          },
+          {
+            "codigo": "Formação prática em gravação",
+            "sumario": "Formação prática em contexto de gravação, com supervisão técnica e análise de procedimentos.",
+            "objetivo": "Desenvolver competências técnicas do mentor de Produção Instrumental."
+          },
+          {
+            "codigo": "Supervisão técnica de práticas",
+            "sumario": "Sessão de supervisão técnica com análise de práticas, dificuldades e estratégias de melhoria.",
+            "objetivo": "Garantir alinhamento metodológico entre coordenação e mentores."
+          },
+          {
+            "codigo": "Formação em contexto institucional",
+            "sumario": "Formação em contexto real adaptada ao ambiente institucional, com acompanhamento e feedback individualizado.",
+            "objetivo": "Reforçar qualidade pedagógica em contexto específico (escolar, CAT ou prisional)."
+          },
+          {
+            "codigo": "Sessão técnica de RAP e produção",
+            "sumario": "Sessão técnica focada em técnicas de escrita, flow, produção instrumental e estratégias de dinamização de grupo.",
+            "objetivo": "Atualizar e aprofundar competências artísticas da equipa."
+          },
+          {
+            "codigo": "Formação no terreno com condução",
+            "sumario": "Realização de sessões de formação no terreno, combinando momentos de condução das atividades pelo coordenador com momentos dinamizados pelo mentor de RAP, acompanhado de supervisão, observação e feedback, visando o reforço das práticas, metodologias e integração no projeto.",
+            "objetivo": "Promover a capacitação prática do mentor de RAP através de formação em contexto real na dinamização do Clube de RAP em contexto de CAT, assegurando o alinhamento pedagógico, a qualidade da intervenção e a consolidação das competências técnicas e artísticas no âmbito do projeto."
+          },
+          {
+            "codigo": "Alinhamento de procedimentos e visão",
+            "sumario": "Garantir alinhamento de procedimentos e visão artística entre coordenação e mentores.",
+            "objetivo": "Formação de equipa focada em apresentação de procedimentos relativos a produção de músicas entre membros da equipa"
+          },
+          {
+            "codigo": "Formação sobre áreas de intervenção",
+            "sumario": "Formação de equipa focada no crescimento do conhecimento entre áreas diversas da intervenção no terreno",
+            "objetivo": "Formação de equipa focada em apresentação de procedimentos relativos a produção de músicas entre membros da equipa"
+          },
+          {
+            "codigo": "Formação sobre agregação de grupos",
+            "sumario": "Formação de equipa focada em apresentação de procedimentos e técnicas para agregação de grupos, com objetivos pedagógicos e potenciando o modelo de intervenção.",
+            "objetivo": "Reforçar qualidade de condução de grupos em contexto específico (escolar, CAT ou prisional)."
+          }
+        ]
+      },
+      {
+        "nome": "Monitorização e Acompanhamento das Atividades",
+        "codigos": [
+          {
+            "codigo": "Observação estruturada de sessões",
+            "sumario": "Observação estruturada das sessões no terreno com registo técnico e análise de desempenho.",
+            "objetivo": "Garantir qualidade e alinhamento estratégico na execução das atividades."
+          },
+          {
+            "codigo": "Análise de indicadores",
+            "sumario": "Recolha e análise de indicadores qualitativos e quantitativos das atividades desenvolvidas.",
+            "objetivo": "Avaliar impacto e progresso dos participantes."
+          },
+          {
+            "codigo": "Acompanhamento com mentores",
+            "sumario": "Reunião de acompanhamento com mentores para análise de resultados e redefinição de estratégias.",
+            "objetivo": "Identificar necessidades de ajuste metodológico."
+          },
+          {
+            "codigo": "Revisão do plano de atividades",
+            "sumario": "Revisão do plano de atividades e verificação do grau de execução face aos objetivos programáticos.",
+            "objetivo": "Assegurar cumprimento do planeamento e metas definidas."
+          },
+          {
+            "codigo": "Coordenação técnica no terreno",
+            "sumario": "Acompanhamento e coordenação técnica das atividades no terreno, garantindo o alinhamento da equipa com os objetivos, metodologia e padrões de qualidade do projeto.",
+            "objetivo": "Monitorizar a implementação do projeto no terreno, assegurando a qualidade e alinhamento da equipa face ao programa e objetivos definidos."
+          }
+        ]
+      },
+      {
+        "nome": "Gestão das Parcerias e Interlocução com Instituições",
+        "codigos": [
+          {
+            "codigo": "Apresentação institucional do projeto",
+            "sumario": "Reunião institucional para apresentação do projeto e negociação de condições de implementação.",
+            "objetivo": "Estabelecer parcerias estratégicas para implementação do projeto."
+          },
+          {
+            "codigo": "Avaliação intermédia com direção",
+            "sumario": "Sessão de acompanhamento com direção escolar/institucional para avaliação intermédia do projeto.",
+            "objetivo": "Consolidar relações institucionais existentes."
+          },
+          {
+            "codigo": "Reunião escola e coordenação",
+            "sumario": "Reunião entre escola, coordenação técnica e gestão do projeto.",
+            "objetivo": "Garantir articulação entre instituições e equipa técnica."
+          },
+          {
+            "codigo": "Contacto com novas entidades",
+            "sumario": "Identificação e contacto com novas entidades para eventual integração no projeto.",
+            "objetivo": "Expandir rede de parceiros do projeto."
+          },
+          {
+            "codigo": "Acompanhamento na prisão-escola",
+            "sumario": "Sessão de acompanhamento com coordenação técnica da prisão-escola para avaliação informal do projeto.",
+            "objetivo": "Garantir articulação entre instituição, equipa técnica e objetivos do projeto"
+          },
+          {
+            "codigo": "Articulação com prisão-escola",
+            "sumario": "Garantir articulação entre instituição, equipa técnica e objetivos do projeto",
+            "objetivo": "Sessão de acompanhamento com coordenação técnica da prisão-escola para avaliação informal do projeto."
+          },
+          {
+            "codigo": "Articulação institucional AE Marinha Grande",
+            "sumario": "Garantir articulação entre instituição e equipa técnica para implementação das atividades",
+            "objetivo": "Reunião entre direção do AE Marinha Grande, professores responsáveis, coordenação técnica e gestão do projeto."
+          },
+          {
+            "codigo": "Soluções de aluguer de estúdio",
+            "sumario": "Articular potenciais soluções para aluguer de estúdio e visitar os diversos espaços disponíveis",
+            "objetivo": "Reunião com responsáveis do Prontos para exploração de espaço para criação do Estúdio/Label."
+          },
+          {
+            "codigo": "Soluções de espaço na CMCR",
+            "sumario": "Articular potenciais soluções para cedência de espaço da CMCR para criação de Estúdio/Label RAP Nova Escola nas Caldas da Rainha",
+            "objetivo": "Reunião com Vereadora da Educação e Ação Social das Caldas da Rainha para exploração de espaços para criação do Estúdio/Label."
+          },
+          {
+            "codigo": "Retoma no AE da Marinha Grande",
+            "sumario": "Reforçar a relação institucional com o AE da Marinha Grande no momento de retoma das atividades após a interrupção letiva entre semestres, assegurando alinhamento com a comunidade escolar e condições favoráveis à continuidade do projeto junto das turmas de 9.º ano.",
+            "objetivo": "Momento de reativação do projeto no agrupamento, com foco no contacto e articulação com os intervenientes escolares, realinhamento de expectativas e enquadramento da nova fase de trabalho, promovendo estabilidade, confiança e integração sustentável das atividades no contexto escolar."
+          },
+          {
+            "codigo": "Relação institucional na Santa Casa",
+            "sumario": "Reforçar a relação institucional com a Santa Casa através de presença em contexto de Clube de RAP, acompanhando a dinâmica inicial da intervenção e promovendo proximidade com equipa técnica e beneficiários.",
+            "objetivo": "Acompanhamento da sessão de Clube de RAP enquanto momento de observação relacional e escuta ativa, fortalecendo a articulação com a instituição e consolidando a presença do projeto no terreno numa lógica de parceria contínua."
+          },
+          {
+            "codigo": "Articulação AE Marinha Grande Poente",
+            "sumario": "Fortalecer a articulação com o AE Marinha Grande Poente através de acompanhamento em contexto de Oficina de Português, promovendo integração sustentável do projeto no contexto escolar.",
+            "objetivo": "Presença na sessão da Oficina de Português com foco na relação com docentes e estruturas escolares, valorizando a escuta, a proximidade e o enquadramento da intervenção no ecossistema educativo do agrupamento."
+          },
+          {
+            "codigo": "Reativação da rede de parceiros",
+            "sumario": "Reativar e dinamizar a rede de parceiros do projeto, promovendo alinhamento estratégico e definição dos próximos passos de intervenção em cada contexto institucional.",
+            "objetivo": "Contactos institucionais com escolas e centros de acolhimento para atualização de ponto de situação e calendarização das fases seguintes do projeto, garantindo continuidade e solidez das parcerias."
+          },
+          {
+            "codigo": "Acompanhamento Clube de RAP na SCMCR",
+            "sumario": "Dar continuidade ao acompanhamento do Clube de RAP na SCMCR, aprofundando a relação com a comunidade beneficiária e promovendo alinhamento sobre o desenvolvimento da intervenção.",
+            "objetivo": "Presença na sessão do Clube de RAP com foco no reforço da confiança entre projeto e instituição, partilha informal de feedback e identificação de oportunidades de melhoria e consolidação da parceria."
+          },
+          {
+            "codigo": "Articulação para abertura da Label",
+            "sumario": "Assegurar a articulação institucional e comunitária para a abertura da Label, organizando condições logísticas e relacionais para receção de beneficiário em estúdio e acolhimento junto do produtor, promovendo uma experiência alinhada com os valores do projeto.",
+            "objetivo": "Coordenação da preparação do estúdio e organização da sessão inaugural da Label, incluindo articulação prévia com intervenientes, enquadramento da participação do beneficiário e acompanhamento relacional durante a receção, reforçando a identidade do projeto enquanto espaço de oportunidade e pertença."
+          }
+        ]
+      },
+      {
+        "nome": "Articulação com Gestão de Projetos e Gestão Financeira",
+        "codigos": [
+          {
+            "codigo": "Articulação de recursos e cronograma",
+            "sumario": "Reunião de articulação com equipa de gestão para validação de recursos e cronograma.",
+            "objetivo": "Garantir alinhamento técnico-financeiro das atividades."
+          },
+          {
+            "codigo": "Análise de custos operacionais",
+            "sumario": "Análise de custos operacionais e adequação ao plano financeiro aprovado.",
+            "objetivo": "Monitorizar execução orçamental associada às atividades."
+          },
+          {
+            "codigo": "Reporte técnico e financeiro",
+            "sumario": "Compilação de informação técnica e financeira para reporte interno ou a financiadores.",
+            "objetivo": "Preparar relatórios de progresso institucional."
+          },
+          {
+            "codigo": "Ponto de situação do projeto e equipa",
+            "sumario": "Reunião de trabalho entre o Coordenador Técnico e o Gestor de Projeto para análise do ponto de situação do projeto, incluindo recursos humanos, perfis contratados, distribuição de responsabilidades e andamento das atividades, com vista ao reforço do alinhamento estratégico e à tomada de decisões operacionais.",
+            "objetivo": "Rever e alinhar aspetos estratégicos e operacionais do projeto, nomeadamente organização da equipa e estado de execução das diferentes frentes de trabalho, assegurando coerência interna e sustentabilidade da intervenção."
+          },
+          {
+            "codigo": "Integração do Gestor de Desenvolvimento",
+            "sumario": "Reunião de trabalho entre o Coordenador Técnico, o Gestor de Projeto e o Gestor de Desenvolvimento Pessoal para reflexão conjunta após a observação em contexto real, alinhamento de expectativas e definição de prioridades e responsabilidades para a sua integração operacional no projeto.",
+            "objetivo": "Consolidar o enquadramento do Gestor de Desenvolvimento Pessoal no projeto, através de reunião de follow-up com a coordenação técnica e gestão de projeto, visando estruturar um plano de ação e definir próximos passos de intervenção."
+          },
+          {
+            "codigo": "Organização administrativa e horários",
+            "sumario": "Organização e sistematização de fichas de inscrição e registos de atividade para entrega ao gestor de projeto, em articulação com a definição de horários, atribuição de horas à equipa e planeamento das metas operacionais das atividades.",
+            "objetivo": "Assegurar a organização administrativa e operacional do projeto, estruturando registos de atividade e informação de participação, bem como o planeamento de horários e distribuição de horas da equipa."
+          }
+        ]
+      },
+      {
+        "nome": "Gestão de Redes de Comunicação e Outputs do Projeto",
+        "codigos": [
+          {
+            "codigo": "Campanha de comunicação",
+            "sumario": "Planeamento de campanha de comunicação com definição de mensagem, público-alvo e canais.",
+            "objetivo": "Desenvolver estratégia de comunicação para recrutamento artístico."
+          },
+          {
+            "codigo": "Captação de vídeo promocional",
+            "sumario": "Captação de imagens e depoimentos para criação de vídeo promocional do projeto.",
+            "objetivo": "Produzir conteúdos audiovisuais de divulgação."
+          },
+          {
+            "codigo": "Edição de vídeo institucional",
+            "sumario": "Edição e montagem de vídeo institucional com tratamento audiovisual e preparação para publicação.",
+            "objetivo": "Editar e finalizar materiais de comunicação."
+          },
+          {
+            "codigo": "Publicação de materiais e resultados",
+            "sumario": "Publicação de conteúdos nas redes e produção de materiais de comunicação de resultados.",
+            "objetivo": "Divulgar resultados e impacto do projeto."
+          },
+          {
+            "codigo": "Revisão estratégica de conteúdos",
+            "sumario": "Revisão estratégica de conteúdos para assegurar alinhamento com identidade e valores do projeto.",
+            "objetivo": "Garantir coerência comunicacional do projeto."
+          },
+          {
+            "codigo": "Supervisão e feedback de músicas",
+            "sumario": "Escutar músicas em produção, supervisionar conteúdos e dar feedback à equipa para melhoria/finalização das mesmas.",
+            "objetivo": "Supervisionar as músicas em produção para finalização e divulgação"
+          },
+          {
+            "codigo": "Supervisão e organização de músicas",
+            "sumario": "Escutar músicas em produção, supervisionar conteúdos e dar feedback à equipa para melhoria/finalização das mesmas, bem como organizar as músicas concluídas para lançamento",
+            "objetivo": "Supervisionar e organizar as músicas em produção para finalização e divulgação"
+          }
+        ]
+      }
+    ]
+  }
+]

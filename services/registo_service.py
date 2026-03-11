@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from sqlmodel import Session, select, text
+from sqlmodel import Session, text
 
 from database.database import engine
 
@@ -38,7 +38,10 @@ def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
             a.tipo_atividade,
             a.responsavel_user_id,
             a.musica_id,
-            a.atividade_id,
+            a.atividade_uuid,
+            a.objetivos,
+            a.sumario,
+            a.codigo_sessao,
             t.nome         AS turma_nome,
             t.id           AS turma_id,
             e.nome         AS estabelecimento_nome,
@@ -49,12 +52,13 @@ def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
             m.longitude    AS mentor_longitude,
             e.latitude     AS estab_latitude,
             e.longitude    AS estab_longitude,
-            atv.nome       AS atividade_nome
+            td.nome        AS disciplina_nome
         FROM aulas a
         LEFT JOIN turmas t            ON a.turma_id = t.id
         LEFT JOIN estabelecimentos e  ON t.estabelecimento_id = e.id
         LEFT JOIN mentores m          ON a.mentor_id = m.id
-        LEFT JOIN atividades atv      ON a.atividade_id = atv.id
+        LEFT JOIN turma_atividades ta ON a.atividade_uuid = ta.uuid
+        LEFT JOIN turma_disciplinas td ON td.id = ta.turma_disciplina_id
         WHERE
             -- Sem registo existente
             NOT EXISTS (SELECT 1 FROM registos r WHERE r.aula_id = a.id)
@@ -106,8 +110,11 @@ def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
                 "mentor_longitude": float(row.mentor_longitude) if row.mentor_longitude else None,
                 "estab_latitude": float(row.estab_latitude) if row.estab_latitude else None,
                 "estab_longitude": float(row.estab_longitude) if row.estab_longitude else None,
-                "atividade_id": row.atividade_id,
-                "atividade_nome": row.atividade_nome,
+                "atividade_uuid": str(row.atividade_uuid) if row.atividade_uuid else None,
+                "disciplina_nome": row.disciplina_nome,
+                "objetivos": row.objetivos,
+                "sumario": row.sumario,
+                "codigo_sessao": row.codigo_sessao,
             })
         return result
 

@@ -55,56 +55,6 @@ TIPOS_AULA = [
 ]
 
 
-def _resolver_atividade(atividade_id):
-    """Resolve atividade_id → (atividade_nome, disciplina_nome) via raw SQL."""
-    if not atividade_id:
-        return None, None
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("""
-            SELECT a.nome, d.nome
-            FROM atividades a
-            LEFT JOIN disciplinas d ON a.disciplina_id = d.id
-            WHERE a.id = %s
-        """, (atividade_id,))
-        row = cur.fetchone()
-        if row:
-            return row[0], row[1]
-        return None, None
-    except Exception:
-        return None, None
-    finally:
-        if 'cur' in locals() and cur:
-            cur.close()
-        if 'conn' in locals() and conn:
-            conn.close()
-
-
-def _resolver_atividades_bulk(atividade_ids):
-    """Resolve multiple atividade_ids at once → {id: (atividade_nome, disciplina_nome)}."""
-    ids = [aid for aid in atividade_ids if aid is not None]
-    if not ids:
-        return {}
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        placeholders = ','.join(['%s'] * len(ids))
-        cur.execute(f"""
-            SELECT a.id, a.nome, d.nome
-            FROM atividades a
-            LEFT JOIN disciplinas d ON a.disciplina_id = d.id
-            WHERE a.id IN ({placeholders})
-        """, ids)
-        return {row[0]: (row[1], row[2]) for row in cur.fetchall()}
-    except Exception:
-        return {}
-    finally:
-        if 'cur' in locals() and cur:
-            cur.close()
-        if 'conn' in locals() and conn:
-            conn.close()
-
 
 def _resolver_atividades_uuid_bulk(uuids):
     """Resolve multiple atividade_uuids → {uuid_str: (atividade_nome, disciplina_nome)}."""
@@ -175,13 +125,14 @@ def criar_aula(
     objetivos=None,
     projeto_id=None,
     observacoes=None,
-    atividade_id=None,
     atividade_uuid=None,
     is_autonomous=False,
     is_realized=False,
     tipo_atividade=None,
     responsavel_user_id=None,
     musica_id=None,
+    sumario=None,
+    codigo_sessao=None,
 ):
     if not is_autonomous and not turma_id:
         print("❌ Erro: turma_id é obrigatório para aulas regulares!")
@@ -215,13 +166,14 @@ def criar_aula(
                 tema=tema,
                 objetivos=objetivos,
                 observacoes=observacoes,
-                atividade_id=atividade_id,
                 atividade_uuid=atividade_uuid,
                 is_autonomous=is_autonomous,
                 is_realized=is_realized,
                 tipo_atividade=tipo_atividade,
                 responsavel_user_id=responsavel_user_id,
                 musica_id=musica_id,
+                sumario=sumario,
+                codigo_sessao=codigo_sessao,
             )
             session.add(nova_aula)
             session.commit()
@@ -267,10 +219,11 @@ def criar_aulas_recorrentes(
     turma_id=None,
     mentor_id=None,
     local=None,
-    atividade_id=None,
     atividade_uuid=None,
     is_autonomous=True,
     tipo="trabalho_autonomo",
+    sumario=None,
+    codigo_sessao=None,
 ):
     """Cria N sessões com intervalo semanal."""
     from datetime import timedelta
@@ -301,11 +254,12 @@ def criar_aulas_recorrentes(
             tema=tema_sessao,
             projeto_id=projeto_id,
             observacoes=observacoes,
-            atividade_id=atividade_id,
             atividade_uuid=atividade_uuid,
             is_autonomous=is_autonomous,
             tipo_atividade=tipo_atividade,
             responsavel_user_id=responsavel_user_id,
+            sumario=sumario,
+            codigo_sessao=codigo_sessao,
         )
         if resultado:
             resultados.append(resultado)
@@ -331,17 +285,12 @@ def listar_aulas_por_estado(estado, limite=50):
             )
             rows = session.exec(statement).all()
 
-        # Resolver nomes de atividade/disciplina em bulk
-        atividade_map = _resolver_atividades_bulk([a.atividade_id for a, *_ in rows])
         uuid_map = _resolver_atividades_uuid_bulk([a.atividade_uuid for a, *_ in rows])
 
         aulas: List[Dict[str, Any]] = []
         for aula, turma, estabelecimento, mentor in rows:
             uuid_str = str(aula.atividade_uuid) if aula.atividade_uuid else None
-            if uuid_str and uuid_str in uuid_map:
-                atv_nome, disc_nome = uuid_map[uuid_str]
-            else:
-                atv_nome, disc_nome = atividade_map.get(aula.atividade_id, (None, None))
+            atv_nome, disc_nome = uuid_map.get(uuid_str, (None, None)) if uuid_str else (None, None)
             payload = {
                 "id": aula.id,
                 "tipo": aula.tipo,
@@ -362,7 +311,6 @@ def listar_aulas_por_estado(estado, limite=50):
                 "estabelecimento_sigla": estabelecimento.sigla if estabelecimento else None,
                 "atualizado_em": aula.atualizado_em,
                 "projeto_nome": None,
-                "atividade_id": aula.atividade_id,
                 "atividade_uuid": uuid_str,
                 "atividade_nome": atv_nome,
                 "disciplina_nome": disc_nome,
@@ -664,7 +612,7 @@ def obter_aula_por_id(aula_id):
             uuid_map = _resolver_atividades_uuid_bulk([aula.atividade_uuid])
             atv_nome, disc_nome = uuid_map.get(uuid_str, (None, None))
         else:
-            atv_nome, disc_nome = _resolver_atividade(aula.atividade_id)
+            atv_nome, disc_nome = None, None
         payload = {
             "id": aula.id,
             "tipo": aula.tipo,
@@ -686,7 +634,6 @@ def obter_aula_por_id(aula_id):
             "estabelecimento_sigla": estabelecimento.sigla if estabelecimento else None,
             "projeto_nome": projeto.nome if projeto else None,
             "atividade_nome": atv_nome,
-            "atividade_id": aula.atividade_id,
             "atividade_uuid": uuid_str,
             "disciplina_nome": disc_nome,
             "equipamento_nome": None,
@@ -719,17 +666,12 @@ def listar_todas_aulas(limite=100):
             )
             rows = session.exec(statement).all()
 
-        # Resolver nomes de atividade/disciplina em bulk
-        atividade_map = _resolver_atividades_bulk([a.atividade_id for a, *_ in rows])
         uuid_map = _resolver_atividades_uuid_bulk([a.atividade_uuid for a, *_ in rows])
 
         aulas: List[Dict[str, Any]] = []
         for aula, turma, estabelecimento, mentor in rows:
             uuid_str = str(aula.atividade_uuid) if aula.atividade_uuid else None
-            if uuid_str and uuid_str in uuid_map:
-                atv_nome, disc_nome = uuid_map[uuid_str]
-            else:
-                atv_nome, disc_nome = atividade_map.get(aula.atividade_id, (None, None))
+            atv_nome, disc_nome = uuid_map.get(uuid_str, (None, None)) if uuid_str else (None, None)
             payload = {
                 "id": aula.id,
                 "tipo": aula.tipo,
@@ -750,7 +692,6 @@ def listar_todas_aulas(limite=100):
                 "estabelecimento_nome": estabelecimento.nome if estabelecimento else None,
                 "estabelecimento_sigla": estabelecimento.sigla if estabelecimento else None,
                 "projeto_nome": None,
-                "atividade_id": aula.atividade_id,
                 "atividade_uuid": uuid_str,
                 "atividade_nome": atv_nome,
                 "equipamento_nome": None,
@@ -811,7 +752,8 @@ def atualizar_aula(aula_id, dados):
                 "tema",
                 "objetivos",
                 "observacoes",
-                "atividade_id",
+                "sumario",
+                "codigo_sessao",
                 "atividade_uuid",
                 "estado",
             }
@@ -1025,8 +967,8 @@ def listar_feedback_sessoes(projeto_id=None):
                 t.id as turma_id, t.nome as turma_nome,
                 e.id as estab_id, e.nome as estab_nome,
                 p.full_name as mentor_nome, m.user_id as mentor_user_id,
-                COALESCE(td.id, d.id) as disciplina_id,
-                COALESCE(td.nome, d.nome) as disciplina_nome
+                td.id as disciplina_id,
+                td.nome as disciplina_nome
             FROM aulas a
             LEFT JOIN turmas t ON t.id = a.turma_id
             LEFT JOIN estabelecimentos e ON e.id = t.estabelecimento_id
@@ -1034,8 +976,6 @@ def listar_feedback_sessoes(projeto_id=None):
             LEFT JOIN profiles p ON p.id = m.user_id
             LEFT JOIN turma_atividades ta ON ta.uuid = a.atividade_uuid
             LEFT JOIN turma_disciplinas td ON td.id = ta.turma_disciplina_id
-            LEFT JOIN atividades atv ON atv.id = a.atividade_id
-            LEFT JOIN disciplinas d ON d.id = atv.disciplina_id
             WHERE {" AND ".join(conditions)}
             ORDER BY a.data_hora DESC
         """

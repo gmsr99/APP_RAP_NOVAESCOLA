@@ -243,7 +243,6 @@ const Horarios = () => {
   const [formData, setFormData] = useState<Partial<AulaCreate> & { repetir_semanalmente?: boolean; semanas?: number }>({
     duracao_minutos: 120,
     tipo: 'ensaio',
-    atividade_id: null,
     atividade_uuid: null,
     observacoes: ''
   });
@@ -301,6 +300,26 @@ const Horarios = () => {
   // Role do mentor selecionado (tab Aula/Evento)
   const selectedMentorPerfil = formData.mentor_id
     ? mentoresApi?.find(m => m.id === formData.mentor_id)?.perfil ?? null
+    : null;
+
+  // Nome da disciplina selecionada (para filtrar códigos de sessão)
+  const selectedDisciplinaNome: string | null = selectedDisciplinaId
+    ? (turmaDisciplinas as any[])?.find((d: any) => d.id === selectedDisciplinaId)?.nome ?? null
+    : null;
+
+  // Códigos de sessão (sumário + objetivo) filtrados por perfil do mentor + disciplina
+  interface CodigoSessao { disciplina: string; codigo: string; sumario: string; objetivo: string; }
+  const { data: codigosSessao = [] } = useQuery<CodigoSessao[]>({
+    queryKey: ['codigos-sessao', selectedMentorPerfil, selectedDisciplinaNome],
+    queryFn: () => api.get<CodigoSessao[]>(
+      `/api/codigos-sessao?perfil=${encodeURIComponent(selectedMentorPerfil || '')}&disciplina=${encodeURIComponent(selectedDisciplinaNome || '')}`
+    ),
+    enabled: !!formData.atividade_uuid && !!selectedMentorPerfil && !!selectedDisciplinaNome,
+  });
+
+  // Preview do código selecionado
+  const selectedCodigoPreview = formData.codigo_sessao
+    ? codigosSessao.find(c => c.codigo === formData.codigo_sessao) ?? null
     : null;
 
   // Filtra atividades: tab Aula = is_autonomous=false + role do mentor
@@ -634,7 +653,6 @@ const Horarios = () => {
           data_hora: data.payload.data_hora,
           duracao_minutos: data.payload.duracao_minutos,
           tipo_atividade: data.payload.tipo_atividade,
-          atividade_id: data.payload.atividade_id,
           atividade_uuid: data.payload.atividade_uuid,
           responsavel_user_id: data.payload.responsavel_user_id,
           observacoes: data.payload.observacoes,
@@ -665,7 +683,6 @@ const Horarios = () => {
     setFormData({
       duracao_minutos: 120,
       tipo: 'ensaio',
-      atividade_id: null,
       atividade_uuid: null,
       observacoes: '',
       repetir_semanalmente: false,
@@ -702,8 +719,10 @@ const Horarios = () => {
       tema: session.tema,
       tipo: session.tipo,
       observacoes: session.observacoes,
-      atividade_id: session.atividade_id,
       atividade_uuid: session.atividade_uuid || null,
+      objetivos: session.objetivos || null,
+      sumario: session.sumario || null,
+      codigo_sessao: session.codigo_sessao || null,
     });
 
     // Find discipline for the activity to populate dropdown (uses UUID from local model)
@@ -712,9 +731,6 @@ const Horarios = () => {
       if (disc) {
         setSelectedDisciplinaId(disc.id);
       }
-    } else if (session.atividade_id) {
-      // Legacy fallback: try to match by old atividade_id name
-      setSelectedDisciplinaId(null);
     }
 
     // Load session's equipment
@@ -809,9 +825,11 @@ const Horarios = () => {
       tema: formData.tema || '',
       tipo: formData.tipo || 'plano_aula',
       observacoes: formData.observacoes || '',
-      atividade_id: formData.atividade_id,
       atividade_uuid: formData.atividade_uuid,
       projeto_id: selectedProjetoId,
+      objetivos: formData.objetivos || null,
+      sumario: formData.sumario || null,
+      codigo_sessao: formData.codigo_sessao || null,
     };
 
     if (editingSession) {
@@ -898,7 +916,7 @@ const Horarios = () => {
                             onValueChange={(v) => {
                               setSelectedProjetoId(Number(v));
                               setSelectedEstabId(null);
-                              setFormData({ ...formData, turma_id: undefined, atividade_id: null, atividade_uuid: null });
+                              setFormData({ ...formData, turma_id: undefined, atividade_uuid: null });
                               setSelectedDisciplinaId(null);
                             }}
                           >
@@ -939,7 +957,7 @@ const Horarios = () => {
                               disabled={!selectedEstabId}
                               value={formData.turma_id ? String(formData.turma_id) : ''}
                               onValueChange={(v) => {
-                                setFormData({ ...formData, turma_id: Number(v), atividade_id: null, atividade_uuid: null });
+                                setFormData({ ...formData, turma_id: Number(v), atividade_uuid: null });
                                 setSelectedDisciplinaId(null);
                               }}
                             >
@@ -972,7 +990,7 @@ const Horarios = () => {
                           <Label htmlFor="mentor">Mentor</Label>
                           <Select
                             value={formData.mentor_id ? String(formData.mentor_id) : ''}
-                            onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v), atividade_id: null, atividade_uuid: null })}
+                            onValueChange={(v) => setFormData({ ...formData, mentor_id: Number(v), atividade_uuid: null })}
                           >
                             <SelectTrigger id="mentor">
                               <SelectValue placeholder="Selecionar mentor" />
@@ -998,7 +1016,7 @@ const Horarios = () => {
                               value={selectedDisciplinaId ? String(selectedDisciplinaId) : ''}
                               onValueChange={(v) => {
                                 setSelectedDisciplinaId(Number(v));
-                                setFormData({ ...formData, atividade_id: null, atividade_uuid: null });
+                                setFormData({ ...formData, atividade_uuid: null });
                               }}
                             >
                               <SelectTrigger id="disciplina">
@@ -1016,7 +1034,7 @@ const Horarios = () => {
                             <Select
                               disabled={!selectedDisciplinaId || !formData.mentor_id}
                               value={formData.atividade_uuid || ''}
-                              onValueChange={(v) => setFormData({ ...formData, atividade_uuid: v, atividade_id: null })}
+                              onValueChange={(v) => setFormData({ ...formData, atividade_uuid: v, codigo_sessao: null, sumario: null, objetivos: null })}
                             >
                               <SelectTrigger id="atividade">
                                 <SelectValue placeholder={!formData.mentor_id ? "Selecione mentor..." : "Selecione..."} />
@@ -1029,6 +1047,49 @@ const Horarios = () => {
                             </Select>
                           </div>
                         </div>
+
+                        {/* Código de Sessão */}
+                        {formData.atividade_uuid && selectedMentorPerfil && (
+                          <div className="space-y-2">
+                            <Label htmlFor="codigo-sessao">Código de Sessão</Label>
+                            <Select
+                              value={formData.codigo_sessao || ''}
+                              onValueChange={(v) => {
+                                const cod = codigosSessao.find(c => c.codigo === v);
+                                setFormData({
+                                  ...formData,
+                                  codigo_sessao: v,
+                                  sumario: cod?.sumario ?? '',
+                                  objetivos: cod?.objetivo ?? '',
+                                });
+                              }}
+                            >
+                              <SelectTrigger id="codigo-sessao">
+                                <SelectValue placeholder={codigosSessao.length === 0 ? 'Sem códigos para esta disciplina' : 'Selecione o tema da sessão...'} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {codigosSessao.map(c => (
+                                  <SelectItem key={c.codigo} value={c.codigo}>{c.codigo}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+
+                        {/* Preview do sumário + objetivos */}
+                        {selectedCodigoPreview && (
+                          <div className="rounded-md border border-border bg-muted/40 p-3 space-y-2 text-sm">
+                            <div>
+                              <p className="font-medium text-muted-foreground mb-1">Sumário</p>
+                              <p className="text-foreground">{selectedCodigoPreview.sumario}</p>
+                            </div>
+                            <div>
+                              <p className="font-medium text-muted-foreground mb-1">Objetivos</p>
+                              <p className="text-foreground whitespace-pre-line">{selectedCodigoPreview.objetivo}</p>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="location">Local</Label>

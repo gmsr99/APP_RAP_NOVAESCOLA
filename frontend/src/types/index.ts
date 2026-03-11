@@ -171,10 +171,12 @@ export interface AulaAPI {
   mentor_user_id: string | null;
   estabelecimento_nome: string | null;
   atividade_nome?: string;
-  atividade_id?: number;
   atividade_uuid?: string;
   disciplina_nome?: string;
   equipamento_nome?: string;
+  objetivos?: string | null;
+  sumario?: string | null;
+  codigo_sessao?: string | null;
   // Trabalho Autónomo
   is_autonomous?: boolean;
   is_realized?: boolean;
@@ -217,7 +219,6 @@ export interface AulaCreate {
   tema?: string;
   observacoes?: string;
   tipo: string;
-  atividade_id?: number | null;
   atividade_uuid?: string | null;
   projeto_id?: number | null;
   is_autonomous?: boolean;
@@ -225,6 +226,9 @@ export interface AulaCreate {
   tipo_atividade?: string | null;
   responsavel_user_id?: string | null;
   musica_id?: number | null;
+  objetivos?: string | null;
+  sumario?: string | null;
+  codigo_sessao?: string | null;
 }
 
 export interface PublicProfileEquipa {

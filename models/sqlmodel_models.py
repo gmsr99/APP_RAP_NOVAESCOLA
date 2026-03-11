@@ -80,7 +80,8 @@ class Aula(SQLModel, table=True):
     tema: Optional[str] = None
     objetivos: Optional[str] = None
     observacoes: Optional[str] = None
-    atividade_id: Optional[int] = None
+    sumario: Optional[str] = None
+    codigo_sessao: Optional[str] = None
     atividade_uuid: Optional[UUID] = None
 
     criado_em: Optional[datetime] = None
@@ -131,10 +132,11 @@ class AulaCreate(SQLModel):
     tema: Optional[str] = None
     observacoes: Optional[str] = None
     tipo: str = "pratica_escrita"
-    atividade_id: Optional[int] = None
     atividade_uuid: Optional[str] = None
 
     objetivos: Optional[str] = None
+    sumario: Optional[str] = None
+    codigo_sessao: Optional[str] = None
     projeto_id: Optional[int] = None
     is_autonomous: bool = False
     is_realized: bool = False
@@ -153,10 +155,11 @@ class AulaUpdate(SQLModel):
     observacoes: Optional[str] = None
     tipo: Optional[str] = None
     estado: Optional[str] = None
-    atividade_id: Optional[int] = None
     atividade_uuid: Optional[str] = None
 
     objetivos: Optional[str] = None
+    sumario: Optional[str] = None
+    codigo_sessao: Optional[str] = None
     projeto_id: Optional[int] = None
     is_autonomous: Optional[bool] = None
     is_realized: Optional[bool] = None
@@ -178,8 +181,9 @@ class AulaRead(SQLModel):
     tema: Optional[str] = None
     objetivos: Optional[str] = None
     observacoes: Optional[str] = None
-    atividade_id: Optional[int] = None
-    atividade_uuid: Optional[str] = None
+    sumario: Optional[str] = None
+    codigo_sessao: Optional[str] = None
+    atividade_uuid: Optional[UUID] = None
 
     criado_em: Optional[datetime] = None
     atualizado_em: Optional[datetime] = None
@@ -202,6 +206,8 @@ class AulaListItem(SQLModel):
     local: Optional[str] = None
     objetivos: Optional[str] = None
     observacoes: Optional[str] = None
+    sumario: Optional[str] = None
+    codigo_sessao: Optional[str] = None
     criado_em: Optional[datetime] = None
     atualizado_em: Optional[datetime] = None
     turma_id: Optional[int] = None
@@ -212,7 +218,6 @@ class AulaListItem(SQLModel):
     estabelecimento_nome: Optional[str] = None
     estabelecimento_sigla: Optional[str] = None
     projeto_nome: Optional[str] = None
-    atividade_id: Optional[int] = None
     atividade_uuid: Optional[str] = None
     atividade_nome: Optional[str] = None
     disciplina_nome: Optional[str] = None

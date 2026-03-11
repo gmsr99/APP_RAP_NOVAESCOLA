@@ -81,8 +81,11 @@ interface SessaoRegistavel {
   mentor_longitude: number | null;
   estab_latitude: number | null;
   estab_longitude: number | null;
-  atividade_id: number | null;
-  atividade_nome: string | null;
+  atividade_uuid: string | null;
+  disciplina_nome: string | null;
+  objetivos: string | null;
+  sumario: string | null;
+  codigo_sessao: string | null;
 }
 
 interface Registo {
@@ -489,9 +492,9 @@ const Registos = () => {
     }
 
     setFormData({
-      atividade: session.is_autonomous
-        ? (session.tipo_atividade || 'Trabalho Autónomo')
-        : (session.atividade_nome || `Sessão ${session.turma_nome || ''}`).trim(),
+      atividade: session.disciplina_nome || (session.is_autonomous
+        ? 'Trabalho Autónomo'
+        : `Sessão ${session.turma_nome || ''}`.trim()),
       numero_sessao: session.tema || '',
       data: format(start, 'dd/MM/yyyy'),
       local: session.is_autonomous
@@ -499,8 +502,8 @@ const Registos = () => {
         : `${session.estabelecimento_sigla || session.estabelecimento_nome || ''} ${session.local ? `- ${session.local}` : ''}`.trim(),
       horario: buildHorario(session.data_hora, session.duracao_minutos),
       tecnicos: session.mentor_nome || user?.name || '',
-      objetivos_gerais: '',
-      sumario: session.observacoes || '',
+      objetivos_gerais: session.objetivos || '',
+      sumario: session.sumario || '',
       participantes,
       kms_percorridos: kms,
     });
