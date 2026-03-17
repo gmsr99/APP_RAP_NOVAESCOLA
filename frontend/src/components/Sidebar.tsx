@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useProfile } from '@/contexts/ProfileContext';
 import { cn } from '@/lib/utils';
-import logo from '@/assets/logo.png';
+const logo = '/logo2.png';
 import {
   LayoutDashboard,
   Calendar,

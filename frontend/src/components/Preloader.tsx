@@ -17,6 +17,11 @@ export function Preloader({ visible }: PreloaderProps) {
     const canvas = canvasRef.current;
     if (!video || !canvas || video.paused || video.ended) return;
 
+    if (!video.videoWidth || !video.videoHeight) {
+      rafRef.current = requestAnimationFrame(renderFrame);
+      return;
+    }
+
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return;
 
