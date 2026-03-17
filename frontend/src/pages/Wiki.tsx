@@ -90,11 +90,19 @@ interface TurmaAtividade {
   sessoes_previstas: number;
   horas_por_sessao: number;
   musicas_previstas: number;
-  perfil_mentor: string;
+  roles: string[];
   is_autonomous: boolean;
   sessoes_realizadas?: number;
   horas_realizadas?: number;
 }
+
+const ALL_ROLES = ['mentor', 'produtor', 'mentor_produtor', 'coordenador', 'direcao', 'it_support'] as const;
+
+const CODIGOS_ATIVIDADE = [
+  'CR_TP_MR', 'CR_TA_MR', 'CR_TA_C', 'CR_TA_P',
+  'CP_TP_MP', 'CP_TA_MP', 'CP_TA_C',
+  'OP_TP_MR', 'OP_TA_MR', 'OP_TA_C', 'OP_TA_P',
+] as const;
 
 interface TurmaDisciplina {
   id: number;
@@ -149,7 +157,7 @@ const Wiki = () => {
   const [disciplinaTargetTurmaId, setDisciplinaTargetTurmaId] = useState<number | null>(null);
   const [discForm, setDiscForm] = useState({ nome: '', descricao: '', musicas_previstas: '0' });
   const [batchAtividades, setBatchAtividades] = useState<Array<{
-    nome: string; codigo: string; sessoes_previstas: string; horas_por_sessao: string; musicas_previstas: string; perfil_mentor: string;
+    nome: string; codigo: string; sessoes_previstas: string; horas_por_sessao: string; musicas_previstas: string; roles: string[];
   }>>([]);
 
   // State for Local Atividade dialog
@@ -157,7 +165,7 @@ const Wiki = () => {
   const [editingAtividade, setEditingAtividade] = useState<TurmaAtividade | null>(null);
   const [atividadeTargetDiscId, setAtividadeTargetDiscId] = useState<number | null>(null);
   const [ativForm, setAtivForm] = useState({
-    nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', perfil_mentor: '', is_autonomous: false
+    nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', roles: [] as string[], is_autonomous: false
   });
 
   // Confirm dialog
@@ -472,7 +480,7 @@ const Wiki = () => {
         sessoes_previstas: parseInt(a.sessoes_previstas) || 0,
         horas_por_sessao: parseFloat(a.horas_por_sessao) || 0,
         musicas_previstas: parseInt(a.musicas_previstas) || 0,
-        perfil_mentor: a.perfil_mentor || null,
+        roles: a.roles || [],
       }));
     }
     saveDisciplinaMutation.mutate(payload);
@@ -481,7 +489,7 @@ const Wiki = () => {
   const openNewAtividade = (discId: number) => {
     setEditingAtividade(null);
     setAtividadeTargetDiscId(discId);
-    setAtivForm({ nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', perfil_mentor: '', is_autonomous: false });
+    setAtivForm({ nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', roles: [], is_autonomous: false });
     setIsAtividadeDialogOpen(true);
   };
 
@@ -494,7 +502,7 @@ const Wiki = () => {
       sessoes_previstas: String(ativ.sessoes_previstas || 0),
       horas_por_sessao: String(ativ.horas_por_sessao || 0),
       musicas_previstas: String(ativ.musicas_previstas || 0),
-      perfil_mentor: ativ.perfil_mentor || '',
+      roles: ativ.roles || [],
       is_autonomous: ativ.is_autonomous ?? false,
     });
     setIsAtividadeDialogOpen(true);
@@ -508,13 +516,13 @@ const Wiki = () => {
       sessoes_previstas: parseInt(ativForm.sessoes_previstas) || 0,
       horas_por_sessao: parseFloat(ativForm.horas_por_sessao) || 0,
       musicas_previstas: parseInt(ativForm.musicas_previstas) || 0,
-      perfil_mentor: ativForm.perfil_mentor || null,
+      roles: ativForm.roles,
       is_autonomous: ativForm.is_autonomous,
     });
   };
 
   const addBatchAtividade = () => {
-    setBatchAtividades(prev => [...prev, { nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', perfil_mentor: '' }]);
+    setBatchAtividades(prev => [...prev, { nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', roles: [] }]);
   };
 
   return (
@@ -569,7 +577,7 @@ const Wiki = () => {
                   <ul className="list-disc pl-4 space-y-1.5 text-muted-foreground">
                     <li>Ocorre numa <strong className="text-foreground">Turma</strong> específica.</li>
                     <li>Corresponde a uma <strong className="text-foreground">Atividade</strong> local da turma (UUID).</li>
-                    <li>Tem um <strong className="text-foreground">Mentor</strong> cujo perfil corresponde ao <code>perfil_mentor</code> da atividade.</li>
+                    <li>Tem um <strong className="text-foreground">Mentor</strong> cujo perfil está incluído nos <code>roles</code> da atividade.</li>
                     <li>Cada turma tem as suas próprias disciplinas e atividades (modelo local).</li>
                   </ul>
                 </CardContent>
@@ -845,14 +853,14 @@ const Wiki = () => {
                                                           <TableCell className="text-center">{ativ.horas_por_sessao || '—'}</TableCell>
                                                           <TableCell className="text-center">{ativ.musicas_previstas || '—'}</TableCell>
                                                           <TableCell>
-                                                            <div className="flex flex-col gap-1">
-                                                              {ativ.perfil_mentor ? (
-                                                                <Badge variant="outline">{ativ.perfil_mentor}</Badge>
-                                                              ) : null}
+                                                            <div className="flex flex-wrap gap-1">
+                                                              {ativ.roles && ativ.roles.length > 0
+                                                                ? ativ.roles.map(r => <Badge key={r} variant="outline" className="text-xs">{r}</Badge>)
+                                                                : <span className="text-muted-foreground text-xs">todos</span>
+                                                              }
                                                               {ativ.is_autonomous && (
-                                                                <Badge variant="secondary" className="text-xs w-fit">TA</Badge>
+                                                                <Badge variant="secondary" className="text-xs">TA</Badge>
                                                               )}
-                                                              {!ativ.perfil_mentor && !ativ.is_autonomous && '—'}
                                                             </div>
                                                           </TableCell>
                                                           <TableCell>
@@ -1127,9 +1135,13 @@ const Wiki = () => {
                         <Input placeholder="Nome" value={a.nome} onChange={e => {
                           const up = [...batchAtividades]; up[i] = { ...up[i], nome: e.target.value }; setBatchAtividades(up);
                         }} />
-                        <Input placeholder="Código (ex: CR_TP_R)" value={a.codigo} onChange={e => {
-                          const up = [...batchAtividades]; up[i] = { ...up[i], codigo: e.target.value }; setBatchAtividades(up);
-                        }} />
+                        <Select value={a.codigo || 'none'} onValueChange={v => { const up = [...batchAtividades]; up[i] = { ...up[i], codigo: v === 'none' ? '' : v }; setBatchAtividades(up); }}>
+                          <SelectTrigger><SelectValue placeholder="Código" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">— Sem código —</SelectItem>
+                            {CODIGOS_ATIVIDADE.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div className="grid gap-2 md:grid-cols-4">
                         <div>
@@ -1150,11 +1162,23 @@ const Wiki = () => {
                             const up = [...batchAtividades]; up[i] = { ...up[i], musicas_previstas: e.target.value }; setBatchAtividades(up);
                           }} />
                         </div>
-                        <div>
-                          <Label className="text-xs">Perfil Mentor</Label>
-                          <Input placeholder="Rapper, Produtor..." value={a.perfil_mentor} onChange={e => {
-                            const up = [...batchAtividades]; up[i] = { ...up[i], perfil_mentor: e.target.value }; setBatchAtividades(up);
-                          }} />
+                        <div className="md:col-span-4">
+                          <Label className="text-xs">Associar a</Label>
+                          <div className="flex flex-wrap gap-3 mt-1">
+                            {ALL_ROLES.map(role => (
+                              <label key={role} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                                <Checkbox
+                                  checked={a.roles.includes(role)}
+                                  onCheckedChange={(checked) => {
+                                    const up = [...batchAtividades];
+                                    up[i] = { ...up[i], roles: checked ? [...a.roles, role] : a.roles.filter(r => r !== role) };
+                                    setBatchAtividades(up);
+                                  }}
+                                />
+                                {role}
+                              </label>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1191,7 +1215,13 @@ const Wiki = () => {
           <div className="grid gap-4 py-4 md:grid-cols-2">
             <div className="grid gap-2">
               <Label>Código</Label>
-              <Input value={ativForm.codigo} onChange={(e) => setAtivForm({ ...ativForm, codigo: e.target.value })} placeholder="Ex: CR_TP_R" />
+              <Select value={ativForm.codigo || 'none'} onValueChange={(v) => setAtivForm({ ...ativForm, codigo: v === 'none' ? '' : v })}>
+                <SelectTrigger><SelectValue placeholder="Selecionar código" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Sem código —</SelectItem>
+                  {CODIGOS_ATIVIDADE.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
               <Label>Nome da Atividade</Label>
@@ -1209,9 +1239,22 @@ const Wiki = () => {
               <Label>Músicas Previstas</Label>
               <Input type="number" min={0} value={ativForm.musicas_previstas} onChange={(e) => setAtivForm({ ...ativForm, musicas_previstas: e.target.value })} />
             </div>
-            <div className="grid gap-2">
-              <Label>Perfil Mentor</Label>
-              <Input value={ativForm.perfil_mentor} onChange={(e) => setAtivForm({ ...ativForm, perfil_mentor: e.target.value })} placeholder="Rapper, Produtor..." />
+            <div className="md:col-span-2 grid gap-2">
+              <Label>Associar a</Label>
+              <div className="flex flex-wrap gap-4">
+                {ALL_ROLES.map(role => (
+                  <label key={role} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={ativForm.roles.includes(role)}
+                      onCheckedChange={(checked) => setAtivForm({
+                        ...ativForm,
+                        roles: checked ? [...ativForm.roles, role] : ativForm.roles.filter(r => r !== role)
+                      })}
+                    />
+                    {role}
+                  </label>
+                ))}
+              </div>
             </div>
             <div className="md:col-span-2 flex items-center gap-3 rounded-md border p-3 bg-muted/30">
               <Checkbox

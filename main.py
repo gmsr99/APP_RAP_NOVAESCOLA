@@ -17,7 +17,7 @@ Versão: 2.0
 
 # Importações de bibliotecas
 import uvicorn
-from typing import Optional
+from typing import List, Optional
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -82,8 +82,8 @@ class ReservaCreate(BaseModel):
     artista_turma: str
     projeto_musica: str
     responsavel_id: str
-    notas: str = None
-    criado_por_id: str = None
+    notas: Optional[str] = None
+    criado_por_id: Optional[str] = None
 
 @app.post("/api/estudio/reservas", tags=["Estudio"])
 async def create_estudio_reserva(reserva: ReservaCreate):
@@ -820,7 +820,7 @@ async def get_musicas(arquivadas: bool = False, projeto_id: Optional[int] = None
 class MusicaCreate(BaseModel):
     titulo: str
     turma_id: int
-    disciplina: str = None
+    disciplina: Optional[str] = None
     projeto_id: Optional[int] = None
 
 @app.post("/api/musicas", tags=["Producao"])
@@ -1091,7 +1091,7 @@ async def update_mentor_location(mentor_id: int, payload: MentorLocationUpdate):
 # -----------------------------------------------------------------------------
 class EstabelecimentoWikiCreate(BaseModel):
     nome: str
-    sigla: str = None
+    sigla: Optional[str] = None
     morada: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -1176,7 +1176,7 @@ async def get_wiki_turma_disciplinas(turma_id: int):
 
 class TurmaDisciplinaCreate(BaseModel):
     nome: str
-    descricao: str = None
+    descricao: Optional[str] = None
     musicas_previstas: int = 0
     atividades: list = []
 
@@ -1193,7 +1193,7 @@ async def create_wiki_disciplina(turma_id: int, payload: TurmaDisciplinaCreate):
 
 class TurmaDisciplinaUpdate(BaseModel):
     nome: str
-    descricao: str = None
+    descricao: Optional[str] = None
     musicas_previstas: int = 0
 
 @app.put("/api/wiki/disciplinas/{td_id}", tags=["Wiki"])
@@ -1215,11 +1215,11 @@ async def delete_wiki_disciplina(td_id: int):
 class TurmaAtividadeCreate(BaseModel):
     turma_disciplina_id: int
     nome: str
-    codigo: str = None
+    codigo: Optional[str] = None
     sessoes_previstas: int = 0
     horas_por_sessao: float = 0
     musicas_previstas: int = 0
-    perfil_mentor: str = None
+    roles: List[str] = []
     is_autonomous: bool = False
 
 @app.post("/api/wiki/atividades", tags=["Wiki"])
@@ -1228,7 +1228,7 @@ async def create_wiki_atividade(payload: TurmaAtividadeCreate):
     result = wiki_service.criar_atividade(
         payload.turma_disciplina_id, payload.nome, payload.codigo,
         payload.sessoes_previstas, payload.horas_por_sessao,
-        payload.musicas_previstas, payload.perfil_mentor, payload.is_autonomous
+        payload.musicas_previstas, payload.roles, payload.is_autonomous
     )
     if not result:
         raise HTTPException(status_code=500, detail="Erro ao criar atividade")
@@ -1236,11 +1236,11 @@ async def create_wiki_atividade(payload: TurmaAtividadeCreate):
 
 class TurmaAtividadeUpdate(BaseModel):
     nome: str
-    codigo: str = None
+    codigo: Optional[str] = None
     sessoes_previstas: int = 0
     horas_por_sessao: float = 0
     musicas_previstas: int = 0
-    perfil_mentor: str = None
+    roles: List[str] = []
     is_autonomous: bool = False
 
 @app.put("/api/wiki/atividades/{uuid}", tags=["Wiki"])

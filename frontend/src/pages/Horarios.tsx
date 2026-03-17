@@ -261,20 +261,15 @@ const Horarios = () => {
     observacoes: '',
   });
 
-  // ── Helper: filtra atividades por role do user (via sufixo do código: R/P/C) ──
-  function canRoleDoActivity(codigo: string, role: string | null | undefined): boolean {
+  // ── Helper: filtra atividades pelos roles explícitos guardados em cada atividade ──
+  function canRoleDoActivity(roles: string[], role: string | null | undefined): boolean {
     if (!role) return true; // sem role definido: mostra tudo
-    if (!codigo) return true;
-    const suffix = codigo.slice(-1); // último caracter: R, P ou C
-    const r = role.toLowerCase();
-    if (suffix === 'C') return r === 'coordenador';
-    if (suffix === 'P') return r === 'produtor';
-    if (suffix === 'R') return ['mentor', 'coordenador', 'mentor_produtor'].includes(r);
-    return true; // código sem sufixo reconhecido: mostra para todos
+    if (!roles || roles.length === 0) return true; // sem restrição: visível para todos
+    return roles.includes(role.toLowerCase());
   }
 
   function filterActivitiesByType(activities: any[], isAutonomous: boolean, role: string | null | undefined): any[] {
-    return activities.filter((a: any) => (!!a.is_autonomous) === isAutonomous && canRoleDoActivity(a.codigo, role));
+    return activities.filter((a: any) => (!!a.is_autonomous) === isAutonomous && canRoleDoActivity(a.roles || [], role));
   }
 
   // Disciplinas locais da turma selecionada (com atividades UUID)

@@ -79,7 +79,7 @@ def listar_hierarquia_projeto(projeto_id: int):
                         cur.execute("""
                             SELECT
                                 ta.uuid, ta.nome, ta.codigo, ta.sessoes_previstas,
-                                ta.horas_por_sessao, ta.musicas_previstas, ta.perfil_mentor,
+                                ta.horas_por_sessao, ta.musicas_previstas, ta.roles,
                                 COUNT(a.id) AS sessoes_realizadas,
                                 COALESCE(SUM(a.duracao_minutos), 0) AS horas_realizadas,
                                 ta.is_autonomous
@@ -87,7 +87,7 @@ def listar_hierarquia_projeto(projeto_id: int):
                             LEFT JOIN aulas a ON a.atividade_uuid = ta.uuid AND a.estado = 'terminada'
                             WHERE ta.turma_disciplina_id = %s
                             GROUP BY ta.uuid, ta.nome, ta.codigo, ta.sessoes_previstas,
-                                     ta.horas_por_sessao, ta.musicas_previstas, ta.perfil_mentor,
+                                     ta.horas_por_sessao, ta.musicas_previstas, ta.roles,
                                      ta.is_autonomous
                             ORDER BY ta.is_autonomous, ta.codigo, ta.nome
                         """, (td_id,))
@@ -95,7 +95,7 @@ def listar_hierarquia_projeto(projeto_id: int):
                         cur.execute("""
                             SELECT
                                 ta.uuid, ta.nome, ta.codigo, ta.sessoes_previstas,
-                                ta.horas_por_sessao, ta.musicas_previstas, ta.perfil_mentor,
+                                ta.horas_por_sessao, ta.musicas_previstas, ta.roles,
                                 COUNT(a.id) AS sessoes_realizadas,
                                 COALESCE(SUM(a.duracao_minutos), 0) AS horas_realizadas,
                                 FALSE AS is_autonomous
@@ -103,7 +103,7 @@ def listar_hierarquia_projeto(projeto_id: int):
                             LEFT JOIN aulas a ON a.atividade_uuid = ta.uuid AND a.estado = 'terminada'
                             WHERE ta.turma_disciplina_id = %s
                             GROUP BY ta.uuid, ta.nome, ta.codigo, ta.sessoes_previstas,
-                                     ta.horas_por_sessao, ta.musicas_previstas, ta.perfil_mentor
+                                     ta.horas_por_sessao, ta.musicas_previstas, ta.roles
                             ORDER BY ta.codigo, ta.nome
                         """, (td_id,))
                     ativ_rows = cur.fetchall()
@@ -117,7 +117,7 @@ def listar_hierarquia_projeto(projeto_id: int):
                             'sessoes_previstas': a[3] or 0,
                             'horas_por_sessao': float(a[4]) if a[4] else 0,
                             'musicas_previstas': a[5] or 0,
-                            'perfil_mentor': a[6],
+                            'roles': list(a[6]) if a[6] else [],
                             'sessoes_realizadas': a[7],
                             'horas_realizadas': round(float(a[8]) / 60.0, 1),
                             'is_autonomous': bool(a[9]),
@@ -178,7 +178,7 @@ def listar_disciplinas_turma(turma_id: int):
             if has_auto:
                 cur.execute("""
                     SELECT uuid, nome, codigo, sessoes_previstas,
-                           horas_por_sessao, musicas_previstas, perfil_mentor, is_autonomous
+                           horas_por_sessao, musicas_previstas, roles, is_autonomous
                     FROM turma_atividades
                     WHERE turma_disciplina_id = %s
                     ORDER BY is_autonomous, codigo, nome
@@ -186,7 +186,7 @@ def listar_disciplinas_turma(turma_id: int):
             else:
                 cur.execute("""
                     SELECT uuid, nome, codigo, sessoes_previstas,
-                           horas_por_sessao, musicas_previstas, perfil_mentor, FALSE AS is_autonomous
+                           horas_por_sessao, musicas_previstas, roles, FALSE AS is_autonomous
                     FROM turma_atividades
                     WHERE turma_disciplina_id = %s
                     ORDER BY codigo, nome
@@ -198,7 +198,7 @@ def listar_disciplinas_turma(turma_id: int):
                 'sessoes_previstas': a[3] or 0,
                 'horas_por_sessao': float(a[4]) if a[4] else 0,
                 'musicas_previstas': a[5] or 0,
-                'perfil_mentor': a[6],
+                'roles': list(a[6]) if a[6] else [],
                 'is_autonomous': bool(a[7]),
             } for a in cur.fetchall()]
 
@@ -242,25 +242,25 @@ def criar_disciplina_turma(turma_id: int, nome: str, descricao: str = None, musi
                 if has_auto:
                     cur.execute("""
                         INSERT INTO turma_atividades
-                            (turma_disciplina_id, nome, codigo, sessoes_previstas, horas_por_sessao, musicas_previstas, perfil_mentor, is_autonomous)
+                            (turma_disciplina_id, nome, codigo, sessoes_previstas, horas_por_sessao, musicas_previstas, roles, is_autonomous)
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         RETURNING uuid
                     """, (
                         td_id, a['nome'], a.get('codigo'),
                         a.get('sessoes_previstas', 0), a.get('horas_por_sessao', 0),
-                        a.get('musicas_previstas', 0), a.get('perfil_mentor'),
+                        a.get('musicas_previstas', 0), a.get('roles', []),
                         bool(a.get('is_autonomous', False))
                     ))
                 else:
                     cur.execute("""
                         INSERT INTO turma_atividades
-                            (turma_disciplina_id, nome, codigo, sessoes_previstas, horas_por_sessao, musicas_previstas, perfil_mentor)
+                            (turma_disciplina_id, nome, codigo, sessoes_previstas, horas_por_sessao, musicas_previstas, roles)
                         VALUES (%s, %s, %s, %s, %s, %s, %s)
                         RETURNING uuid
                     """, (
                         td_id, a['nome'], a.get('codigo'),
                         a.get('sessoes_previstas', 0), a.get('horas_por_sessao', 0),
-                        a.get('musicas_previstas', 0), a.get('perfil_mentor'),
+                        a.get('musicas_previstas', 0), a.get('roles', []),
                     ))
                 uuid = cur.fetchone()[0]
                 created_atividades.append({**a, 'uuid': str(uuid)})
@@ -320,26 +320,27 @@ def apagar_disciplina_turma(td_id: int):
         if 'conn' in locals() and conn: conn.close()
 
 
-def criar_atividade(turma_disciplina_id: int, nome: str, codigo: str = None, sessoes_previstas: int = 0, horas_por_sessao: float = 0, musicas_previstas: int = 0, perfil_mentor: str = None, is_autonomous: bool = False):
+def criar_atividade(turma_disciplina_id: int, nome: str, codigo: str = None, sessoes_previstas: int = 0, horas_por_sessao: float = 0, musicas_previstas: int = 0, roles: list = None, is_autonomous: bool = False):
     """Cria uma atividade individual numa disciplina local."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         has_auto = _has_is_autonomous(cur)
+        roles_val = roles or []
         if has_auto:
             cur.execute("""
                 INSERT INTO turma_atividades
-                    (turma_disciplina_id, nome, codigo, sessoes_previstas, horas_por_sessao, musicas_previstas, perfil_mentor, is_autonomous)
+                    (turma_disciplina_id, nome, codigo, sessoes_previstas, horas_por_sessao, musicas_previstas, roles, is_autonomous)
                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING uuid
-            """, (turma_disciplina_id, nome, codigo, sessoes_previstas, horas_por_sessao, musicas_previstas, perfil_mentor, is_autonomous))
+            """, (turma_disciplina_id, nome, codigo, sessoes_previstas, horas_por_sessao, musicas_previstas, roles_val, is_autonomous))
         else:
             cur.execute("""
                 INSERT INTO turma_atividades
-                    (turma_disciplina_id, nome, codigo, sessoes_previstas, horas_por_sessao, musicas_previstas, perfil_mentor)
+                    (turma_disciplina_id, nome, codigo, sessoes_previstas, horas_por_sessao, musicas_previstas, roles)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 RETURNING uuid
-            """, (turma_disciplina_id, nome, codigo, sessoes_previstas, horas_por_sessao, musicas_previstas, perfil_mentor))
+            """, (turma_disciplina_id, nome, codigo, sessoes_previstas, horas_por_sessao, musicas_previstas, roles_val))
         uuid = cur.fetchone()[0]
         conn.commit()
         return {'uuid': str(uuid), 'nome': nome, 'codigo': codigo, 'is_autonomous': is_autonomous}
@@ -362,13 +363,13 @@ def atualizar_atividade(uuid: str, dados: dict):
             cur.execute("""
                 UPDATE turma_atividades
                 SET nome = %s, codigo = %s, sessoes_previstas = %s,
-                    horas_por_sessao = %s, musicas_previstas = %s, perfil_mentor = %s,
+                    horas_por_sessao = %s, musicas_previstas = %s, roles = %s,
                     is_autonomous = %s
                 WHERE uuid = %s
             """, (
                 dados['nome'], dados.get('codigo'),
                 dados.get('sessoes_previstas', 0), dados.get('horas_por_sessao', 0),
-                dados.get('musicas_previstas', 0), dados.get('perfil_mentor'),
+                dados.get('musicas_previstas', 0), dados.get('roles', []),
                 bool(dados.get('is_autonomous', False)),
                 uuid
             ))
@@ -376,12 +377,12 @@ def atualizar_atividade(uuid: str, dados: dict):
             cur.execute("""
                 UPDATE turma_atividades
                 SET nome = %s, codigo = %s, sessoes_previstas = %s,
-                    horas_por_sessao = %s, musicas_previstas = %s, perfil_mentor = %s
+                    horas_por_sessao = %s, musicas_previstas = %s, roles = %s
                 WHERE uuid = %s
             """, (
                 dados['nome'], dados.get('codigo'),
                 dados.get('sessoes_previstas', 0), dados.get('horas_por_sessao', 0),
-                dados.get('musicas_previstas', 0), dados.get('perfil_mentor'),
+                dados.get('musicas_previstas', 0), dados.get('roles', []),
                 uuid
             ))
         conn.commit()
