@@ -859,7 +859,7 @@ const Horarios = () => {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-display font-bold">Planeamento de Horários</h1>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold">Planeamento de Horários</h1>
           <p className="text-muted-foreground mt-1">
             Gere sessões e acompanha confirmações.
           </p>
@@ -877,7 +877,7 @@ const Horarios = () => {
                   Nova Sessão
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[540px] bg-card">
+              <DialogContent className="w-full sm:max-w-[540px] bg-card max-h-[95dvh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle className="font-display">
                     {editingSession ? 'Editar Sessão' : 'Novo Agendamento'}
@@ -1966,7 +1966,7 @@ const Horarios = () => {
 
       {/* DETAIL VIEW MODAL */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="w-full sm:max-w-[500px] max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>Detalhes da Sessão</span>
@@ -2190,7 +2190,7 @@ const Horarios = () => {
 
       {/* TERMINAR SESSÃO MODAL */}
       <Dialog open={isTerminarOpen} onOpenChange={setIsTerminarOpen}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="w-full sm:max-w-[420px] max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-[#6B7280]" />

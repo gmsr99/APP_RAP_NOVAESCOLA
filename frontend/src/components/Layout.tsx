@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Sidebar } from '@/components/Sidebar';
+import { Sidebar, MobileSidebar, BottomNav } from '@/components/Sidebar';
 import { Header } from '@/components/Header';
-import { Button } from '@/components/ui/button';
-import { MessageCircle, MapPin, X } from 'lucide-react';
+import { MapPin, X } from 'lucide-react';
 import { api } from '@/lib/api';
 
 export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [showLocationBanner, setShowLocationBanner] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     const checkMentorLocation = async () => {
@@ -33,13 +33,22 @@ export function Layout() {
     }
   }, [location.pathname]);
 
-
+  // Close mobile nav on route change
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
 
   return (
     <div className="flex h-screen w-full overflow-hidden">
+      {/* Desktop sidebar */}
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header />
+
+      {/* Mobile drawer */}
+      <MobileSidebar open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+
+      <div className="flex flex-1 flex-col overflow-hidden min-w-0">
+        <Header onMenuToggle={() => setMobileNavOpen(true)} />
+
         {showLocationBanner && (
           <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 flex items-center justify-between gap-3 shrink-0">
             <div className="flex items-center gap-2 text-sm text-amber-800">
@@ -62,12 +71,15 @@ export function Layout() {
             </button>
           </div>
         )}
-        <main className="flex-1 overflow-auto p-6 scrollbar-thin">
+
+        {/* Main content — extra bottom padding on mobile for bottom nav */}
+        <main className="flex-1 overflow-auto p-3 sm:p-6 pb-24 md:pb-6 scrollbar-thin">
           <Outlet />
         </main>
       </div>
 
-
+      {/* Mobile bottom navigation */}
+      <BottomNav onMoreClick={() => setMobileNavOpen(true)} />
     </div>
   );
 }

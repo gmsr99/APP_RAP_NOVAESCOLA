@@ -52,7 +52,6 @@ import {
 } from 'lucide-react';
 import { format, parseISO, addMinutes } from 'date-fns';
 import { pt } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -146,18 +145,18 @@ function RegistoRow({ reg, onReExport, onDelete, showMentor }: {
   showMentor: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/30">
-      <div className="flex items-center gap-4">
-        <div className="p-2 rounded-lg bg-green-500/20 text-green-600">
+    <div className="flex items-start sm:items-center justify-between gap-3 p-4 rounded-lg bg-secondary/30">
+      <div className="flex items-start gap-3">
+        <div className="p-2 rounded-lg bg-green-500/20 text-green-600 shrink-0 mt-0.5 sm:mt-0">
           <CheckCircle2 className="h-5 w-5" />
         </div>
-        <div>
-          <p className="font-medium">
+        <div className="min-w-0">
+          <p className="font-medium text-sm leading-snug">
             {reg.is_autonomous
               ? (reg.tipo_atividade || 'Trabalho Autónomo')
               : `${reg.turma_nome || 'Aula'} — ${reg.estabelecimento_nome || ''}`}
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs text-muted-foreground mt-0.5">
             {format(parseISO(reg.data_hora), "d 'de' MMMM yyyy", { locale: pt })}
             {' · '}
             {buildHorario(reg.data_hora, reg.duracao_minutos)}
@@ -175,21 +174,22 @@ function RegistoRow({ reg, onReExport, onDelete, showMentor }: {
           )}
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         <Button
           variant="outline"
           size="sm"
           onClick={() => onReExport(reg)}
           title="Descarregar PDF preenchido"
+          className="h-8 px-2 sm:px-3"
         >
-          <Download className="h-4 w-4 mr-1.5" />
-          PDF
+          <Download className="h-4 w-4 sm:mr-1.5" />
+          <span className="hidden sm:inline">PDF</span>
         </Button>
         {onDelete && (
           <Button
             variant="ghost"
             size="icon"
-            className="text-destructive hover:bg-destructive/10"
+            className="h-8 w-8 text-destructive hover:bg-destructive/10"
             onClick={() => onDelete(reg.id)}
             title="Apagar registo"
           >
@@ -296,6 +296,7 @@ const Registos = () => {
 
   const [selectedSessionId, setSelectedSessionId] = useState<string>('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('meus');
 
   // Form state for the modal
   const [formData, setFormData] = useState({
@@ -338,6 +339,15 @@ const Registos = () => {
     queryFn: async () => {
       const res = await api.get('/api/registos/todos');
       return res.data as Registo[];
+    },
+    enabled: isCoord,
+  });
+
+  const { data: todasSessoesRegistaveis = [] } = useQuery({
+    queryKey: ['sessoes-registaveis-todas'],
+    queryFn: async () => {
+      const res = await api.get('/api/aulas/registaveis/todas');
+      return res.data as SessaoRegistavel[];
     },
     enabled: isCoord,
   });
@@ -430,7 +440,9 @@ const Registos = () => {
     mutationFn: (payload: any) => api.post('/api/registos', payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['registos'] });
+      queryClient.invalidateQueries({ queryKey: ['registos-todos'] });
       queryClient.invalidateQueries({ queryKey: ['sessoes-registaveis'] });
+      queryClient.invalidateQueries({ queryKey: ['sessoes-registaveis-todas'] });
       toast({ title: 'Registo guardado', description: 'O registo foi criado com sucesso.' });
     },
     onError: () => {
@@ -442,7 +454,9 @@ const Registos = () => {
     mutationFn: (id: number) => api.delete(`/api/registos/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['registos'] });
+      queryClient.invalidateQueries({ queryKey: ['registos-todos'] });
       queryClient.invalidateQueries({ queryKey: ['sessoes-registaveis'] });
+      queryClient.invalidateQueries({ queryKey: ['sessoes-registaveis-todas'] });
       toast({ title: 'Registo apagado', description: 'A sessão voltou a ficar disponível.' });
     },
     onError: () => {
@@ -454,7 +468,8 @@ const Registos = () => {
 
   const handleSelectSession = async (value: string) => {
     setSelectedSessionId(value);
-    const session = sessoes.find(s => String(s.id) === value);
+    const session = sessoes.find(s => String(s.id) === value)
+      ?? todasSessoesRegistaveis.find(s => String(s.id) === value);
     if (!session) return;
 
     setSelectedSession(session);
@@ -626,108 +641,117 @@ const Registos = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-display font-bold">Registos de Sessão</h1>
+        <h1 className="text-2xl sm:text-3xl font-display font-bold">Registos de Sessão</h1>
         <p className="text-muted-foreground mt-1">
           Regista o que aconteceu em cada sessão e exporta o documento PDF.
         </p>
       </div>
 
-      {/* Quick Register Card */}
-      <Card className="border-primary/30 bg-primary/5">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-primary" />
-            Registar sessão
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Seleciona a sessão a registar</Label>
-              <Select value={selectedSessionId} onValueChange={handleSelectSession}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Escolhe uma sessão..." />
-                </SelectTrigger>
-                <SelectContent className="bg-popover">
-                  {sessoes.length === 0 ? (
-                    <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                      Não há sessões por registar.
-                    </div>
-                  ) : (
-                    sessoes.map(s => (
-                      <SelectItem key={s.id} value={String(s.id)}>
-                        <div className="flex items-center gap-2">
-                          {s.is_autonomous ? (
-                            <Music2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
-                          ) : (
-                            <Calendar className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                          )}
-                          <span>{sessionLabel(s)}</span>
+      {/* ─── Tabs + Quick Register Card ─────────────────────────────── */}
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedSessionId(''); setSelectedSession(null); }}>
+        {/* Tab switcher always at the top (only visible for coord) */}
+        {isCoord && (
+          <TabsList className="mb-4">
+            <TabsTrigger value="meus">Os meus Registos</TabsTrigger>
+            <TabsTrigger value="todos">Todos os Registos</TabsTrigger>
+          </TabsList>
+        )}
+
+        {/* Quick Register Card — adapta o pool de sessões conforme a tab ativa */}
+        {(() => {
+          const pool = activeTab === 'todos' ? todasSessoesRegistaveis : sessoes;
+          const showMentorInLabel = activeTab === 'todos';
+          return (
+            <Card className="border-primary/30 bg-primary/5 mb-4">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5 text-primary" />
+                  Registar sessão
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Seleciona a sessão a registar</Label>
+                    <Select value={selectedSessionId} onValueChange={handleSelectSession}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Escolhe uma sessão..." />
+                      </SelectTrigger>
+                      <SelectContent className="bg-popover">
+                        {pool.length === 0 ? (
+                          <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                            Não há sessões por registar.
+                          </div>
+                        ) : (
+                          pool.map(s => (
+                            <SelectItem key={s.id} value={String(s.id)}>
+                              <div className="flex items-center gap-2">
+                                {s.is_autonomous ? (
+                                  <Music2 className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                                ) : (
+                                  <Calendar className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                                )}
+                                <span>
+                                  {sessionLabel(s)}
+                                  {showMentorInLabel && s.mentor_nome ? ` · ${s.mentor_nome}` : ''}
+                                </span>
+                              </div>
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {selectedSession && (
+                    <div className="space-y-4 p-4 rounded-lg bg-card border border-border">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          {format(parseISO(selectedSession.data_hora), "d 'de' MMMM yyyy", { locale: pt })}
                         </div>
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Session preview + action */}
-            {selectedSession && (
-              <div className="space-y-4 p-4 rounded-lg bg-card border border-border">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Calendar className="h-4 w-4 text-muted-foreground" />
-                    {format(parseISO(selectedSession.data_hora), "d 'de' MMMM yyyy", { locale: pt })}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Clock className="h-4 w-4 text-muted-foreground" />
-                    {formData.horario}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    {formData.local || 'Sem local'}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <UserIcon className="h-4 w-4 text-muted-foreground" />
-                    {formData.tecnicos}
-                  </div>
-                </div>
-
-                <Badge variant={selectedSession.is_autonomous ? 'secondary' : 'default'} className="mt-1">
-                  {selectedSession.is_autonomous ? 'Trabalho Autónomo' : 'Aula Presencial'}
-                </Badge>
-
-                <div className="p-4 rounded-lg bg-secondary/20 border border-border">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/10">
-                        <FileText className="h-5 w-5 text-primary" />
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          {formData.horario}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <MapPin className="h-4 w-4 text-muted-foreground" />
+                          {formData.local || 'Sem local'}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <UserIcon className="h-4 w-4 text-muted-foreground" />
+                          {formData.tecnicos}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-sm">Registo de Atividade</p>
-                        <p className="text-xs text-muted-foreground">
-                          Documento oficial com campos pré-preenchidos
-                        </p>
+                      <Badge variant={selectedSession.is_autonomous ? 'secondary' : 'default'} className="mt-1">
+                        {selectedSession.is_autonomous ? 'Trabalho Autónomo' : 'Aula Presencial'}
+                      </Badge>
+                      <div className="p-4 rounded-lg bg-secondary/20 border border-border">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-lg bg-primary/10">
+                              <FileText className="h-5 w-5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">Registo de Atividade</p>
+                              <p className="text-xs text-muted-foreground">
+                                Documento oficial com campos pré-preenchidos
+                              </p>
+                            </div>
+                          </div>
+                          <Button variant="default" size="sm" onClick={openModal}>
+                            <FileText className="h-4 w-4 mr-2" />
+                            Preencher & Exportar
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                    <Button variant="default" size="sm" onClick={openModal}>
-                      <FileText className="h-4 w-4 mr-2" />
-                      Preencher & Exportar
-                    </Button>
-                  </div>
+                  )}
                 </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ─── Tabs: Os meus Registos / Todos os Registos ─────────────── */}
-      <Tabs defaultValue="meus">
-        <TabsList className={cn(!isCoord && 'hidden')}>
-          <TabsTrigger value="meus">Os meus Registos</TabsTrigger>
-          <TabsTrigger value="todos">Todos os Registos</TabsTrigger>
-        </TabsList>
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Tab 1 — Os meus Registos */}
         <TabsContent value="meus">
@@ -869,7 +893,7 @@ const Registos = () => {
 
       {/* ─── Modal: fill form + export PDF ─────────────────────────────── */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="w-full max-w-2xl max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5 text-primary" />
@@ -882,7 +906,7 @@ const Registos = () => {
 
           <div className="space-y-5 py-2">
             {/* Pre-filled fields (editable) */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Designação do Projeto</Label>
                 <Input value="RAP Nova Escola" readOnly className="bg-secondary/30 text-sm" />

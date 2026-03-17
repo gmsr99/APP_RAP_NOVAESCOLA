@@ -168,9 +168,17 @@ async def get_proximo_numero_sessao(
 
 @app.get("/api/aulas/registaveis", tags=["Registos"])
 async def get_sessoes_registaveis(user=Depends(get_current_user_required)):
-    """Sessões confirmadas/realizadas do user ainda sem registo."""
+    """Sessões terminadas/realizadas do user ainda sem registo."""
     user_id = user.get("sub")
     return registo_service.listar_sessoes_registaveis(user_id)
+
+@app.get("/api/aulas/registaveis/todas", tags=["Registos"])
+async def get_todas_sessoes_registaveis(user=Depends(get_current_user_required)):
+    """Todas as sessões terminadas/realizadas sem registo (coordenadores/direção)."""
+    role = user.get("user_metadata", {}).get("role", "")
+    if role not in ["coordenador", "direcao", "it_support"]:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    return registo_service.listar_todas_sessoes_registaveis()
 
 @app.get("/api/aulas/{aula_id}", tags=["Aulas"])
 async def get_aula_by_id(aula_id: int):

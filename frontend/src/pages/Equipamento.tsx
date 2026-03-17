@@ -40,7 +40,6 @@ import {
   Edit2,
   Trash2,
   History,
-  Filter,
   MapPin,
   User,
 } from 'lucide-react';
@@ -274,7 +273,7 @@ const Equipamento = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 rounded-lg bg-primary/10">
@@ -324,21 +323,15 @@ const Equipamento = () => {
       {/* Filters */}
       <Card>
         <CardContent className="p-4">
-          <div className="flex flex-wrap gap-3 items-end">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Filtros:</span>
-            </div>
-            <div className="w-48">
-              <Input
-                placeholder="Pesquisar..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="h-9"
-              />
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Input
+              placeholder="Pesquisar..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-9"
+            />
             <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
-              <SelectTrigger className="w-48 h-9">
+              <SelectTrigger className="h-9">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
@@ -349,7 +342,7 @@ const Equipamento = () => {
               </SelectContent>
             </Select>
             <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-              <SelectTrigger className="w-48 h-9">
+              <SelectTrigger className="h-9">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
@@ -368,7 +361,7 @@ const Equipamento = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Package className="h-5 w-5" />
-            Inventario ({filteredItens.length} {filteredItens.length === 1 ? 'item' : 'itens'})
+            Inventário ({filteredItens.length} {filteredItens.length === 1 ? 'item' : 'itens'})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -377,74 +370,121 @@ const Equipamento = () => {
               Nenhum item encontrado.
             </p>
           ) : (
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Identificador</TableHead>
-                    <TableHead>Tipo</TableHead>
-                    <TableHead>Categoria</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Localizacao</TableHead>
-                    <TableHead>Ultimo responsavel</TableHead>
-                    <TableHead>Ultima utilizacao</TableHead>
-                    <TableHead className="w-[100px]">Acoes</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredItens.map(item => (
-                    <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.identificador}</TableCell>
-                      <TableCell className="text-muted-foreground">{item.nome}</TableCell>
-                      <TableCell>
-                        <Badge variant="secondary">{item.categoria_nome}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <EstadoBadge estado={item.estado} />
-                      </TableCell>
-                      <TableCell>
-                        {item.localizacao_nome ? (
-                          <span className="flex items-center gap-1 text-sm">
-                            <MapPin className="h-3 w-3" />
-                            {item.localizacao_nome}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {item.responsavel_nome ? (
-                          <span className="flex items-center gap-1 text-sm">
-                            <User className="h-3 w-3" />
-                            {item.responsavel_nome}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {item.ultima_utilizacao
-                          ? formatDistanceToNow(parseISO(item.ultima_utilizacao), { addSuffix: true, locale: pt })
-                          : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openHistorico(item.id)} title="Historico">
-                            <History className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)} title="Editar">
-                            <Edit2 className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteMutation.mutate(item.id)} title="Remover">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+            <>
+              {/* ── Mobile cards ── */}
+              <div className="flex flex-col gap-3 md:hidden">
+                {filteredItens.map(item => (
+                  <div key={item.id} className="rounded-lg border bg-card p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-sm">{item.identificador}</p>
+                        <p className="text-xs text-muted-foreground">{item.nome}</p>
+                      </div>
+                      <EstadoBadge estado={item.estado} />
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      <Badge variant="secondary">{item.categoria_nome}</Badge>
+                      {item.localizacao_nome && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />{item.localizacao_nome}
+                        </span>
+                      )}
+                      {item.responsavel_nome && (
+                        <span className="flex items-center gap-1">
+                          <User className="h-3 w-3" />{item.responsavel_nome}
+                        </span>
+                      )}
+                    </div>
+                    {item.ultima_utilizacao && (
+                      <p className="text-xs text-muted-foreground">
+                        Utilizado {formatDistanceToNow(parseISO(item.ultima_utilizacao), { addSuffix: true, locale: pt })}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 pt-1 border-t border-border">
+                      <Button variant="ghost" size="sm" className="h-8 flex-1 text-xs gap-1" onClick={() => openHistorico(item.id)}>
+                        <History className="h-3.5 w-3.5" /> Histórico
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 flex-1 text-xs gap-1" onClick={() => openEdit(item)}>
+                        <Edit2 className="h-3.5 w-3.5" /> Editar
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => deleteMutation.mutate(item.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* ── Desktop table ── */}
+              <div className="hidden md:block rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Identificador</TableHead>
+                      <TableHead>Tipo</TableHead>
+                      <TableHead>Categoria</TableHead>
+                      <TableHead>Estado</TableHead>
+                      <TableHead>Última Localização</TableHead>
+                      <TableHead>Último responsavel</TableHead>
+                      <TableHead>Última utilizacao</TableHead>
+                      <TableHead className="w-[100px]">Ações</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredItens.map(item => (
+                      <TableRow key={item.id}>
+                        <TableCell className="font-medium">{item.identificador}</TableCell>
+                        <TableCell className="text-muted-foreground">{item.nome}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{item.categoria_nome}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <EstadoBadge estado={item.estado} />
+                        </TableCell>
+                        <TableCell>
+                          {item.localizacao_nome ? (
+                            <span className="flex items-center gap-1 text-sm">
+                              <MapPin className="h-3 w-3" />
+                              {item.localizacao_nome}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {item.responsavel_nome ? (
+                            <span className="flex items-center gap-1 text-sm">
+                              <User className="h-3 w-3" />
+                              {item.responsavel_nome}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {item.ultima_utilizacao
+                            ? formatDistanceToNow(parseISO(item.ultima_utilizacao), { addSuffix: true, locale: pt })
+                            : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openHistorico(item.id)} title="Historico">
+                              <History className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)} title="Editar">
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => deleteMutation.mutate(item.id)} title="Remover">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

@@ -530,7 +530,7 @@ const Wiki = () => {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-display font-bold flex items-center gap-2">
+          <h1 className="text-2xl sm:text-3xl font-display font-bold flex items-center gap-2">
             <Book className="h-8 w-8 text-primary" />
             Wiki / Base de Conhecimento
           </h1>
@@ -616,7 +616,7 @@ const Wiki = () => {
               value={selectedProjetoId ? String(selectedProjetoId) : undefined}
               onValueChange={(v) => setSelectedProjetoId(Number(v))}
             >
-              <SelectTrigger className="w-[300px]">
+              <SelectTrigger className="w-full sm:w-[300px]">
                 <SelectValue placeholder="Selecionar projeto..." />
               </SelectTrigger>
               <SelectContent>
@@ -671,7 +671,7 @@ const Wiki = () => {
               {selectedProjetoId && unlinkedEstabs.length > 0 && (
                 <div className="flex items-center gap-2">
                   <Select value={addEstabToProjetoId} onValueChange={setAddEstabToProjetoId}>
-                    <SelectTrigger className="w-[200px]">
+                    <SelectTrigger className="w-full sm:w-[200px]">
                       <SelectValue placeholder="Associar estabelecimento..." />
                     </SelectTrigger>
                     <SelectContent>
@@ -825,6 +825,7 @@ const Wiki = () => {
                                                   )}
                                                 </div>
                                               ) : (
+                                                <div className="overflow-x-auto">
                                                 <Table>
                                                   <TableHeader>
                                                     <TableRow>
@@ -833,7 +834,7 @@ const Wiki = () => {
                                                       <TableHead className="text-center">Sessões Prev.</TableHead>
                                                       <TableHead className="text-center">H/Sessão</TableHead>
                                                       <TableHead className="text-center">Músicas</TableHead>
-                                                      <TableHead>Perfil</TableHead>
+                                                      <TableHead>Roles</TableHead>
                                                       <TableHead>Progresso</TableHead>
                                                       {isCoordinator && <TableHead className="text-right">Ações</TableHead>}
                                                     </TableRow>
@@ -892,6 +893,7 @@ const Wiki = () => {
                                                     })}
                                                   </TableBody>
                                                 </Table>
+                                                </div>
                                               )}
                                             </div>
                                           </AccordionContent>
@@ -1082,7 +1084,7 @@ const Wiki = () => {
 
       {/* DIALOG FOR LOCAL DISCIPLINA */}
       <Dialog open={isDisciplinaDialogOpen} onOpenChange={setIsDisciplinaDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-full max-w-2xl max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingDisciplina ? 'Editar Disciplina' : 'Nova Disciplina'}</DialogTitle>
             <DialogDescription>
@@ -1143,7 +1145,7 @@ const Wiki = () => {
                           </SelectContent>
                         </Select>
                       </div>
-                      <div className="grid gap-2 md:grid-cols-4">
+                      <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
                         <div>
                           <Label className="text-xs">Sessões</Label>
                           <Input type="number" min={0} value={a.sessoes_previstas} onChange={e => {
@@ -1208,11 +1210,11 @@ const Wiki = () => {
 
       {/* DIALOG FOR LOCAL ATIVIDADE */}
       <Dialog open={isAtividadeDialogOpen} onOpenChange={setIsAtividadeDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="w-full max-w-2xl max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingAtividade ? 'Editar Atividade' : 'Nova Atividade'}</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-4 py-4 md:grid-cols-2">
+          <div className="grid gap-4 py-4 sm:grid-cols-2">
             <div className="grid gap-2">
               <Label>Código</Label>
               <Select value={ativForm.codigo || 'none'} onValueChange={(v) => setAtivForm({ ...ativForm, codigo: v === 'none' ? '' : v })}>

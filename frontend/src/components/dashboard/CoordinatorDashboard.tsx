@@ -111,7 +111,7 @@ export function CoordinatorDashboard() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-display font-bold">Dashboard</h1>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold">Dashboard</h1>
           <p className="text-muted-foreground mt-1">
             Resumo da atividade do projeto.
           </p>
@@ -127,7 +127,7 @@ export function CoordinatorDashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -239,7 +239,7 @@ export function CoordinatorDashboard() {
                 {todaySessions.map((session: any) => (
                   <div
                     key={session.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-secondary/30"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-secondary/30"
                   >
                     <div className="flex items-center gap-3">
                       <div className="text-center min-w-[60px]">
@@ -255,7 +255,7 @@ export function CoordinatorDashboard() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 self-end sm:self-auto">
                       {session.estado === 'confirmada' && !session.is_autonomous && new Date(session.data_hora) < now && (
                         <Button size="sm" variant="outline" onClick={() => openTerminarModal(session.id)}>
                           <CheckCircle2 className="h-4 w-4 mr-1" />

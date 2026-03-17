@@ -27,6 +27,7 @@ interface TurmaStats {
   musicas_previstas: number | null;
   horas_realizadas: number;
   sessoes_realizadas: number;
+  sessoes_previstas: number;
   musicas_em_curso: number;
   musicas_concluidas: number;
 }
@@ -173,21 +174,21 @@ export default function Estatisticas() {
 
   if (!projetoId) {
     return (
-      <div className="p-6 space-y-6">
+      <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <BarChart3 className="h-6 w-6" /> Estatísticas
           </h1>
         </div>
 
-        <div className="max-w-4xl mx-auto mt-12 space-y-8">
+        <div className="max-w-4xl mx-auto mt-8 space-y-8">
           <div className="text-center space-y-2">
-            <BarChart3 className="h-12 w-12 mx-auto sm:mb-2 text-primary/60" />
-            <h2 className="text-2xl font-bold tracking-tight">Bem-vindo(a) às Estatísticas</h2>
-            <p className="text-muted-foreground">Por favor, selecione um projeto na lista abaixo para visualizar o seu progresso, feedback e detalhes.</p>
+            <BarChart3 className="h-12 w-12 mx-auto mb-2 text-primary/60" />
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">Bem-vindo(a) às Estatísticas</h2>
+            <p className="text-muted-foreground text-sm sm:text-base">Por favor, selecione um projeto na lista abaixo para visualizar o seu progresso, feedback e detalhes.</p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
             {projetos.map((projeto) => (
               <Card
                 key={projeto.id}
@@ -215,9 +216,9 @@ export default function Estatisticas() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <BarChart3 className="h-6 w-6" /> Estatísticas
         </h1>
@@ -225,7 +226,7 @@ export default function Estatisticas() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
@@ -347,7 +348,7 @@ export default function Estatisticas() {
                       </div>
                     </div>
 
-                    <div className="border rounded-md overflow-hidden">
+                    <div className="border rounded-md overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-muted/30">
@@ -372,7 +373,7 @@ export default function Estatisticas() {
                                 <TableCell className="text-xs text-center">
                                   {t.horas_realizadas}h / {t.horas_previstas != null ? `${t.horas_previstas}h` : '?'}
                                 </TableCell>
-                                <TableCell className="text-xs text-center">{t.sessoes_realizadas}</TableCell>
+                                <TableCell className="text-xs text-center">{t.sessoes_realizadas} / {t.sessoes_previstas || '?'}</TableCell>
                                 <TableCell className="text-xs text-center">
                                   <Badge variant="secondary" className={cn('text-xs', pH >= 75 ? 'bg-green-100 text-green-700' : pH >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-muted')}>
                                     {pH}%
@@ -499,23 +500,23 @@ export default function Estatisticas() {
         {/* ─── Tab: Feedback ───────────────────────────────────────────────── */}
         <TabsContent value="feedback" className="mt-4 space-y-4">
           {/* Filters */}
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Select value={mentorFilter} onValueChange={setMentorFilter}>
-              <SelectTrigger className="w-[200px]"><SelectValue placeholder="Mentor" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Mentor" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os mentores</SelectItem>
                 {mentors.map(([uid, name]) => <SelectItem key={uid} value={uid}>{name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={disciplinaFilter} onValueChange={setDisciplinaFilter}>
-              <SelectTrigger className="w-[200px]"><SelectValue placeholder="Disciplina" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Disciplina" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as disciplinas</SelectItem>
                 {disciplinas.map(([id, name]) => <SelectItem key={id} value={String(id)}>{name}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={instituicaoFilter} onValueChange={setInstituicaoFilter}>
-              <SelectTrigger className="w-[200px]"><SelectValue placeholder="Instituição" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder="Instituição" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todas as instituições</SelectItem>
                 {instituicoes.map(([id, name]) => <SelectItem key={id} value={String(id)}>{name}</SelectItem>)}
@@ -611,7 +612,7 @@ export default function Estatisticas() {
 function ProjetoSelect({ projetos, value, onChange }: { projetos: Projeto[]; value: string; onChange: (v: string) => void }) {
   return (
     <Select value={value || 'none'} onValueChange={(v) => onChange(v === 'none' ? '' : v)}>
-      <SelectTrigger className="w-[220px]">
+      <SelectTrigger className="w-full sm:w-[220px]">
         <SelectValue placeholder="Selecionar projeto" />
       </SelectTrigger>
       <SelectContent>

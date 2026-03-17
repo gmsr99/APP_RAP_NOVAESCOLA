@@ -371,18 +371,27 @@ def listar_stats_instituicao(projeto_id=None):
                 e.nome as estab_nome,
                 t.id as turma_id,
                 t.nome as turma_nome,
-                0 as horas_previstas,
+                COALESCE(ta_agg.horas_previstas, 0) as horas_previstas,
                 td.id as disciplina_id,
                 td.nome as disciplina_nome,
                 COALESCE(td.musicas_previstas, t.musicas_previstas, 7) as musicas_previstas,
                 COALESCE(sess.horas_realizadas, 0) as horas_realizadas,
                 COALESCE(sess.sessoes_realizadas, 0) as sessoes_realizadas,
                 COALESCE(mus.em_curso, 0) as musicas_em_curso,
-                COALESCE(mus.concluidas, 0) as musicas_concluidas
+                COALESCE(mus.concluidas, 0) as musicas_concluidas,
+                COALESCE(ta_agg.sessoes_previstas_total, 0) as sessoes_previstas_total
             FROM estabelecimentos e
             {estab_filter}
             JOIN turmas t ON t.estabelecimento_id = e.id
             LEFT JOIN turma_disciplinas td ON td.turma_id = t.id
+            LEFT JOIN LATERAL (
+                SELECT
+                    COALESCE(SUM(ta.sessoes_previstas * ta.horas_por_sessao), 0) as horas_previstas,
+                    COALESCE(SUM(ta.sessoes_previstas), 0) as sessoes_previstas_total
+                FROM turma_atividades ta
+                WHERE ta.turma_disciplina_id = td.id
+                  AND ta.is_autonomous = FALSE
+            ) ta_agg ON true
             LEFT JOIN LATERAL (
                 SELECT ROUND(SUM(COALESCE(a.duracao_minutos, 0)) / 60.0) as horas_realizadas,
                        COUNT(*) as sessoes_realizadas
@@ -427,6 +436,7 @@ def listar_stats_instituicao(projeto_id=None):
                 'sessoes_realizadas': row[9],
                 'musicas_em_curso': row[10],
                 'musicas_concluidas': row[11],
+                'sessoes_previstas': int(row[12]) if row[12] is not None else 0,
             })
 
         return list(estabs.values())

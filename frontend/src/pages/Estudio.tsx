@@ -284,7 +284,7 @@ export default function Estudio() {
               Nova Reserva
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="w-full sm:max-w-lg max-h-[95dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {selectedBooking ? 'Detalhes da Reserva' : 'Nova Reserva de Estúdio'}

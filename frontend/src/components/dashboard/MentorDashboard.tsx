@@ -189,7 +189,7 @@ export function MentorDashboard() {
     <div className="space-y-6">
       {/* Page Header */}
       <div>
-        <h1 className="text-3xl font-display font-bold">Olá, {user?.name?.split(' ')[0] || 'Mentor'}!</h1>
+        <h1 className="text-2xl sm:text-3xl font-display font-bold">Olá, {user?.name?.split(' ')[0] || 'Mentor'}!</h1>
         <p className="text-muted-foreground mt-1">
           {pendingSessions.length > 0
             ? `Tens ${pendingSessions.length} sessão${pendingSessions.length > 1 ? 'ões' : ''} por confirmar.`
@@ -315,7 +315,7 @@ export function MentorDashboard() {
       )}
 
       {/* Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -380,25 +380,25 @@ export function MentorDashboard() {
               {upcomingSessions.slice(0, 5).map((session: any) => (
                 <div
                   key={session.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-secondary/30"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-lg bg-secondary/30"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="text-center min-w-[70px] py-2 px-3 rounded-lg bg-secondary">
-                      <p className="text-xs text-muted-foreground uppercase">
+                  <div className="flex items-center gap-3">
+                    <div className="text-center min-w-[60px] py-2 px-2 rounded-lg bg-secondary shrink-0">
+                      <p className="text-[10px] text-muted-foreground uppercase">
                         {getDateLabel(session.data_hora)}
                       </p>
-                      <p className="text-lg font-bold font-display">
+                      <p className="text-base font-bold font-display">
                         {format(new Date(session.data_hora), 'HH:mm')}
                       </p>
                     </div>
-                    <div>
-                      <p className="font-medium">{session.estabelecimento_nome}</p>
-                      <p className="text-sm text-muted-foreground">
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{session.estabelecimento_nome}</p>
+                      <p className="text-sm text-muted-foreground truncate">
                         {session.local || 'Sem local'} • {session.turma_nome}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
                     <Badge className={statusColors[session.estado] || statusColors.confirmada}>
                       Confirmada
                     </Badge>

@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { Hash, MessageCircle, Send, Users, Plus, Bot } from 'lucide-react';
+import { Hash, MessageCircle, Send, Users, Plus, Bot, ChevronLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -315,16 +315,19 @@ export default function Chat() {
 
   if (loading) {
     return (
-      <div className="flex h-[calc(100vh-7rem)] -m-6 bg-background items-center justify-center">
+      <div className="flex h-[calc(100dvh-8rem)] sm:h-[calc(100vh-7rem)] -m-3 sm:-m-6 bg-background items-center justify-center">
         <p className="text-muted-foreground">A carregar chat...</p>
       </div>
     );
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] -m-6 bg-background">
+    <div className="flex h-[calc(100dvh-8rem)] sm:h-[calc(100vh-7rem)] -m-3 sm:-m-6 bg-background">
       {/* Channels Sidebar */}
-      <div className="w-80 bg-sidebar border-r border-sidebar-border flex flex-col">
+      <div className={cn(
+        "w-full sm:w-80 bg-sidebar border-r border-sidebar-border flex-col",
+        selectedChannelId ? "hidden sm:flex" : "flex"
+      )}>
         <div className="p-4 border-b border-sidebar-border">
           <h2 className="font-semibold text-sidebar-foreground flex items-center gap-2">
             <Users className="h-5 w-5" />
@@ -432,11 +435,20 @@ export default function Chat() {
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className={cn(
+        "flex-1 flex-col min-w-0",
+        !selectedChannelId ? "hidden sm:flex" : "flex"
+      )}>
         {/* Channel Header */}
         <div className="min-h-14 px-4 py-2 border-b border-border flex items-center gap-2 bg-card">
           {selectedChannel ? (
             <>
+              <button
+                className="sm:hidden -ml-1 mr-1 p-1 rounded-md hover:bg-muted transition-colors"
+                onClick={() => setSelectedChannelId(null)}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
               {selectedChannel.type === 'channel' ? (
                 <Hash className="h-5 w-5 text-muted-foreground shrink-0" />
               ) : (

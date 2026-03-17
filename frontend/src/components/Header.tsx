@@ -12,11 +12,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, Bell, UserCircle } from 'lucide-react';
+import { LogOut, Bell, UserCircle, Menu } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 
-export function Header() {
+interface HeaderProps {
+  onMenuToggle?: () => void;
+}
+
+export function Header({ onMenuToggle }: HeaderProps) {
   const { user, isAuthenticated } = useProfile();
   const { signOut } = useAuth();
   const navigate = useNavigate();
@@ -33,8 +37,22 @@ export function Header() {
   });
 
   return (
-    <header className="flex items-center justify-end h-16 px-6 border-b border-border bg-card">
-      <div className="flex items-center gap-4">
+    <header className="flex items-center justify-between h-16 px-4 sm:px-6 border-b border-border bg-card shrink-0">
+      {/* Mobile: hamburger */}
+      <Button
+        variant="ghost"
+        size="icon"
+        className="md:hidden"
+        onClick={onMenuToggle}
+        aria-label="Abrir menu"
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
+
+      {/* Spacer on desktop */}
+      <div className="hidden md:block" />
+
+      <div className="flex items-center gap-3">
         <Button
           variant="ghost"
           size="icon"
@@ -52,7 +70,7 @@ export function Header() {
           onOpenChange={setIsNotificationOpen}
         />
 
-        <div className="flex items-center gap-3 border-l border-border pl-4">
+        <div className="flex items-center gap-3 border-l border-border pl-3 sm:pl-4">
           <div className="text-right hidden sm:block">
             <p className="text-sm font-medium leading-none">{user.name}</p>
             <p className="text-xs text-muted-foreground capitalize mt-1">{user.role}</p>

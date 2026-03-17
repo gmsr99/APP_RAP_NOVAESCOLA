@@ -123,6 +123,100 @@ def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
         return []
 
 
+def listar_todas_sessoes_registaveis() -> List[Dict[str, Any]]:
+    """
+    Retorna TODAS as sessões terminadas/realizadas ainda sem registo.
+    Para uso exclusivo de coordenadores/direção.
+    """
+    sql = text("""
+        SELECT
+            a.id,
+            a.tipo,
+            a.data_hora,
+            a.duracao_minutos,
+            a.estado,
+            a.local,
+            a.tema,
+            a.observacoes,
+            a.is_autonomous,
+            a.is_realized,
+            a.tipo_atividade,
+            a.responsavel_user_id,
+            a.musica_id,
+            a.atividade_uuid,
+            a.objetivos,
+            a.sumario,
+            a.codigo_sessao,
+            t.nome         AS turma_nome,
+            t.id           AS turma_id,
+            e.nome         AS estabelecimento_nome,
+            e.sigla        AS estabelecimento_sigla,
+            m.nome         AS mentor_nome,
+            m.user_id      AS mentor_user_id,
+            m.latitude     AS mentor_latitude,
+            m.longitude    AS mentor_longitude,
+            e.latitude     AS estab_latitude,
+            e.longitude    AS estab_longitude,
+            td.nome        AS disciplina_nome
+        FROM aulas a
+        LEFT JOIN turmas t            ON a.turma_id = t.id
+        LEFT JOIN estabelecimentos e  ON t.estabelecimento_id = e.id
+        LEFT JOIN mentores m          ON a.mentor_id = m.id
+        LEFT JOIN turma_atividades ta ON a.atividade_uuid = ta.uuid
+        LEFT JOIN turma_disciplinas td ON td.id = ta.turma_disciplina_id
+        WHERE
+            NOT EXISTS (SELECT 1 FROM registos r WHERE r.aula_id = a.id)
+            AND (
+                (a.is_autonomous = FALSE AND a.estado = 'terminada')
+                OR
+                (a.is_autonomous = TRUE AND a.is_realized = TRUE)
+            )
+        ORDER BY a.data_hora DESC
+    """)
+
+    try:
+        with Session(engine) as session:
+            rows = session.exec(sql).all()
+
+        result = []
+        for row in rows:
+            result.append({
+                "id": row.id,
+                "tipo": row.tipo,
+                "data_hora": row.data_hora.isoformat() if isinstance(row.data_hora, datetime) else str(row.data_hora),
+                "duracao_minutos": row.duracao_minutos,
+                "estado": row.estado,
+                "local": row.local,
+                "tema": row.tema,
+                "observacoes": row.observacoes,
+                "is_autonomous": row.is_autonomous,
+                "is_realized": row.is_realized,
+                "tipo_atividade": row.tipo_atividade,
+                "responsavel_user_id": str(row.responsavel_user_id) if row.responsavel_user_id else None,
+                "musica_id": row.musica_id,
+                "turma_nome": row.turma_nome,
+                "turma_id": row.turma_id,
+                "estabelecimento_nome": row.estabelecimento_nome,
+                "estabelecimento_sigla": row.estabelecimento_sigla,
+                "mentor_nome": row.mentor_nome,
+                "mentor_user_id": str(row.mentor_user_id) if row.mentor_user_id else None,
+                "mentor_latitude": float(row.mentor_latitude) if row.mentor_latitude else None,
+                "mentor_longitude": float(row.mentor_longitude) if row.mentor_longitude else None,
+                "estab_latitude": float(row.estab_latitude) if row.estab_latitude else None,
+                "estab_longitude": float(row.estab_longitude) if row.estab_longitude else None,
+                "atividade_uuid": str(row.atividade_uuid) if row.atividade_uuid else None,
+                "disciplina_nome": row.disciplina_nome,
+                "objetivos": row.objetivos,
+                "sumario": row.sumario,
+                "codigo_sessao": row.codigo_sessao,
+            })
+        return result
+
+    except Exception as e:
+        print(f"❌ Erro ao listar todas as sessões registáveis: {e}")
+        return []
+
+
 # ============================================================================
 # CRUD DE REGISTOS
 # ============================================================================

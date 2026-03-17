@@ -433,83 +433,151 @@ const Producao = () => {
     );
   };
 
-  // ─── Vista Geral (Tabela) ───────────────────────────────────────────────────
+  // ─── Vista Geral (Tabela desktop / Cards mobile) ──────────────────────────
 
   const VistaGeral = () => (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[200px]">Nome</TableHead>
-            <TableHead className="w-[150px]">Estado / Fase</TableHead>
-            <TableHead className="w-[130px]">Atribuído a</TableHead>
-            <TableHead className="w-[180px]">Turma / Instituição</TableHead>
-            <TableHead className="w-[120px]">Deadline</TableHead>
-            <TableHead className="w-[180px]">Notas</TableHead>
-            <TableHead className="w-[140px]">Ações</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {activeMusicas.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
-                <ListMusic className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                Nenhuma música em andamento.
-              </TableCell>
-            </TableRow>
-          ) : (
-            activeMusicas.map(m => (
-              <TableRow key={m.id}>
-                <TableCell className="font-medium text-sm">{m.titulo}</TableCell>
-                <TableCell>
-                  <Badge variant="secondary" className={cn("text-xs", STATUS_COLORS[m.estado])}>
-                    {STATUS_LABELS[m.estado] || m.estado}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {(m.responsavel || m.criador)?.nome?.split(' ')[0] || '—'}
-                </TableCell>
-                <TableCell className="text-xs">
-                  {m.turma ? (
-                    <span>{m.turma.nome} <span className="text-muted-foreground">• {m.turma.estabelecimento}</span></span>
-                  ) : '—'}
-                </TableCell>
-                <TableCell>
+    <>
+      {/* ── Mobile card list ── */}
+      <div className="flex flex-col gap-3 md:hidden">
+        {activeMusicas.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <ListMusic className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            Nenhuma música em andamento.
+          </div>
+        ) : (
+          activeMusicas.map(m => (
+            <div key={m.id} className="rounded-lg border bg-card p-4 space-y-3">
+              {/* Title + badge */}
+              <div className="flex items-start justify-between gap-2">
+                <p className="font-semibold text-sm leading-snug">{m.titulo}</p>
+                <Badge variant="secondary" className={cn("text-xs shrink-0", STATUS_COLORS[m.estado])}>
+                  {STATUS_LABELS[m.estado] || m.estado}
+                </Badge>
+              </div>
+
+              {/* Meta */}
+              <div className="space-y-1 text-xs text-muted-foreground">
+                {m.turma && (
+                  <p>{m.turma.nome} <span className="opacity-70">• {m.turma.estabelecimento}</span></p>
+                )}
+                {(m.responsavel || m.criador) && (
+                  <p>Atribuído a: <span className="text-foreground">{(m.responsavel || m.criador)?.nome?.split(' ')[0]}</span></p>
+                )}
+              </div>
+
+              {/* Deadline + Notas */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Deadline</p>
                   <EditableCell musicId={m.id} field="deadline" value={m.deadline || null} type="date" />
-                </TableCell>
-                <TableCell>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Notas</p>
                   <EditableCell musicId={m.id} field="notas" value={m.notas || null} />
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-1.5">
-                    {canUserAction(m) && m.estado !== 'concluído' && (
-                      m.estado === 'feedback_wip' ? (
-                        <FeedbackDialog music={m} />
-                      ) : (
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAdvance(m)} disabled={advancePhaseMutation.isPending || aceitarTarefaMutation.isPending}>
-                          <PlayCircle className="w-3 h-3 mr-1" />
-                          {ACTION_LABELS[m.estado] || 'Avançar'}
-                        </Button>
-                      )
-                    )}
-                    {isCoordinator && (
-                      <Button
-                        size="icon"
-                        variant="ghost"
-                        className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        onClick={() => setDeleteConfirm(m)}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
+                </div>
+              </div>
+
+              {/* Actions */}
+              {(canUserAction(m) || isCoordinator) && (
+                <div className="flex items-center gap-2 pt-1 border-t border-border">
+                  {canUserAction(m) && m.estado !== 'concluído' && (
+                    m.estado === 'feedback_wip' ? (
+                      <FeedbackDialog music={m} />
+                    ) : (
+                      <Button size="sm" variant="outline" className="h-8 text-xs flex-1" onClick={() => handleAdvance(m)} disabled={advancePhaseMutation.isPending || aceitarTarefaMutation.isPending}>
+                        <PlayCircle className="w-3 h-3 mr-1" />
+                        {ACTION_LABELS[m.estado] || 'Avançar'}
                       </Button>
-                    )}
-                  </div>
+                    )
+                  )}
+                  {isCoordinator && (
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0" onClick={() => setDeleteConfirm(m)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* ── Desktop table ── */}
+      <div className="hidden md:block rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[200px]">Nome</TableHead>
+              <TableHead className="w-[150px]">Estado / Fase</TableHead>
+              <TableHead className="w-[130px]">Atribuído a</TableHead>
+              <TableHead className="w-[180px]">Turma / Instituição</TableHead>
+              <TableHead className="w-[120px]">Deadline</TableHead>
+              <TableHead className="w-[180px]">Notas</TableHead>
+              <TableHead className="w-[140px]">Ações</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {activeMusicas.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <ListMusic className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  Nenhuma música em andamento.
                 </TableCell>
               </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </div>
+            ) : (
+              activeMusicas.map(m => (
+                <TableRow key={m.id}>
+                  <TableCell className="font-medium text-sm">{m.titulo}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className={cn("text-xs", STATUS_COLORS[m.estado])}>
+                      {STATUS_LABELS[m.estado] || m.estado}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {(m.responsavel || m.criador)?.nome?.split(' ')[0] || '—'}
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    {m.turma ? (
+                      <span>{m.turma.nome} <span className="text-muted-foreground">• {m.turma.estabelecimento}</span></span>
+                    ) : '—'}
+                  </TableCell>
+                  <TableCell>
+                    <EditableCell musicId={m.id} field="deadline" value={m.deadline || null} type="date" />
+                  </TableCell>
+                  <TableCell>
+                    <EditableCell musicId={m.id} field="notas" value={m.notas || null} />
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1.5">
+                      {canUserAction(m) && m.estado !== 'concluído' && (
+                        m.estado === 'feedback_wip' ? (
+                          <FeedbackDialog music={m} />
+                        ) : (
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAdvance(m)} disabled={advancePhaseMutation.isPending || aceitarTarefaMutation.isPending}>
+                            <PlayCircle className="w-3 h-3 mr-1" />
+                            {ACTION_LABELS[m.estado] || 'Avançar'}
+                          </Button>
+                        )
+                      )}
+                      {isCoordinator && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => setDeleteConfirm(m)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </>
   );
 
   // ─── Vista por Instituição ──────────────────────────────────────────────────
@@ -570,7 +638,7 @@ const Producao = () => {
 
                 {/* Turmas breakdown */}
                 {estab.turmas.length > 1 && (
-                  <div className="border rounded-md overflow-hidden">
+                  <div className="border rounded-md overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-muted/30">
@@ -679,7 +747,7 @@ const Producao = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-display font-bold">Produção</h1>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold">Produção</h1>
           <p className="text-muted-foreground mt-1">Gestão do fluxo de trabalho de produção musical.</p>
         </div>
         <div className="flex items-center gap-2">
@@ -752,7 +820,7 @@ const Producao = () => {
           value={selectedProjetoId ? String(selectedProjetoId) : 'all'}
           onValueChange={(val) => setSelectedProjetoId(val === 'all' ? null : parseInt(val))}
         >
-          <SelectTrigger className="w-[280px]">
+          <SelectTrigger className="w-full sm:w-[280px]">
             <SelectValue placeholder="Todos os projetos" />
           </SelectTrigger>
           <SelectContent>
