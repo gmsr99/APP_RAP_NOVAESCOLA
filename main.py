@@ -533,6 +533,28 @@ async def delete_equipa_member(user_id: str, user=Depends(get_current_user_requi
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.patch("/api/equipa/{user_id}", tags=["Core"])
+async def update_equipa_member(user_id: str, payload: dict, user=Depends(get_current_user_required)):
+    """Atualiza role, nome e avatar de um membro (apenas direção/it_support)."""
+    caller_id = user.get("sub")
+    perfis = profile_service.listar_perfis()
+    caller_profile = next((p for p in perfis if p.get("id") == caller_id), None)
+    if not caller_profile or caller_profile.get("role") not in ("direcao", "it_support"):
+        raise HTTPException(status_code=403, detail="Apenas a direção pode editar membros.")
+    if user_id == caller_id:
+        raise HTTPException(status_code=400, detail="Usa a página de perfil para editar os teus dados.")
+    target_profile = next((p for p in perfis if p.get("id") == user_id), None)
+    if not target_profile:
+        raise HTTPException(status_code=404, detail="Utilizador não encontrado.")
+    ROLES_VALIDOS = {"mentor", "produtor", "mentor_produtor", "coordenador", "direcao", "it_support"}
+    if "role" in payload and payload["role"] not in ROLES_VALIDOS:
+        raise HTTPException(status_code=400, detail="Role inválido.")
+    sucesso = profile_service.atualizar_membro(user_id, payload)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao atualizar membro.")
+    return {"ok": True}
+
+
 # --- Rota para Perfil / Avatar ---
 
 class AvatarPayload(BaseModel):

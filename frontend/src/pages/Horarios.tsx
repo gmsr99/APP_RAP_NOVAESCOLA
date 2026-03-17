@@ -429,7 +429,7 @@ const Horarios = () => {
 
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
-  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd }).slice(0, 5);
 
   // Month view calculations
   const monthStart = startOfMonth(currentMonth);
@@ -1701,7 +1701,7 @@ const Horarios = () => {
       {/* Week View */}
       {
         viewMode === 'week' && (
-          <div className="grid grid-cols-7 gap-2">
+          <div className="grid grid-cols-5 gap-2">
             {weekDays.map((day) => {
               const daySessions = getSessionsForDay(day);
               const isToday = isSameDay(day, new Date());

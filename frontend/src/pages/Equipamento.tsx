@@ -491,7 +491,7 @@ const Equipamento = () => {
 
       {/* Create/Edit Dialog */}
       <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="w-full sm:max-w-lg max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingItem ? 'Editar Item' : 'Novo Item de Equipamento'}</DialogTitle>
           </DialogHeader>
@@ -573,7 +573,7 @@ const Equipamento = () => {
 
       {/* Historico Dialog */}
       <Dialog open={isHistoricoOpen} onOpenChange={(open) => { setIsHistoricoOpen(open); if (!open) setHistoricoItemId(null); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="w-full sm:max-w-lg max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <History className="h-5 w-5" />

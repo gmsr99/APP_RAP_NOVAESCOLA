@@ -158,6 +158,9 @@ const Producao = () => {
   const [editValue, setEditValue] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<Musica | null>(null);
   const [concluidasOpen, setConcluidasOpen] = useState(false);
+  const [editMusicOpen, setEditMusicOpen] = useState(false);
+  const [editMusicTarget, setEditMusicTarget] = useState<Musica | null>(null);
+  const [editMusicForm, setEditMusicForm] = useState({ titulo: '', turma_id: '', disciplina_id: '' });
 
   const isCoordinator = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
   const isProdutor = profile === 'produtor' || profile === 'mentor_produtor';
@@ -169,12 +172,20 @@ const Producao = () => {
     queryFn: async () => (await api.get('/api/projetos')).data as Projeto[]
   });
 
-  // Disciplinas da turma selecionada no modal (para filtrar disciplinas)
+  // Disciplinas da turma selecionada no modal Nova Música
   const selectedTurmaIdNum = newMusicData.turma_id ? parseInt(newMusicData.turma_id) : null;
   const { data: turmaDisciplinas = [] } = useQuery({
     queryKey: ['turma-disciplinas', selectedTurmaIdNum],
     queryFn: async () => (await api.get(`/api/turmas/${selectedTurmaIdNum}/disciplinas`)).data,
     enabled: !!selectedTurmaIdNum,
+  });
+
+  // Disciplinas da turma selecionada no modal Editar Música
+  const editTurmaIdNum = editMusicForm.turma_id ? parseInt(editMusicForm.turma_id) : null;
+  const { data: editTurmaDisciplinas = [] } = useQuery({
+    queryKey: ['turma-disciplinas', editTurmaIdNum],
+    queryFn: async () => (await api.get(`/api/turmas/${editTurmaIdNum}/disciplinas`)).data,
+    enabled: !!editTurmaIdNum,
   });
 
   // Estabelecimentos do projeto selecionado no modal (para filtrar turmas)
@@ -283,6 +294,19 @@ const Producao = () => {
     onError: () => toast({ title: 'Erro', description: 'Falha ao guardar.', variant: 'destructive' })
   });
 
+  const editMusicMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Record<string, any> }) => api.patch(`/api/musicas/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['musicas'] });
+      queryClient.invalidateQueries({ queryKey: ['producao-stats-inst'] });
+      queryClient.invalidateQueries({ queryKey: ['producao-stats-equipa'] });
+      toast({ title: 'Música atualizada' });
+      setEditMusicOpen(false);
+      setEditMusicTarget(null);
+    },
+    onError: () => toast({ title: 'Erro', description: 'Falha ao atualizar música.', variant: 'destructive' })
+  });
+
   const deleteMusicMutation = useMutation({
     mutationFn: (id: number) => api.delete(`/api/musicas/${id}`),
     onSuccess: () => {
@@ -366,6 +390,31 @@ const Producao = () => {
     });
   };
 
+  const openEditMusic = (m: Musica) => {
+    setEditMusicTarget(m);
+    setEditMusicForm({
+      titulo: m.titulo,
+      turma_id: m.turma ? String(m.turma.id) : '',
+      disciplina_id: m.disciplina_id ? String(m.disciplina_id) : '',
+    });
+    setEditMusicOpen(true);
+  };
+
+  const handleSubmitEdit = () => {
+    if (!editMusicTarget || !editMusicForm.titulo.trim() || !editMusicForm.turma_id) {
+      toast({ title: 'Campos obrigatórios', description: 'Preenche o título e a turma.', variant: 'destructive' });
+      return;
+    }
+    editMusicMutation.mutate({
+      id: editMusicTarget.id,
+      data: {
+        titulo: editMusicForm.titulo.trim(),
+        turma_id: parseInt(editMusicForm.turma_id),
+        ...(editMusicForm.disciplina_id ? { disciplina_id: parseInt(editMusicForm.disciplina_id) } : {}),
+      },
+    });
+  };
+
   const startEdit = (id: number, field: string, currentValue: string) => {
     setEditingCell({ id, field });
     setEditValue(currentValue || '');
@@ -388,7 +437,7 @@ const Producao = () => {
             <MessageSquare className="w-3 h-3 mr-1" /> Feedback
           </Button>
         </DialogTrigger>
-        <DialogContent>
+        <DialogContent className="w-full max-w-lg max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Feedback: {music.titulo}</DialogTitle>
             <DialogDescription>Indica as correções necessárias.</DialogDescription>
@@ -478,7 +527,7 @@ const Producao = () => {
               </div>
 
               {/* Actions */}
-              {(canUserAction(m) || isCoordinator) && (
+              {(canUserAction(m) || isCoordinator || m.criador?.id === user?.id) && (
                 <div className="flex items-center gap-2 pt-1 border-t border-border">
                   {canUserAction(m) && m.estado !== 'concluído' && (
                     m.estado === 'feedback_wip' ? (
@@ -489,6 +538,11 @@ const Producao = () => {
                         {ACTION_LABELS[m.estado] || 'Avançar'}
                       </Button>
                     )
+                  )}
+                  {(isCoordinator || m.criador?.id === user?.id) && (
+                    <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-secondary shrink-0" onClick={() => openEditMusic(m)}>
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
                   )}
                   {isCoordinator && (
                     <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0" onClick={() => setDeleteConfirm(m)}>
@@ -559,13 +613,13 @@ const Producao = () => {
                           </Button>
                         )
                       )}
+                      {(isCoordinator || m.criador?.id === user?.id) && (
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-foreground hover:bg-secondary" onClick={() => openEditMusic(m)}>
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
                       {isCoordinator && (
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => setDeleteConfirm(m)}
-                        >
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteConfirm(m)}>
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
                       )}
@@ -760,7 +814,7 @@ const Producao = () => {
               if (selectedProjetoId) setNewMusicData(d => ({ ...d, projeto_id: String(selectedProjetoId) }));
             }}><Plus className="h-4 w-4 mr-2" /> Nova Música</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="w-full max-w-lg max-h-[95dvh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Nova Música</DialogTitle>
               <DialogDescription>Inicia uma nova produção musical.</DialogDescription>
@@ -863,7 +917,7 @@ const Producao = () => {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="w-full sm:max-w-[420px] max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <Trash2 className="h-5 w-5" /> Apagar Música
@@ -896,7 +950,7 @@ const Producao = () => {
 
       {/* WorkLog Modal */}
       <Dialog open={workLogModal.open} onOpenChange={(open) => !open && setWorkLogModal({ open: false, music: null })}>
-        <DialogContent className="sm:max-w-[460px]">
+        <DialogContent className="w-full sm:max-w-[460px] max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Registar Sessão de Trabalho</DialogTitle>
             <DialogDescription>
@@ -928,6 +982,64 @@ const Producao = () => {
             <Button variant="outline" onClick={() => setWorkLogModal({ open: false, music: null })}>Cancelar</Button>
             <Button onClick={handleWorkLogConfirm} disabled={advancePhaseMutation.isPending || createWorkLogMutation.isPending}>
               <PlayCircle className="w-4 h-4 mr-2" /> Registar & Avançar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Music Dialog */}
+      <Dialog open={editMusicOpen} onOpenChange={(open) => { if (!open) { setEditMusicOpen(false); setEditMusicTarget(null); } }}>
+        <DialogContent className="w-full sm:max-w-lg max-h-[95dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-4 w-4" />
+              Editar Música
+            </DialogTitle>
+            <DialogDescription>
+              Corrige o título, a turma ou a disciplina desta produção.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Título <span className="text-destructive">*</span></Label>
+              <Input
+                value={editMusicForm.titulo}
+                onChange={(e) => setEditMusicForm({ ...editMusicForm, titulo: e.target.value })}
+                placeholder="Título da música"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Turma / Artista <span className="text-destructive">*</span></Label>
+              <Select
+                value={editMusicForm.turma_id}
+                onValueChange={(val) => setEditMusicForm({ ...editMusicForm, turma_id: val, disciplina_id: '' })}
+              >
+                <SelectTrigger><SelectValue placeholder="Selecionar turma" /></SelectTrigger>
+                <SelectContent>
+                  {turmas.map(t => <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Disciplina</Label>
+              <Select
+                value={editMusicForm.disciplina_id}
+                onValueChange={(val) => setEditMusicForm({ ...editMusicForm, disciplina_id: val })}
+                disabled={!editMusicForm.turma_id}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={editMusicForm.turma_id ? 'Selecionar disciplina' : 'Seleciona primeiro a turma'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {editTurmaDisciplinas.map((d: any) => <SelectItem key={d.id} value={String(d.id)}>{d.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditMusicOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSubmitEdit} disabled={editMusicMutation.isPending}>
+              {editMusicMutation.isPending ? 'A guardar...' : 'Guardar alterações'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -7,14 +7,13 @@ import {
   MessageSquare,
   CheckCircle2,
   Clock,
-  Disc3
+  Disc3,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Map backend estados to display labels
 const stageLabels: Record<string, string> = {
   'gravação': 'Gravação',
   'edição': 'Edição',
@@ -39,10 +38,21 @@ const stageColors: Record<string, string> = {
   'concluído': 'bg-success/20 text-success border-success/30'
 };
 
+const stageBorderColors: Record<string, string> = {
+  'gravação': 'border-l-info',
+  'edição': 'border-l-warning',
+  'pool_mistura': 'border-l-primary',
+  'mistura_wip': 'border-l-primary',
+  'pool_feedback': 'border-l-destructive',
+  'feedback_wip': 'border-l-destructive',
+  'pool_finalização': 'border-l-success',
+  'finalização_wip': 'border-l-success',
+  'concluído': 'border-l-success',
+};
+
 export function ProducerDashboard() {
   const { user } = useAuth();
 
-  // Fetch dashboard data
   const { data: dashboardData, isLoading } = useQuery({
     queryKey: ['dashboard', 'produtor'],
     queryFn: async () => {
@@ -67,9 +77,11 @@ export function ProducerDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
+      {/* Header */}
       <div>
-        <h1 className="text-2xl sm:text-3xl font-display font-bold">Olá, {(user as any)?.user_metadata?.full_name?.split(' ')[0] || 'Produtor'}!</h1>
+        <h1 className="text-2xl sm:text-3xl font-display font-bold">
+          Olá, {(user as any)?.user_metadata?.full_name?.split(' ')[0] || 'Produtor'}!
+        </h1>
         <p className="text-muted-foreground mt-1">
           Tens {stats.em_producao || 0} música{stats.em_producao !== 1 ? 's' : ''} em produção.
         </p>
@@ -78,56 +90,62 @@ export function ProducerDashboard() {
       {/* Stats */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Em produção
-            </CardTitle>
-            <Music className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-display">{stats.em_producao || 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">Músicas ativas</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Aguardam feedback
-            </CardTitle>
-            <MessageSquare className="h-4 w-4 text-warning" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-display">{stats.aguardam_feedback || 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">Precisam de revisão</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Finalizadas
-            </CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-success" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-display">
-              {stats.finalizadas_mes || 0}
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">Em produção</p>
+                <p className="text-2xl sm:text-3xl font-bold font-display mt-1">{stats.em_producao || 0}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Músicas ativas</p>
+              </div>
+              <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+                <Music className="h-5 w-5 text-primary" />
+              </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Este mês</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total no pipeline
-            </CardTitle>
-            <Disc3 className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-display">{stats.total_pipeline || 0}</div>
-            <p className="text-xs text-muted-foreground mt-1">Todas as músicas</p>
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">Aguardam feedback</p>
+                <p className="text-2xl sm:text-3xl font-bold font-display mt-1">{stats.aguardam_feedback || 0}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Precisam de revisão</p>
+              </div>
+              <div className="p-2 rounded-lg bg-warning/10 shrink-0">
+                <MessageSquare className="h-5 w-5 text-warning" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">Finalizadas</p>
+                <p className="text-2xl sm:text-3xl font-bold font-display mt-1">{stats.finalizadas_mes || 0}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Este mês</p>
+              </div>
+              <div className="p-2 rounded-lg bg-success/10 shrink-0">
+                <CheckCircle2 className="h-5 w-5 text-success" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">Total no pipeline</p>
+                <p className="text-2xl sm:text-3xl font-bold font-display mt-1">{stats.total_pipeline || 0}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Todas as músicas</p>
+              </div>
+              <div className="p-2 rounded-lg bg-indigo-500/10 shrink-0">
+                <Disc3 className="h-5 w-5 text-indigo-500" />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -135,33 +153,32 @@ export function ProducerDashboard() {
       {/* Pending Actions */}
       {acaoNecessaria.length > 0 && (
         <Card className="border-warning/50 bg-warning/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Clock className="h-5 w-5 text-warning" />
+          <div className="px-5 pt-4 pb-3">
+            <h2 className="font-semibold flex items-center gap-2">
+              <Clock className="h-4 w-4 text-warning" />
               Ação necessária
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+              <Badge variant="secondary" className="ml-1">{acaoNecessaria.length}</Badge>
+            </h2>
+          </div>
+          <CardContent className="pt-0 space-y-2">
             {acaoNecessaria.map((music: any) => (
               <div
                 key={music.id}
-                className="flex items-center justify-between p-4 rounded-lg bg-card"
+                className="flex items-center justify-between gap-3 p-3 rounded-lg bg-card border border-warning/20 border-l-2 border-l-warning"
               >
-                <div className="space-y-1">
-                  <p className="font-medium">{music.titulo}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {music.turma} • {music.estabelecimento}
+                <div className="min-w-0">
+                  <p className="font-medium text-sm truncate">{music.titulo}</p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {music.turma} · {music.estabelecimento}
                   </p>
                   {music.feedback && (
-                    <div className="mt-2">
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <span className="w-1 h-1 rounded-full bg-warning" />
-                        {music.feedback}
-                      </p>
-                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-warning shrink-0" />
+                      {music.feedback}
+                    </p>
                   )}
                 </div>
-                <Button size="sm" asChild>
+                <Button size="sm" asChild className="shrink-0">
                   <Link to="/producao">Rever</Link>
                 </Button>
               </div>
@@ -172,44 +189,48 @@ export function ProducerDashboard() {
 
       {/* My Music */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-lg">As minhas músicas</CardTitle>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <div>
+            <h2 className="font-semibold">As minhas músicas</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">{minhasMusicas.length} música{minhasMusicas.length !== 1 ? 's' : ''} atribuída{minhasMusicas.length !== 1 ? 's' : ''}</p>
+          </div>
           <Button variant="ghost" size="sm" asChild>
             <Link to="/producao">
               Ver pipeline <ArrowRight className="h-4 w-4 ml-1" />
             </Link>
           </Button>
-        </CardHeader>
-        <CardContent>
+        </div>
+        <CardContent className="pt-0">
           {minhasMusicas.length === 0 ? (
-            <p className="text-muted-foreground text-center py-6">
-              Ainda não tens músicas atribuídas.
-            </p>
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="p-3 rounded-full bg-secondary mb-3">
+                <Music className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">Ainda não tens músicas atribuídas.</p>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {minhasMusicas.map((music: any) => {
-                return (
-                  <div
-                    key={music.id}
-                    className="flex items-start sm:items-center justify-between gap-3 p-4 rounded-lg bg-secondary/30"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`p-2 rounded-lg shrink-0 ${stageColors[music.estado] || 'bg-muted'}`}>
-                        <Music className="h-4 w-4" />
-                      </div>
-                      <div className="min-w-0">
-                        <p className="font-medium truncate">{music.titulo}</p>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {music.turma} • {music.estabelecimento}
-                        </p>
-                      </div>
+            <div className="space-y-2">
+              {minhasMusicas.map((music: any) => (
+                <div
+                  key={music.id}
+                  className={`flex items-center justify-between gap-3 p-3 rounded-lg bg-secondary/30 border-l-2 ${stageBorderColors[music.estado] || 'border-l-transparent'}`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`p-2 rounded-lg shrink-0 ${stageColors[music.estado] || 'bg-muted'}`}>
+                      <Music className="h-3.5 w-3.5" />
                     </div>
-                    <Badge variant="outline" className={`shrink-0 ${stageColors[music.estado] || 'bg-muted'}`}>
-                      {stageLabels[music.estado] || music.estado}
-                    </Badge>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{music.titulo}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {music.turma} · {music.estabelecimento}
+                      </p>
+                    </div>
                   </div>
-                );
-              })}
+                  <Badge variant="outline" className={`shrink-0 text-xs ${stageColors[music.estado] || 'bg-muted'}`}>
+                    {stageLabels[music.estado] || music.estado}
+                  </Badge>
+                </div>
+              ))}
             </div>
           )}
         </CardContent>

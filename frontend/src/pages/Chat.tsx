@@ -538,7 +538,7 @@ export default function Chat() {
 
       {/* New DM Dialog */}
       <Dialog open={isDmDialogOpen} onOpenChange={setIsDmDialogOpen}>
-        <DialogContent className="sm:max-w-[400px]">
+        <DialogContent className="w-full sm:max-w-[400px] max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nova Mensagem Direta</DialogTitle>
           </DialogHeader>

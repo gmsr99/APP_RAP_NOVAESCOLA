@@ -307,16 +307,25 @@ def aceitar_tarefa(musica_id, user_id):
         if 'conn' in locals() and conn: conn.close()
 
 def atualizar_detalhes(musica_id, dados):
-    """Atualiza campos editáveis da música (deadline, notas, link_demo, titulo)."""
+    """Atualiza campos editáveis da música (deadline, notas, link_demo, titulo, turma_id, disciplina_id)."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
         campos = []
         valores = []
-        for campo in ('deadline', 'notas', 'link_demo', 'titulo'):
+        for campo in ('deadline', 'notas', 'link_demo', 'titulo', 'turma_id'):
             if campo in dados:
                 campos.append(f"{campo} = %s")
                 valores.append(dados[campo])
+        # Se disciplina_id fornecido, atualiza também o campo texto disciplina
+        if 'disciplina_id' in dados:
+            campos.append("disciplina_id = %s")
+            valores.append(dados['disciplina_id'])
+            cur.execute("SELECT nome FROM disciplinas WHERE id = %s", (dados['disciplina_id'],))
+            row = cur.fetchone()
+            if row:
+                campos.append("disciplina = %s")
+                valores.append(row[0])
         if not campos:
             return False
         valores.append(musica_id)

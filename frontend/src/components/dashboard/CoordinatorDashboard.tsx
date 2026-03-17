@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,9 +18,8 @@ import {
   AlertTriangle,
   Plus,
   ArrowRight,
-  Clock,
   Star,
-  CheckCircle2
+  CheckCircle2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
@@ -28,6 +27,14 @@ import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+
+const statusBorderColors: Record<string, string> = {
+  rascunho: 'border-l-muted-foreground/30',
+  pendente: 'border-l-yellow-400',
+  confirmada: 'border-l-green-500',
+  recusada: 'border-l-red-500',
+  terminada: 'border-l-gray-400',
+};
 
 const statusColors: Record<string, string> = {
   rascunho: 'bg-muted text-muted-foreground',
@@ -101,182 +108,177 @@ export function CoordinatorDashboard() {
     format(new Date(s.data_hora), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
   ).sort((a: any, b: any) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime());
 
-  // Calculate real stats
-  const sessionsThisWeek = sessions.length; // Simplified for now
   const activeLocations = new Set(sessions.map((s: any) => s.estabelecimento_nome)).size;
   const activeMentors = new Set(sessions.map((s: any) => s.mentor_id)).size;
 
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-display font-bold">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">
-            Resumo da atividade do projeto.
+          <p className="text-muted-foreground mt-1 capitalize">
+            {format(now, "EEEE, d 'de' MMMM", { locale: pt })}
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button asChild>
-            <Link to="/horarios">
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Sessão
-            </Link>
-          </Button>
-        </div>
+        <Button asChild className="shrink-0">
+          <Link to="/horarios">
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Sessão
+          </Link>
+        </Button>
       </div>
 
       {/* Stats Grid */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Sessões
-            </CardTitle>
-            <Calendar className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-display">{sessions.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {pendingSessions.length} por confirmar
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Locais ativos
-            </CardTitle>
-            <MapPin className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-display">{activeLocations}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Instituições com sessões
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Mentores ativos
-            </CardTitle>
-            <Users className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-display">{activeMentors}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Com sessões agendadas
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Equipa Total
-            </CardTitle>
-            <Users className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold font-display">{equipa.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Membros registados
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Alerts */}
-      {pendingSessions.length > 0 && (
-        <Card className="border-yellow-200 dark:border-yellow-900 bg-yellow-50/50 dark:bg-yellow-900/10">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2 text-yellow-700 dark:text-yellow-400">
-              <AlertTriangle className="h-5 w-5" />
-              Atenção necessária
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-card border border-border">
-              <div className="flex items-center gap-3">
-                <Clock className="h-5 w-5 text-yellow-600" />
-                <div>
-                  <p className="font-medium">{pendingSessions.length} sessões por confirmar</p>
-                  <p className="text-sm text-muted-foreground">
-                    Aguardam resposta dos mentores
-                  </p>
-                </div>
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">Total Sessões</p>
+                <p className="text-2xl sm:text-3xl font-bold font-display mt-1">{sessions.length}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{pendingSessions.length} por confirmar</p>
               </div>
-              <Button variant="outline" size="sm" asChild>
-                <Link to="/horarios">Ver todas</Link>
-              </Button>
+              <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+                <Calendar className="h-5 w-5 text-primary" />
+              </div>
             </div>
           </CardContent>
         </Card>
-      )}
 
-      {/* Main Content Grid */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Today's Sessions */}
-        <Card className="col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-lg">Sessões de Hoje</CardTitle>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/horarios">
-                Ver todas <ArrowRight className="h-4 w-4 ml-1" />
-              </Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {todaySessions.length === 0 ? (
-              <p className="text-muted-foreground text-center py-6">
-                Sem sessões agendadas para hoje.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {todaySessions.map((session: any) => (
-                  <div
-                    key={session.id}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-secondary/30"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="text-center min-w-[60px]">
-                        <p className="text-lg font-bold font-display">
-                          {format(new Date(session.data_hora), 'HH:mm')}
-                        </p>
-                        <p className="text-xs text-muted-foreground">{session.duracao_minutos}min</p>
-                      </div>
-                      <div>
-                        <p className="font-medium">{session.estabelecimento_nome}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {session.turma_nome} • {session.mentor_nome || 'Sem mentor'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
-                      {session.estado === 'confirmada' && !session.is_autonomous && new Date(session.data_hora) < now && (
-                        <Button size="sm" variant="outline" onClick={() => openTerminarModal(session.id)}>
-                          <CheckCircle2 className="h-4 w-4 mr-1" />
-                          Terminar
-                        </Button>
-                      )}
-                      <Badge className={statusColors[session.estado] || statusColors.confirmada}>
-                        {statusLabels[session.estado] || session.estado}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
+        <Card>
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">Locais ativos</p>
+                <p className="text-2xl sm:text-3xl font-bold font-display mt-1">{activeLocations}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Instituições com sessões</p>
               </div>
-            )}
+              <div className="p-2 rounded-lg bg-orange-500/10 shrink-0">
+                <MapPin className="h-5 w-5 text-orange-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">Mentores ativos</p>
+                <p className="text-2xl sm:text-3xl font-bold font-display mt-1">{activeMentors}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Com sessões agendadas</p>
+              </div>
+              <div className="p-2 rounded-lg bg-purple-500/10 shrink-0">
+                <Users className="h-5 w-5 text-purple-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-muted-foreground">Equipa Total</p>
+                <p className="text-2xl sm:text-3xl font-bold font-display mt-1">{equipa.length}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Membros registados</p>
+              </div>
+              <div className="p-2 rounded-lg bg-indigo-500/10 shrink-0">
+                <Users className="h-5 w-5 text-indigo-500" />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* Alert */}
+      {pendingSessions.length > 0 && (
+        <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-yellow-200 dark:border-yellow-900 bg-yellow-50/50 dark:bg-yellow-900/10">
+          <div className="flex items-center gap-3">
+            <div className="p-1.5 rounded-lg bg-yellow-500/15 shrink-0">
+              <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+            </div>
+            <div>
+              <p className="font-medium text-sm text-yellow-700 dark:text-yellow-400">
+                {pendingSessions.length} sessão{pendingSessions.length > 1 ? 'ões' : ''} por confirmar
+              </p>
+              <p className="text-xs text-muted-foreground">Aguardam resposta dos mentores</p>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" asChild className="shrink-0">
+            <Link to="/horarios">Ver todas</Link>
+          </Button>
+        </div>
+      )}
+
+      {/* Today's Sessions */}
+      <Card>
+        <div className="flex items-center justify-between px-5 pt-5 pb-3">
+          <div>
+            <h2 className="font-semibold">Sessões de Hoje</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">{todaySessions.length} sessão{todaySessions.length !== 1 ? 'ões' : ''} agendada{todaySessions.length !== 1 ? 's' : ''}</p>
+          </div>
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/horarios">
+              Ver todas <ArrowRight className="h-4 w-4 ml-1" />
+            </Link>
+          </Button>
+        </div>
+        <CardContent className="pt-0">
+          {todaySessions.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="p-3 rounded-full bg-secondary mb-3">
+                <Calendar className="h-5 w-5 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground">Sem sessões agendadas para hoje.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {todaySessions.map((session: any) => (
+                <div
+                  key={session.id}
+                  className={cn(
+                    'flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-secondary/30 border-l-2',
+                    statusBorderColors[session.estado] || 'border-l-transparent'
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="text-center min-w-[52px]">
+                      <p className="text-base font-bold font-display leading-none">
+                        {format(new Date(session.data_hora), 'HH:mm')}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">{session.duracao_minutos}min</p>
+                    </div>
+                    <div className="w-px h-8 bg-border shrink-0" />
+                    <div>
+                      <p className="font-medium text-sm">{session.estabelecimento_nome}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {session.turma_nome} · {session.mentor_nome || 'Sem mentor'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    {session.estado === 'confirmada' && !session.is_autonomous && new Date(session.data_hora) < now && (
+                      <Button size="sm" variant="outline" onClick={() => openTerminarModal(session.id)}>
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                        Terminar
+                      </Button>
+                    )}
+                    <Badge className={statusColors[session.estado] || statusColors.confirmada}>
+                      {statusLabels[session.estado] || session.estado}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Terminar Sessão Dialog */}
       <Dialog open={isTerminarOpen} onOpenChange={setIsTerminarOpen}>
-        <DialogContent className="sm:max-w-[425px]">
+        <DialogContent className="w-full sm:max-w-[425px] max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Terminar Sessão</DialogTitle>
           </DialogHeader>

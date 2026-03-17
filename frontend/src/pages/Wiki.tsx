@@ -918,7 +918,7 @@ const Wiki = () => {
 
       {/* DIALOG FOR PROJETOS */}
       <Dialog open={isProjetoDialogOpen} onOpenChange={setIsProjetoDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-full max-w-lg max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingProjeto ? 'Editar Projeto' : 'Novo Projeto'}</DialogTitle>
             <DialogDescription>
@@ -957,7 +957,7 @@ const Wiki = () => {
 
       {/* DIALOG FOR ESTABELECIMENTOS */}
       <Dialog open={isEstabDialogOpen} onOpenChange={setIsEstabDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-full max-w-lg max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingEstab ? 'Editar Estabelecimento' : 'Novo Estabelecimento'}</DialogTitle>
           </DialogHeader>
@@ -1013,7 +1013,7 @@ const Wiki = () => {
 
       {/* DIALOG FOR TURMAS */}
       <Dialog open={isTurmaDialogOpen} onOpenChange={setIsTurmaDialogOpen}>
-        <DialogContent>
+        <DialogContent className="w-full max-w-lg max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingTurma ? 'Editar Turma' : 'Nova Turma'}</DialogTitle>
             <DialogDescription>
