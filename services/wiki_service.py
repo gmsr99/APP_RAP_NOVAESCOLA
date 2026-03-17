@@ -8,7 +8,11 @@ Gere as disciplinas e atividades locais (turma_disciplinas + turma_atividades).
 Cada turma tem as suas próprias disciplinas e atividades com UUID.
 """
 
+import logging
+
 from database.connection import get_db_connection
+
+logger = logging.getLogger(__name__)
 
 
 def _has_is_autonomous(cur) -> bool:
@@ -148,7 +152,7 @@ def listar_hierarquia_projeto(projeto_id: int):
 
         return resultado
     except Exception as e:
-        print(f"Erro ao listar hierarquia wiki: {e}")
+        logger.error(f"Erro ao listar hierarquia wiki: {e}")
         raise
     finally:
         if 'cur' in locals() and cur: cur.close()
@@ -212,7 +216,7 @@ def listar_disciplinas_turma(turma_id: int):
 
         return resultado
     except Exception as e:
-        print(f"Erro ao listar disciplinas da turma: {e}")
+        logger.error(f"Erro ao listar disciplinas da turma: {e}")
         return []
     finally:
         if 'cur' in locals() and cur: cur.close()
@@ -274,7 +278,7 @@ def criar_disciplina_turma(turma_id: int, nome: str, descricao: str = None, musi
             'atividades': created_atividades,
         }
     except Exception as e:
-        print(f"Erro ao criar disciplina da turma: {e}")
+        logger.error(f"Erro ao criar disciplina da turma: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return None
     finally:
@@ -295,7 +299,7 @@ def atualizar_disciplina_turma(td_id: int, nome: str, descricao: str = None, mus
         conn.commit()
         return True
     except Exception as e:
-        print(f"Erro ao atualizar disciplina da turma: {e}")
+        logger.error(f"Erro ao atualizar disciplina da turma: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False
     finally:
@@ -312,7 +316,7 @@ def apagar_disciplina_turma(td_id: int):
         conn.commit()
         return True
     except Exception as e:
-        print(f"Erro ao apagar disciplina da turma: {e}")
+        logger.error(f"Erro ao apagar disciplina da turma: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False
     finally:
@@ -345,7 +349,7 @@ def criar_atividade(turma_disciplina_id: int, nome: str, codigo: str = None, ses
         conn.commit()
         return {'uuid': str(uuid), 'nome': nome, 'codigo': codigo, 'is_autonomous': is_autonomous}
     except Exception as e:
-        print(f"Erro ao criar atividade: {e}")
+        logger.error(f"Erro ao criar atividade: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return None
     finally:
@@ -388,7 +392,7 @@ def atualizar_atividade(uuid: str, dados: dict):
         conn.commit()
         return True
     except Exception as e:
-        print(f"Erro ao atualizar atividade: {e}")
+        logger.error(f"Erro ao atualizar atividade: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False
     finally:
@@ -405,7 +409,7 @@ def apagar_atividade(uuid: str):
         conn.commit()
         return True
     except Exception as e:
-        print(f"Erro ao apagar atividade: {e}")
+        logger.error(f"Erro ao apagar atividade: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False
     finally:

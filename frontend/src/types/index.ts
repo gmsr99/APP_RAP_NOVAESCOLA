@@ -95,12 +95,19 @@ export interface EquipamentoItem {
   categoria_id: number;
   categoria_nome: string;
   uuid: string | null;
-  // Derivados automaticamente das sessoes
+  // Localização resolvida (manual > estabelecimento > mentor)
   localizacao_id: number | null;
   localizacao_nome: string | null;
+  localizacao_tipo: 'estabelecimento' | 'mentor' | 'estudio' | null;
   ultimo_responsavel_id: string | null;
   responsavel_nome: string | null;
   ultima_utilizacao: string | null;
+}
+
+export interface EquipamentoLocalizacao {
+  tipo: 'estabelecimento' | 'mentor' | 'estudio';
+  ref_id: string | number | null;
+  nome: string;
 }
 
 export interface EquipamentoStats {

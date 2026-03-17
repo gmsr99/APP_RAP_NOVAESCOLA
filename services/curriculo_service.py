@@ -1,9 +1,12 @@
 import sys
 import os
+import logging
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from database.connection import get_db_connection
+
+logger = logging.getLogger(__name__)
 
 def listar_curriculo():
     """Lista todo o currículo (disciplinas e atividades)."""
@@ -52,7 +55,7 @@ def listar_curriculo():
             
         return resultado
     except Exception as e:
-        print(f"❌ Erro ao listar currículo: {e}")
+        logger.error(f"Erro ao listar curriculo: {e}")
         return []
     finally:
         if 'cur' in locals() and cur: cur.close()
@@ -72,7 +75,7 @@ def adicionar_disciplina(nome, descricao=None, musicas_previstas=7, horas_previs
         conn.commit()
         return new_id
     except Exception as e:
-        print(f"❌ Erro ao adicionar disciplina: {e}")
+        logger.error(f"Erro ao adicionar disciplina: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return None
     finally:
@@ -91,7 +94,7 @@ def atualizar_disciplina(id, nome, descricao=None, musicas_previstas=None, horas
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Erro ao atualizar disciplina: {e}")
+        logger.error(f"Erro ao atualizar disciplina: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False
     finally:
@@ -107,7 +110,7 @@ def apagar_disciplina(id):
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Erro ao apagar disciplina: {e}")
+        logger.error(f"Erro ao apagar disciplina: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False
     finally:
@@ -131,7 +134,7 @@ def adicionar_atividade(disciplina_id, codigo, nome, sessoes=None, horas=None, p
         conn.commit()
         return new_id
     except Exception as e:
-        print(f"❌ Erro ao adicionar atividade: {e}")
+        logger.error(f"Erro ao adicionar atividade: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return None
     finally:
@@ -159,7 +162,7 @@ def atualizar_atividade(id, dados):
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Erro ao atualizar atividade: {e}")
+        logger.error(f"Erro ao atualizar atividade: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False
     finally:
@@ -176,7 +179,7 @@ def apagar_atividade(id):
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Erro ao apagar atividade: {e}")
+        logger.error(f"Erro ao apagar atividade: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False
     finally:

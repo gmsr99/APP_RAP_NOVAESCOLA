@@ -10,6 +10,10 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from database.connection import get_db_connection
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 def listar_alunos_por_turma(turma_id: int):
     """Retorna a lista de alunos de uma turma, ordenados por nome."""
@@ -26,7 +30,7 @@ def listar_alunos_por_turma(turma_id: int):
         return [{"id": r[0], "nome": r[1]} for r in rows]
 
     except Exception as e:
-        print(f"❌ Erro ao listar alunos da turma #{turma_id}: {e}")
+        logger.error(f"Erro ao listar alunos da turma #{turma_id}: {e}")
         return []
     finally:
         if 'cur' in locals() and cur:
@@ -55,11 +59,11 @@ def definir_alunos_turma(turma_id: int, nomes: list[str]):
                 )
 
         conn.commit()
-        print(f"✅ Alunos da turma #{turma_id} atualizados ({len(nomes)} nomes)")
+        logger.info(f"Alunos da turma #{turma_id} atualizados ({len(nomes)} nomes)")
         return True
 
     except Exception as e:
-        print(f"❌ Erro ao definir alunos da turma #{turma_id}: {e}")
+        logger.error(f"Erro ao definir alunos da turma #{turma_id}: {e}")
         if 'conn' in locals() and conn:
             conn.rollback()
         return False

@@ -38,7 +38,7 @@ const statusColors: Record<string, string> = {
   pendente: 'bg-[#3399cd] text-white border-[#3399cd]',
   confirmada: 'bg-[#4EA380] text-white border-[#4EA380]',
   recusada: 'bg-[#A35339] text-white border-[#A35339]',
-  terminada: 'bg-[#6B7280] text-white border-[#6B7280]',
+  terminada: 'bg-[#06bede] text-white border-[#06bede]',
 };
 
 export function MentorDashboard() {
@@ -303,9 +303,9 @@ export function MentorDashboard() {
 
       {/* Sessions to Finish */}
       {toFinishSessions.length > 0 && (
-        <Card className="border-[#6B7280]/30 bg-[#6B7280]/5">
+        <Card className="border-[#06bede]/30 bg-[#06bede]/5">
           <div className="px-5 pt-4 pb-3">
-            <h2 className="font-semibold flex items-center gap-2 text-[#6B7280]">
+            <h2 className="font-semibold flex items-center gap-2 text-[#06bede]">
               <CheckCircle2 className="h-4 w-4" />
               Sessões por terminar
               <Badge variant="secondary" className="ml-1">{toFinishSessions.length}</Badge>
@@ -342,7 +342,7 @@ export function MentorDashboard() {
                 </div>
                 <Button
                   size="sm"
-                  className="bg-[#6B7280] hover:bg-[#555e68] text-white shrink-0"
+                  className="bg-[#06bede] hover:bg-[#059ab5] text-white shrink-0"
                   onClick={() => openTerminarModal(session.id)}
                 >
                   <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
@@ -420,7 +420,7 @@ export function MentorDashboard() {
         <DialogContent className="w-full sm:max-w-[420px] max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-[#6B7280]" />
+              <CheckCircle2 className="h-5 w-5 text-[#06bede]" />
               Terminar Sessão
             </DialogTitle>
             <DialogDescription>
@@ -460,7 +460,7 @@ export function MentorDashboard() {
             <Button
               onClick={handleSubmitTerminar}
               disabled={terminarRating < 1 || terminarMutation.isPending}
-              className="bg-[#6B7280] hover:bg-[#555e68] text-white"
+              className="bg-[#06bede] hover:bg-[#059ab5] text-white"
             >
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Submeter

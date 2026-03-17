@@ -14,6 +14,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from database.connection import get_db_connection
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 def criar_notificacao(user_id, tipo, titulo, mensagem, link=None, metadados=None):
     """
@@ -38,11 +41,11 @@ def criar_notificacao(user_id, tipo, titulo, mensagem, link=None, metadados=None
         notif_id = cur.fetchone()[0]
         conn.commit()
         
-        print(f"🔔 Notificação #{notif_id} criada para User #{user_id}")
+        logger.info("Notificacao #%s criada para User #%s", notif_id, user_id)
         return True
 
     except Exception as e:
-        print(f"❌ Erro ao criar notificação: {e}")
+        logger.error("Erro ao criar notificacao: %s", e)
         if conn: conn.rollback()
         return False
     finally:
@@ -86,8 +89,25 @@ def listar_notificacoes(user_id, apenas_nao_lidas=False, limite=50):
         return notificacoes
 
     except Exception as e:
-        print(f"❌ Erro ao listar notificações: {e}")
+        logger.error("Erro ao listar notificacoes: %s", e)
         return []
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+def obter_notificacao(notificacao_id):
+    """Obtém uma notificação pelo ID."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, user_id, tipo, titulo, mensagem, lida FROM notificacoes WHERE id = %s", (notificacao_id,))
+        row = cur.fetchone()
+        if not row:
+            return None
+        return {'id': row[0], 'user_id': str(row[1]), 'tipo': row[2], 'titulo': row[3], 'mensagem': row[4], 'lida': row[5]}
+    except Exception as e:
+        logger.error("Erro ao obter notificacao: %s", e)
+        return None
     finally:
         if 'cur' in locals() and cur: cur.close()
         if 'conn' in locals() and conn: conn.close()
@@ -104,7 +124,7 @@ def marcar_como_lida(notificacao_id):
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Erro ao marcar notificação: {e}")
+        logger.error("Erro ao marcar notificacao: %s", e)
         return False
     finally:
         if 'cur' in locals() and cur: cur.close()
@@ -122,7 +142,7 @@ def apagar_notificacao(notificacao_id):
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Erro ao apagar notificação: {e}")
+        logger.error("Erro ao apagar notificacao: %s", e)
         return False
     finally:
         if 'cur' in locals() and cur: cur.close()
@@ -139,10 +159,10 @@ def apagar_todas_notificacoes(user_id):
         cur.execute("DELETE FROM notificacoes WHERE user_id = %s", (user_id,))
         count = cur.rowcount
         conn.commit()
-        print(f"🗑️ {count} notificações apagadas para User #{user_id}")
+        logger.info("%s notificacoes apagadas para User #%s", count, user_id)
         return count
     except Exception as e:
-        print(f"❌ Erro ao apagar todas as notificações: {e}")
+        logger.error("Erro ao apagar todas as notificacoes: %s", e)
         if 'conn' in locals() and conn: conn.rollback()
         return 0
     finally:
@@ -161,7 +181,7 @@ def contar_nao_lidas(user_id):
         count = cur.fetchone()[0]
         return count
     except Exception as e:
-        print(f"❌ Erro ao contar notificações: {e}")
+        logger.error("Erro ao contar notificacoes: %s", e)
         return 0
     finally:
         if 'cur' in locals() and cur: cur.close()

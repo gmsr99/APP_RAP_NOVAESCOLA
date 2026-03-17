@@ -23,10 +23,14 @@ Como usar:
 ==============================================================================
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 if __name__ == "__main__":
     import sys
-    print("❌ Erro: Este ficheiro é um pacote e não deve ser executado diretamente.")
-    print("👉 Por favor, execute 'python3 main.py' na pasta raiz do projeto.")
+    logger.error("Este ficheiro é um pacote e não deve ser executado diretamente.")
+    logger.info("Por favor, execute 'python3 main.py' na pasta raiz do projeto.")
     sys.exit(1)
 
 # Importar services para facilitar uso

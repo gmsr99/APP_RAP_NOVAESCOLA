@@ -140,6 +140,74 @@ const EquipamentoView = ({ aulaId }: { aulaId: number }) => {
   );
 };
 
+const MINUTES_5 = ['00','05','10','15','20','25','30','35','40','45','50','55'];
+const HOURS_24 = Array.from({ length: 14 }, (_, i) => String(i + 7).padStart(2, '0'));
+
+function TimePicker5Min({
+  id,
+  value,
+  onChange,
+  defaultValue,
+}: {
+  id: string;
+  value?: string;
+  onChange?: (val: string) => void;
+  defaultValue?: string;
+}) {
+  const initial = value ?? defaultValue ?? '';
+  const [hour, setHour] = useState(() => initial.split(':')[0] ?? '');
+  const [minute, setMinute] = useState(() => initial.split(':')[1] ?? '');
+
+  useEffect(() => {
+    if (value !== undefined) {
+      const parts = value.split(':');
+      setHour(parts[0] ?? '');
+      setMinute(parts[1] ?? '');
+    }
+  }, [value]);
+
+  const composed = hour !== '' && minute !== '' ? `${hour}:${minute}` : '';
+
+  const handleHour = (h: string) => {
+    setHour(h);
+    const m = minute || '00';
+    onChange?.(`${h}:${m}`);
+  };
+
+  const handleMinute = (m: string) => {
+    setMinute(m);
+    const h = hour || '00';
+    onChange?.(`${h}:${m}`);
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <input type="hidden" id={id} value={composed} readOnly />
+      <Select value={hour} onValueChange={handleHour}>
+        <SelectTrigger className="w-[68px]">
+          <SelectValue placeholder="--" />
+        </SelectTrigger>
+        <SelectContent className="bg-popover max-h-48">
+          {HOURS_24.map((h) => (
+            <SelectItem key={h} value={h}>{h}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className="text-muted-foreground">:</span>
+      <Select value={minute} onValueChange={handleMinute}>
+        <SelectTrigger className="w-[68px]">
+          <SelectValue placeholder="--" />
+        </SelectTrigger>
+        <SelectContent className="bg-popover">
+          {MINUTES_5.map((m) => (
+            <SelectItem key={m} value={m}>{m}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 const Horarios = () => {
   const { profile } = useProfile();
   const isAdmin = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
@@ -973,12 +1041,12 @@ const Horarios = () => {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
-                            <Label htmlFor="time">Hora de início</Label>
-                            <Input id="time" type="time" step="300" />
+                            <Label>Hora de início</Label>
+                            <TimePicker5Min id="time" />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="time-end">Hora de fim</Label>
-                            <Input id="time-end" type="time" step="300" />
+                            <Label>Hora de fim</Label>
+                            <TimePicker5Min id="time-end" />
                           </div>
                         </div>
                         <div className="space-y-2">
@@ -1328,23 +1396,19 @@ const Horarios = () => {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="auto-start">Início</Label>
-                            <Input
+                            <Label>Início</Label>
+                            <TimePicker5Min
                               id="auto-start"
-                              type="time"
-                              step="300"
                               value={autonomousForm.hora_inicio}
-                              onChange={(e) => setAutonomousForm({ ...autonomousForm, hora_inicio: e.target.value })}
+                              onChange={(v) => setAutonomousForm({ ...autonomousForm, hora_inicio: v })}
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="auto-end">Fim</Label>
-                            <Input
+                            <Label>Fim</Label>
+                            <TimePicker5Min
                               id="auto-end"
-                              type="time"
-                              step="300"
                               value={autonomousForm.hora_fim}
-                              onChange={(e) => setAutonomousForm({ ...autonomousForm, hora_fim: e.target.value })}
+                              onChange={(v) => setAutonomousForm({ ...autonomousForm, hora_fim: v })}
                             />
                           </div>
                         </div>
@@ -1474,20 +1538,18 @@ const Horarios = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="time">Hora de início</Label>
-                        <Input
+                        <Label>Hora de início</Label>
+                        <TimePicker5Min
+                          key={`edit-start-${editingSession.id}`}
                           id="time"
-                          type="time"
-                          step="300"
                           defaultValue={format(new Date(editingSession.data_hora), 'HH:mm')}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="time-end">Hora de fim</Label>
-                        <Input
+                        <Label>Hora de fim</Label>
+                        <TimePicker5Min
+                          key={`edit-end-${editingSession.id}`}
                           id="time-end"
-                          type="time"
-                          step="300"
                           defaultValue={format(addMinutes(new Date(editingSession.data_hora), editingSession.duracao_minutos), 'HH:mm')}
                         />
                       </div>

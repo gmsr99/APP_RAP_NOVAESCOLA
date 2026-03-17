@@ -1,4 +1,8 @@
+import logging
+
 from database.connection import get_db_connection
+
+logger = logging.getLogger(__name__)
 
 def get_produtor_dashboard(user_id):
     """
@@ -113,7 +117,7 @@ def get_produtor_dashboard(user_id):
         }
         
     except Exception as e:
-        print(f"❌ Erro ao obter dashboard do produtor: {e}")
+        logger.error(f"Erro ao obter dashboard do produtor: {e}")
         return None
     finally:
         if 'cur' in locals() and cur: cur.close()

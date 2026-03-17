@@ -1,8 +1,11 @@
 import sys
 import os
+import logging
 from datetime import datetime
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+logger = logging.getLogger(__name__)
 
 from database.connection import get_db_connection
 
@@ -57,7 +60,7 @@ def listar_reservas(data_inicio=None, data_fim=None):
             
         return resultado
     except Exception as e:
-        print(f"❌ Erro ao listar reservas: {e}")
+        logger.error(f"Erro ao listar reservas: {e}")
         return []
     finally:
         if 'cur' in locals() and cur: cur.close()
@@ -84,7 +87,7 @@ def criar_reserva(dados):
         conn.commit()
         return {'id': nova_id, 'message': 'Reserva criada com sucesso'}
     except Exception as e:
-        print(f"❌ Erro ao criar reserva: {e}")
+        logger.error(f"Erro ao criar reserva: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return None
     finally:
@@ -115,7 +118,7 @@ def listar_equipa():
         } for m in equipa]
         
     except Exception as e:
-        print(f"❌ Erro ao listar equipa: {e}")
+        logger.error(f"Erro ao listar equipa: {e}")
         return []
     finally:
         if 'cur' in locals() and cur: cur.close()
@@ -132,7 +135,7 @@ def apagar_reserva(reserva_id):
         conn.commit()
         return deleted
     except Exception as e:
-        print(f"❌ Erro ao apagar reserva: {e}")
+        logger.error(f"Erro ao apagar reserva: {e}")
         return False
     finally:
         if 'cur' in locals() and cur: cur.close()

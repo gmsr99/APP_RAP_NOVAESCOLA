@@ -24,9 +24,12 @@ Fluxo:
 
 import sys
 import os
+import logging
 
 # Adiciona o diretório pai ao sys.path para permitir importações quando executado diretamente
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+logger = logging.getLogger(__name__)
 
 from database.connection import get_db_connection
 from datetime import datetime
@@ -132,12 +135,10 @@ def notificar_excecao_coordenacao(
         )
     """
     
-    print(f"\n🚨 EXCEÇÃO DETECTADA: {tipo_excecao}")
-    print(f"   Urgência: {urgencia.upper()}")
-    print("-" * 60)
-    
+    logger.warning(f"EXCECAO DETECTADA: {tipo_excecao} | Urgencia: {urgencia.upper()}")
+
     # 1. CRIAR LOG NA BASE DE DADOS
-    print("📝 1/3 - A criar log de exceção na BD...")
+    logger.info("1/3 - A criar log de excecao na BD...")
     
     log_id = criar_log_excecao(
         tipo_excecao=tipo_excecao,
@@ -150,17 +151,17 @@ def notificar_excecao_coordenacao(
     )
     
     if not log_id:
-        print("❌ Erro ao criar log!")
+        logger.error("Erro ao criar log!")
         return {
             'sucesso': False,
             'log_id': None,
             'slack_enviado': False
         }
-    
-    print(f"   ✅ Log #{log_id} criado")
-    
+
+    logger.info(f"Log #{log_id} criado")
+
     # 2. ENVIAR NOTIFICAÇÃO SLACK
-    print("📱 2/3 - A enviar notificação Slack...")
+    logger.info("2/3 - A enviar notificacao Slack...")
     
     slack_enviado = enviar_slack_coordenacao(
         tipo_excecao=tipo_excecao,
@@ -173,13 +174,12 @@ def notificar_excecao_coordenacao(
     )
     
     if slack_enviado:
-        print("   ✅ Slack enviado")
+        logger.info("Slack enviado")
     else:
-        print("   ⚠️  Slack não enviado (verificar configuração)")
-    
+        logger.warning("Slack nao enviado (verificar configuracao)")
+
     # 3. CONFIRMAÇÃO FINAL
-    print("✅ 3/3 - Coordenação notificada!")
-    print("-" * 60)
+    logger.info("3/3 - Coordenacao notificada!")
     
     return {
         'sucesso': True,
@@ -257,7 +257,7 @@ def criar_log_excecao(tipo_excecao, titulo, descricao, entidade, entidade_id,
         return log_id
         
     except Exception as e:
-        print(f"❌ Erro ao criar log de exceção: {e}")
+        logger.error(f"Erro ao criar log de excecao: {e}")
         if 'conn' in locals() and conn:
             conn.rollback()
         return None
@@ -368,11 +368,11 @@ def enviar_slack_coordenacao(tipo_excecao, titulo, descricao, urgencia,
         return sucesso
         
     except ImportError:
-        print("⚠️  Módulo slack_service não encontrado. Notificação não enviada.")
+        logger.warning("Modulo slack_service nao encontrado. Notificacao nao enviada.")
         return False
         
     except Exception as e:
-        print(f"❌ Erro ao enviar Slack: {e}")
+        logger.error(f"Erro ao enviar Slack: {e}")
         return False
 
 
@@ -647,7 +647,7 @@ def listar_excecoes_pendentes(urgencia_minima=URGENCIA_MEDIA):
         return excecoes
         
     except Exception as e:
-        print(f"❌ Erro ao listar exceções: {e}")
+        logger.error(f"Erro ao listar excecoes: {e}")
         return []
     finally:
         if 'cur' in locals() and cur:
@@ -666,14 +666,10 @@ if __name__ == "__main__":
     Execute: python services/excecoes_service.py
     """
     
-    print("="*70)
-    print(" TESTE DO SERVIÇO DE EXCEÇÕES À COORDENAÇÃO ".center(70))
-    print("="*70)
-    print()
-    
+    logger.info("TESTE DO SERVICO DE EXCECOES A COORDENACAO")
+
     # Teste 1: Aula recusada
-    print("📝 Teste 1: Notificar aula recusada")
-    print("-"*70)
+    logger.info("Teste 1: Notificar aula recusada")
     
     resultado = notificar_aula_recusada(
         aula_id=999,
@@ -683,6 +679,5 @@ if __name__ == "__main__":
         motivo="Teste - Doença súbita"
     )
     
-    print(f"\nResultado: {resultado}")
-    print("\n" + "="*70)
+    logger.info(f"Resultado: {resultado}")
     

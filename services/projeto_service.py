@@ -1,4 +1,8 @@
+import logging
+
 from database.connection import get_db_connection
+
+logger = logging.getLogger(__name__)
 
 
 def listar_projetos():
@@ -10,7 +14,7 @@ def listar_projetos():
         cols = [desc[0] for desc in cur.description]
         return [dict(zip(cols, row)) for row in cur.fetchall()]
     except Exception as e:
-        print(f"Erro ao listar projetos: {e}")
+        logger.error(f"Erro ao listar projetos: {e}")
         return []
     finally:
         conn.close()
@@ -30,7 +34,7 @@ def criar_projeto(nome, descricao=None):
         return {"id": new_id, "nome": nome, "descricao": descricao}
     except Exception as e:
         conn.rollback()
-        print(f"Erro ao criar projeto: {e}")
+        logger.error(f"Erro ao criar projeto: {e}")
         return None
     finally:
         conn.close()
@@ -49,7 +53,7 @@ def atualizar_projeto(projeto_id, nome, descricao=None):
         return cur.rowcount > 0
     except Exception as e:
         conn.rollback()
-        print(f"Erro ao atualizar projeto: {e}")
+        logger.error(f"Erro ao atualizar projeto: {e}")
         return False
     finally:
         conn.close()
@@ -65,7 +69,7 @@ def apagar_projeto(projeto_id):
         return cur.rowcount > 0
     except Exception as e:
         conn.rollback()
-        print(f"Erro ao apagar projeto: {e}")
+        logger.error(f"Erro ao apagar projeto: {e}")
         return False
     finally:
         conn.close()
@@ -89,7 +93,7 @@ def listar_estabelecimentos_por_projeto(projeto_id):
         cols = [desc[0] for desc in cur.description]
         return [dict(zip(cols, row)) for row in cur.fetchall()]
     except Exception as e:
-        print(f"Erro ao listar estabelecimentos do projeto: {e}")
+        logger.error(f"Erro ao listar estabelecimentos do projeto: {e}")
         return []
     finally:
         conn.close()
@@ -108,7 +112,7 @@ def associar_estabelecimento(projeto_id, estabelecimento_id):
         return True
     except Exception as e:
         conn.rollback()
-        print(f"Erro ao associar estabelecimento: {e}")
+        logger.error(f"Erro ao associar estabelecimento: {e}")
         return False
     finally:
         conn.close()
@@ -127,7 +131,7 @@ def desassociar_estabelecimento(projeto_id, estabelecimento_id):
         return cur.rowcount > 0
     except Exception as e:
         conn.rollback()
-        print(f"Erro ao desassociar estabelecimento: {e}")
+        logger.error(f"Erro ao desassociar estabelecimento: {e}")
         return False
     finally:
         conn.close()

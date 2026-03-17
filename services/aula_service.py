@@ -20,6 +20,9 @@ from models.sqlmodel_models import (
     Projeto,
     Turma,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # CONSTANTES - ESTADOS DAS AULAS
@@ -135,15 +138,15 @@ def criar_aula(
     codigo_sessao=None,
 ):
     if not is_autonomous and not turma_id:
-        print("❌ Erro: turma_id é obrigatório para aulas regulares!")
+        logger.error("Erro: turma_id e obrigatorio para aulas regulares!")
         return None
 
     if not data_hora:
-        print("❌ Erro: data_hora é obrigatória!")
+        logger.error("Erro: data_hora e obrigatoria!")
         return None
 
     if not is_autonomous and tipo not in TIPOS_AULA:
-        print(f"⚠️  Aviso: Tipo '{tipo}' não é padrão. Tipos válidos: {TIPOS_AULA}")
+        logger.warning("Tipo '%s' nao e padrao. Tipos validos: %s", tipo, TIPOS_AULA)
 
     if is_autonomous:
         estado_inicial = "autonomo"
@@ -179,7 +182,7 @@ def criar_aula(
             session.commit()
             session.refresh(nova_aula)
 
-        print(f"✅ Aula #{nova_aula.id} criada com sucesso!")
+        logger.info("Aula #%s criada com sucesso!", nova_aula.id)
 
         if mentor_id and not is_autonomous:
             try:
@@ -198,12 +201,12 @@ def criar_aula(
                             metadados={"aula_id": nova_aula.id},
                         )
             except Exception as e:
-                print(f"⚠️ Erro ao criar notificação: {e}")
+                logger.warning("Erro ao criar notificacao: %s", e)
 
         return _to_aula_read_dict(nova_aula)
 
     except Exception as e:
-        print(f"❌ Erro ao criar aula: {e}")
+        logger.error("Erro ao criar aula: %s", e)
         return None
 
 
@@ -263,14 +266,13 @@ def criar_aulas_recorrentes(
         )
         if resultado:
             resultados.append(resultado)
-    print(f"✅ {len(resultados)} sessões recorrentes criadas.")
+    logger.info("%s sessoes recorrentes criadas.", len(resultados))
     return resultados
 
 
 def listar_aulas_por_estado(estado, limite=50):
     if estado not in ESTADOS_VALIDOS:
-        print(f"⚠️  Aviso: Estado '{estado}' pode não ser válido.")
-        print(f"   Estados válidos: {ESTADOS_VALIDOS}")
+        logger.warning("Estado '%s' pode nao ser valido. Estados validos: %s", estado, ESTADOS_VALIDOS)
 
     try:
         with Session(engine) as session:
@@ -325,17 +327,17 @@ def listar_aulas_por_estado(estado, limite=50):
             }
             aulas.append(AulaListItem.model_validate(payload).model_dump())
 
-        print(f"📋 {len(aulas)} aula(s) encontrada(s) com estado '{estado}'")
+        logger.info("%s aula(s) encontrada(s) com estado '%s'", len(aulas), estado)
         return aulas
 
     except Exception as e:
-        print(f"❌ Erro ao listar aulas: {e}")
+        logger.error("Erro ao listar aulas: %s", e)
         return []
 
 
 def atribuir_mentor(aula_id, mentor_id):
     if not aula_id or not mentor_id:
-        print("❌ Erro: aula_id e mentor_id são obrigatórios!")
+        logger.error("Erro: aula_id e mentor_id sao obrigatorios!")
         return False
 
     try:
@@ -343,7 +345,7 @@ def atribuir_mentor(aula_id, mentor_id):
             # ORM: session.get traduz-se num SELECT ... WHERE id = ? LIMIT 1.
             aula = session.get(Aula, aula_id)
             if not aula:
-                print(f"❌ Erro: Aula #{aula_id} não encontrada!")
+                logger.error("Erro: Aula #%s nao encontrada!", aula_id)
                 return False
 
             estado_atual = aula.estado
@@ -362,7 +364,7 @@ def atribuir_mentor(aula_id, mentor_id):
             mentor = session.get(Mentor, mentor_id)
             mentor_nome = mentor.nome if mentor else f"Mentor #{mentor_id}"
 
-        print(f"✅ Mentor '{mentor_nome}' atribuído à aula #{aula_id}")
+        logger.info("Mentor '%s' atribuido a aula #%s", mentor_nome, aula_id)
 
         try:
             from notifications import slack_service
@@ -396,19 +398,18 @@ def atribuir_mentor(aula_id, mentor_id):
                             metadados={"aula_id": aula_id},
                         )
         except Exception as e:
-            print(f"⚠️  Aviso: Erro ao enviar notificação: {e}")
+            logger.warning("Erro ao enviar notificacao: %s", e)
 
         return True
 
     except Exception as e:
-        print(f"❌ Erro ao atribuir mentor: {e}")
+        logger.error("Erro ao atribuir mentor: %s", e)
         return False
 
 
 def mudar_estado_aula(aula_id, novo_estado):
     if novo_estado not in ESTADOS_VALIDOS:
-        print(f"❌ Erro: Estado '{novo_estado}' não é válido!")
-        print(f"   Estados válidos: {ESTADOS_VALIDOS}")
+        logger.error("Erro: Estado '%s' nao e valido! Estados validos: %s", novo_estado, ESTADOS_VALIDOS)
         return False
 
     try:
@@ -416,7 +417,7 @@ def mudar_estado_aula(aula_id, novo_estado):
             # ORM: session.get carrega a aula e a alteração do atributo estado vira UPDATE no commit.
             aula = session.get(Aula, aula_id)
             if not aula:
-                print(f"❌ Erro: Aula #{aula_id} não encontrada!")
+                logger.error("Erro: Aula #%s nao encontrada!", aula_id)
                 return False
 
             estado_anterior = aula.estado
@@ -427,7 +428,7 @@ def mudar_estado_aula(aula_id, novo_estado):
             session.add(aula)
             session.commit()
 
-        print(f"✅ Estado da aula #{aula_id} atualizado: '{estado_anterior}' → '{novo_estado}'")
+        logger.info("Estado da aula #%s atualizado: '%s' -> '%s'", aula_id, estado_anterior, novo_estado)
 
         if novo_estado in [ESTADO_CONFIRMADA, ESTADO_RECUSADA]:
             try:
@@ -453,19 +454,19 @@ def mudar_estado_aula(aula_id, novo_estado):
                         metadados={"aula_id": aula_id},
                     )
             except Exception as e:
-                print(f"⚠️ Erro ao enviar notificação ao coordenador: {e}")
+                logger.warning("Erro ao enviar notificacao ao coordenador: %s", e)
 
         return True
 
     except Exception as e:
-        print(f"❌ Erro ao mudar estado: {e}")
+        logger.error("Erro ao mudar estado: %s", e)
         return False
 
 
 def terminar_aula(aula_id, avaliacao, obs_termino=None):
     """Marca uma sessão presencial confirmada como terminada, com avaliação."""
     if not 1 <= avaliacao <= 5:
-        print("❌ Avaliação deve estar entre 1 e 5.")
+        logger.error("Avaliacao deve estar entre 1 e 5.")
         return {"ok": False, "erro": "Avaliação deve estar entre 1 e 5."}
 
     try:
@@ -491,7 +492,7 @@ def terminar_aula(aula_id, avaliacao, obs_termino=None):
             session.add(aula)
             session.commit()
 
-        print(f"✅ Sessão #{aula_id} terminada (avaliação: {avaliacao}/5)")
+        logger.info("Sessao #%s terminada (avaliacao: %s/5)", aula_id, avaliacao)
 
         # Notificar coordenadores
         try:
@@ -513,12 +514,21 @@ def terminar_aula(aula_id, avaliacao, obs_termino=None):
                     metadados={"aula_id": aula_id},
                 )
         except Exception as e:
-            print(f"⚠️ Erro ao enviar notificação: {e}")
+            logger.warning("Erro ao enviar notificacao: %s", e)
+
+        # Notificar mentor para indicar onde ficou o equipamento
+        try:
+            from services import equipment_service
+            mentor_uid = aula_info.get("mentor_user_id") if aula_info else None
+            if mentor_uid:
+                equipment_service.notificar_localizacao_pendente(aula_id, mentor_uid)
+        except Exception as e:
+            logger.warning("Erro ao notificar localizacao de equipamento: %s", e)
 
         return {"ok": True}
 
     except Exception as e:
-        print(f"❌ Erro ao terminar sessão: {e}")
+        logger.error("Erro ao terminar sessao: %s", e)
         return {"ok": False, "erro": str(e)}
 
 
@@ -550,7 +560,7 @@ def realizar_trabalho_autonomo(aula_id):
             session.add(aula)
             session.commit()
 
-        print(f"✅ Trabalho Autónomo #{aula_id} marcado como realizado")
+        logger.info("Trabalho Autonomo #%s marcado como realizado", aula_id)
 
         # Notificar coordenadores
         try:
@@ -579,12 +589,12 @@ def realizar_trabalho_autonomo(aula_id):
                     metadados={"aula_id": aula_id},
                 )
         except Exception as e:
-            print(f"⚠️ Erro ao enviar notificação: {e}")
+            logger.warning("Erro ao enviar notificacao: %s", e)
 
         return {"ok": True}
 
     except Exception as e:
-        print(f"❌ Erro ao realizar trabalho autónomo: {e}")
+        logger.error("Erro ao realizar trabalho autonomo: %s", e)
         return {"ok": False, "erro": str(e)}
 
 
@@ -603,7 +613,7 @@ def obter_aula_por_id(aula_id):
             row = session.exec(statement).first()
 
         if not row:
-            print(f"❌ Aula #{aula_id} não encontrada!")
+            logger.error("Aula #%s nao encontrada!", aula_id)
             return None
 
         aula, turma, estabelecimento, mentor, projeto = row

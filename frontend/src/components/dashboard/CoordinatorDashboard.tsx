@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,6 +21,9 @@ import {
   ArrowRight,
   Star,
   CheckCircle2,
+  Building2,
+  User,
+  Shield,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
@@ -30,7 +34,7 @@ import { api } from '@/lib/api';
 
 const statusBorderColors: Record<string, string> = {
   rascunho: 'border-l-muted-foreground/30',
-  pendente: 'border-l-yellow-400',
+  pendente: 'border-l-[#4ac9d7]',
   confirmada: 'border-l-green-500',
   recusada: 'border-l-red-500',
   terminada: 'border-l-gray-400',
@@ -38,10 +42,10 @@ const statusBorderColors: Record<string, string> = {
 
 const statusColors: Record<string, string> = {
   rascunho: 'bg-muted text-muted-foreground',
-  pendente: 'bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-200 dark:border-yellow-900',
+  pendente: 'bg-[#4ac9d7]/15 text-[#4ac9d7] border-[#4ac9d7]/40',
   confirmada: 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-200 dark:border-green-900',
   recusada: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900',
-  terminada: 'bg-[#6B7280] text-white border-[#6B7280]',
+  terminada: 'bg-[#06bede] text-white border-[#06bede]',
 };
 
 const statusLabels: Record<string, string> = {
@@ -59,6 +63,7 @@ export function CoordinatorDashboard() {
   const [terminarSessionId, setTerminarSessionId] = useState<number | null>(null);
   const [terminarRating, setTerminarRating] = useState(0);
   const [terminarObs, setTerminarObs] = useState('');
+  const [detailView, setDetailView] = useState<'sessoes' | 'locais' | 'mentores' | 'equipa' | null>(null);
 
   const { data: sessions = [] } = useQuery({
     queryKey: ['aulas'],
@@ -111,6 +116,44 @@ export function CoordinatorDashboard() {
   const activeLocations = new Set(sessions.map((s: any) => s.estabelecimento_nome)).size;
   const activeMentors = new Set(sessions.map((s: any) => s.mentor_id)).size;
 
+  // Dados detalhados para os dialogs
+  const sessionsByStatus = useMemo(() => {
+    const map: Record<string, number> = {};
+    sessions.forEach((s: any) => { map[s.estado] = (map[s.estado] || 0) + 1; });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  }, [sessions]);
+
+  const locationsList = useMemo(() => {
+    const map: Record<string, number> = {};
+    sessions.forEach((s: any) => {
+      const nome = s.estabelecimento_nome || 'Sem local';
+      map[nome] = (map[nome] || 0) + 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  }, [sessions]);
+
+  const mentorsList = useMemo(() => {
+    const map: Record<string, { count: number; nome: string }> = {};
+    sessions.forEach((s: any) => {
+      if (!s.mentor_id) return;
+      const key = String(s.mentor_id);
+      if (!map[key]) map[key] = { count: 0, nome: s.mentor_nome || 'Sem nome' };
+      map[key].count++;
+    });
+    return Object.values(map).sort((a, b) => b.count - a.count);
+  }, [sessions]);
+
+  const equipaByRole = useMemo(() => {
+    const map: Record<string, number> = {};
+    equipa.forEach((m: any) => { map[m.role] = (map[m.role] || 0) + 1; });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]);
+  }, [equipa]);
+
+  const roleLabels: Record<string, string> = {
+    mentor: 'Mentor', produtor: 'Produtor', mentor_produtor: 'Mentor / Produtor',
+    coordenador: 'Coordenador', direcao: 'Direção', it_support: 'IT Support',
+  };
+
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -131,7 +174,7 @@ export function CoordinatorDashboard() {
 
       {/* Stats Grid */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => setDetailView('sessoes')}>
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -146,7 +189,7 @@ export function CoordinatorDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => setDetailView('locais')}>
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -161,7 +204,7 @@ export function CoordinatorDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => setDetailView('mentores')}>
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -176,7 +219,7 @@ export function CoordinatorDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => setDetailView('equipa')}>
           <CardContent className="p-4 sm:p-5">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
@@ -194,13 +237,13 @@ export function CoordinatorDashboard() {
 
       {/* Alert */}
       {pendingSessions.length > 0 && (
-        <div className="flex items-center justify-between gap-3 p-3 rounded-lg border border-yellow-200 dark:border-yellow-900 bg-yellow-50/50 dark:bg-yellow-900/10">
+        <div className="flex items-center justify-between gap-3 p-3 rounded-lg border" style={{ borderColor: '#4ac9d7', backgroundColor: '#4ac9d718' }}>
           <div className="flex items-center gap-3">
-            <div className="p-1.5 rounded-lg bg-yellow-500/15 shrink-0">
-              <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+            <div className="p-1.5 rounded-lg shrink-0" style={{ backgroundColor: '#4ac9d730' }}>
+              <AlertTriangle className="h-4 w-4" style={{ color: '#4ac9d7' }} />
             </div>
             <div>
-              <p className="font-medium text-sm text-yellow-700 dark:text-yellow-400">
+              <p className="font-medium text-sm" style={{ color: '#4ac9d7' }}>
                 {pendingSessions.length} sessão{pendingSessions.length > 1 ? 'ões' : ''} por confirmar
               </p>
               <p className="text-xs text-muted-foreground">Aguardam resposta dos mentores</p>
@@ -275,6 +318,69 @@ export function CoordinatorDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Detail Dialog */}
+      <Dialog open={!!detailView} onOpenChange={(open) => { if (!open) setDetailView(null); }}>
+        <DialogContent className="w-full sm:max-w-md max-h-[95dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {detailView === 'sessoes' && <><Calendar className="h-4 w-4" /> Sessões por estado</>}
+              {detailView === 'locais' && <><MapPin className="h-4 w-4" /> Locais ativos</>}
+              {detailView === 'mentores' && <><Users className="h-4 w-4" /> Mentores ativos</>}
+              {detailView === 'equipa' && <><Shield className="h-4 w-4" /> Equipa por cargo</>}
+            </DialogTitle>
+            <DialogDescription>
+              {detailView === 'sessoes' && 'Distribuição de todas as sessões por estado.'}
+              {detailView === 'locais' && 'Instituições com sessões agendadas.'}
+              {detailView === 'mentores' && 'Mentores com sessões atribuídas.'}
+              {detailView === 'equipa' && 'Membros registados por cargo.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-1.5 overflow-hidden">
+            {detailView === 'sessoes' && sessionsByStatus.map(([estado, count]) => (
+              <div key={estado} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-secondary/30">
+                <Badge className={statusColors[estado] || statusColors.confirmada}>
+                  {statusLabels[estado] || estado}
+                </Badge>
+                <span className="text-sm font-semibold font-display">{count}</span>
+              </div>
+            ))}
+
+            {detailView === 'locais' && locationsList.map(([nome, count]) => (
+              <div key={nome} className="flex items-center gap-2 p-2.5 rounded-lg bg-secondary/30 overflow-hidden">
+                <Building2 className="h-4 w-4 text-orange-500 shrink-0" />
+                <span className="text-sm truncate flex-1 min-w-0">{nome}</span>
+                <Badge variant="secondary" className="shrink-0 tabular-nums">{count}</Badge>
+              </div>
+            ))}
+
+            {detailView === 'mentores' && mentorsList.map((m) => (
+              <div key={m.nome} className="flex items-center gap-2 p-2.5 rounded-lg bg-secondary/30 overflow-hidden">
+                <User className="h-4 w-4 text-purple-500 shrink-0" />
+                <span className="text-sm truncate flex-1 min-w-0">{m.nome}</span>
+                <Badge variant="secondary" className="shrink-0 tabular-nums">{m.count}</Badge>
+              </div>
+            ))}
+
+            {detailView === 'equipa' && equipaByRole.map(([role, count]) => (
+              <div key={role} className="flex items-center gap-2 p-2.5 rounded-lg bg-secondary/30 overflow-hidden">
+                <Shield className="h-4 w-4 text-indigo-500 shrink-0" />
+                <span className="text-sm flex-1 min-w-0">{roleLabels[role] || role}</span>
+                <Badge variant="secondary" className="shrink-0 tabular-nums">{count}</Badge>
+              </div>
+            ))}
+
+            {detailView === 'equipa' && (
+              <div className="pt-2">
+                <Button variant="outline" size="sm" asChild className="w-full">
+                  <Link to="/equipa">Ver página da equipa <ArrowRight className="h-3.5 w-3.5 ml-1" /></Link>
+                </Button>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Terminar Sessão Dialog */}
       <Dialog open={isTerminarOpen} onOpenChange={setIsTerminarOpen}>

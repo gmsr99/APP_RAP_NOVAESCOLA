@@ -9,10 +9,13 @@ Logica de notificacoes singleton para mensagens de chat e gestao de DMs.
 
 import sys
 import os
+import logging
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from database.connection import get_db_connection
 from services.notification_service import criar_notificacao
+
+logger = logging.getLogger(__name__)
 
 
 def notificar_mensagem_chat(channel_id: str, sender_id: str):
@@ -58,7 +61,7 @@ def notificar_mensagem_chat(channel_id: str, sender_id: str):
                 cur = conn.cursor()
 
     except Exception as e:
-        print(f"Erro chat notify: {e}")
+        logger.error(f"Erro chat notify: {e}")
         if conn:
             conn.rollback()
     finally:
@@ -84,7 +87,7 @@ def marcar_chat_notificacao_lida(user_id: str):
         """, (user_id,))
         conn.commit()
     except Exception as e:
-        print(f"Erro ao marcar chat notif lida: {e}")
+        logger.error(f"Erro ao marcar chat notif lida: {e}")
         if conn:
             conn.rollback()
     finally:
@@ -133,7 +136,7 @@ def obter_ou_criar_dm(user_a: str, user_b: str) -> dict:
         return {"channel_id": str(channel_id)}
 
     except Exception as e:
-        print(f"Erro DM: {e}")
+        logger.error(f"Erro DM: {e}")
         if conn:
             conn.rollback()
         return None

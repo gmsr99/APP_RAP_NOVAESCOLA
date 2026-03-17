@@ -20,8 +20,12 @@ Fluxo:
 ==============================================================================
 """
 
+import logging
+
 from database.connection import get_db_connection
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 # ==============================================================================
@@ -85,7 +89,7 @@ def criar_log(tipo_acao, entidade, entidade_id, descricao, usuario=None, dados_a
         log_id = cur.fetchone()[0]
         conn.commit()
         
-        print(f"📝 Log #{log_id} criado: {tipo_acao} - {entidade} #{entidade_id}")
+        logger.info(f"Log #{log_id} criado: {tipo_acao} - {entidade} #{entidade_id}")
         
         cur.close()
         conn.close()
@@ -93,7 +97,7 @@ def criar_log(tipo_acao, entidade, entidade_id, descricao, usuario=None, dados_a
         return log_id
         
     except Exception as e:
-        print(f"⚠️  Aviso: Erro ao criar log: {e}")
+        logger.warning(f"Erro ao criar log: {e}")
         # Não interrompe o fluxo principal se o log falhar
         if 'conn' in locals() and conn:
             conn.rollback()
@@ -146,19 +150,19 @@ def confirmar_aula(aula_id, mentor_id, observacao=None):
     """
     
     if not aula_id or not mentor_id:
-        print("❌ Erro: aula_id e mentor_id são obrigatórios!")
+        logger.error("aula_id e mentor_id sao obrigatorios!")
         return None
-    
+
     conn = None
     cur = None
-    
+
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
         # 1. Buscar informação da aula
         query_aula = """
-            SELECT 
+            SELECT
                 a.estado,
                 a.mentor_id,
                 a.tema,
@@ -170,32 +174,29 @@ def confirmar_aula(aula_id, mentor_id, observacao=None):
             LEFT JOIN turmas t ON a.turma_id = t.id
             WHERE a.id = %s;
         """
-        
+
         cur.execute(query_aula, (aula_id,))
         aula = cur.fetchone()
-        
+
         if not aula:
-            print(f"❌ Erro: Aula #{aula_id} não encontrada!")
+            logger.error(f"Aula #{aula_id} nao encontrada!")
             return None
-        
+
         estado_atual = aula[0]
         mentor_aula_id = aula[1]
         tema = aula[2]
         data_hora = aula[3]
         mentor_nome = aula[4]
         turma_nome = aula[5]
-        
+
         # 2. Validar se o mentor que está a confirmar é o mentor da aula
         if mentor_aula_id != mentor_id:
-            print(f"❌ Erro: Mentor #{mentor_id} não está atribuído a esta aula!")
-            print(f"   Esta aula está atribuída ao mentor #{mentor_aula_id}")
+            logger.error(f"Mentor #{mentor_id} nao esta atribuido a esta aula! Esta aula esta atribuida ao mentor #{mentor_aula_id}")
             return None
-        
+
         # 3. Validar se a aula está em estado "pendente"
         if estado_atual != "pendente":
-            print(f"❌ Erro: Aula não está pendente!")
-            print(f"   Estado atual: '{estado_atual}'")
-            print(f"   Só podes confirmar aulas com estado 'pendente'")
+            logger.error(f"Aula nao esta pendente! Estado atual: '{estado_atual}'. So podes confirmar aulas com estado 'pendente'")
             return None
         
         # 4. Atualizar estado para "confirmada"
@@ -236,12 +237,7 @@ def confirmar_aula(aula_id, mentor_id, observacao=None):
             dados_adicionais=dados_adicionais
         )
         
-        print(f"\n✅ Aula #{aula_id} CONFIRMADA com sucesso!")
-        print(f"   Mentor: {mentor_nome}")
-        print(f"   Turma: {turma_nome}")
-        print(f"   Data/Hora: {data_hora}")
-        if observacao:
-            print(f"   Observação: {observacao}")
+        logger.info(f"Aula #{aula_id} CONFIRMADA com sucesso! Mentor: {mentor_nome}, Turma: {turma_nome}, Data/Hora: {data_hora}" + (f", Observacao: {observacao}" if observacao else ""))
         
         # Enviar notificação Slack
         try:
@@ -255,8 +251,8 @@ def confirmar_aula(aula_id, mentor_id, observacao=None):
                 observacao=observacao
             )
         except Exception as e:
-            print(f"⚠️  Aviso: Erro ao enviar notificação Slack: {e}")
-        
+            logger.warning(f"Erro ao enviar notificacao Slack: {e}")
+
         return {
             'sucesso': True,
             'aula_id': aula_id,
@@ -266,9 +262,9 @@ def confirmar_aula(aula_id, mentor_id, observacao=None):
             'turma_nome': turma_nome,
             'log_id': log_id
         }
-        
+
     except Exception as e:
-        print(f"❌ Erro ao confirmar aula: {e}")
+        logger.error(f"Erro ao confirmar aula: {e}")
         if conn:
             conn.rollback()
         return None
@@ -314,12 +310,11 @@ def recusar_aula(aula_id, mentor_id, motivo):
     
     # Validar parâmetros obrigatórios
     if not aula_id or not mentor_id:
-        print("❌ Erro: aula_id e mentor_id são obrigatórios!")
+        logger.error("aula_id e mentor_id sao obrigatorios!")
         return None
-    
+
     if not motivo or motivo.strip() == "":
-        print("❌ Erro: Motivo da recusa é OBRIGATÓRIO!")
-        print("   Por favor, indica porque estás a recusar esta aula.")
+        logger.error("Motivo da recusa e OBRIGATORIO! Por favor, indica porque estas a recusar esta aula.")
         return None
     
     conn = None
@@ -348,27 +343,24 @@ def recusar_aula(aula_id, mentor_id, motivo):
         aula = cur.fetchone()
         
         if not aula:
-            print(f"❌ Erro: Aula #{aula_id} não encontrada!")
+            logger.error(f"Aula #{aula_id} nao encontrada!")
             return None
-        
+
         estado_atual = aula[0]
         mentor_aula_id = aula[1]
         tema = aula[2]
         data_hora = aula[3]
         mentor_nome = aula[4]
         turma_nome = aula[5]
-        
+
         # 2. Validar se o mentor que está a recusar é o mentor da aula
         if mentor_aula_id != mentor_id:
-            print(f"❌ Erro: Mentor #{mentor_id} não está atribuído a esta aula!")
-            print(f"   Esta aula está atribuída ao mentor #{mentor_aula_id}")
+            logger.error(f"Mentor #{mentor_id} nao esta atribuido a esta aula! Esta aula esta atribuida ao mentor #{mentor_aula_id}")
             return None
-        
+
         # 3. Validar se a aula está em estado "pendente"
         if estado_atual != "pendente":
-            print(f"❌ Erro: Aula não está pendente!")
-            print(f"   Estado atual: '{estado_atual}'")
-            print(f"   Só podes recusar aulas com estado 'pendente'")
+            logger.error(f"Aula nao esta pendente! Estado atual: '{estado_atual}'. So podes recusar aulas com estado 'pendente'")
             return None
         
         # 4. Atualizar estado para "recusada"
@@ -411,8 +403,8 @@ def recusar_aula(aula_id, mentor_id, motivo):
         try:
             from services import excecoes_service
             
-            print("\n🚨 A notificar coordenação sobre recusa...")
-            
+            logger.info("A notificar coordenacao sobre recusa...")
+
             resultado_notificacao = excecoes_service.notificar_aula_recusada(
                 aula_id=aula_id,
                 mentor_nome=mentor_nome,
@@ -420,26 +412,20 @@ def recusar_aula(aula_id, mentor_id, motivo):
                 data_hora=data_hora,
                 motivo=motivo
             )
-            
+
             if resultado_notificacao['sucesso']:
-                print(f"   ✅ Coordenação notificada (Log #{resultado_notificacao['log_id']})")
+                logger.info(f"Coordenacao notificada (Log #{resultado_notificacao['log_id']})")
                 if resultado_notificacao['slack_enviado']:
-                    print(f"   ✅ Alerta Slack enviado")
-            
+                    logger.info("Alerta Slack enviado")
+
         except ImportError:
-            print("   ⚠️  Módulo excecoes_service não encontrado")
+            logger.warning("Modulo excecoes_service nao encontrado")
         except Exception as e:
-            print(f"   ⚠️  Erro ao notificar coordenação: {e}")
+            logger.warning(f"Erro ao notificar coordenacao: {e}")
             # Não interrompe o fluxo - recusa continua mesmo se notificação falhar
         
-        print(f"\n⚠️  Aula #{aula_id} RECUSADA!")
-        print(f"   Mentor: {mentor_nome}")
-        print(f"   Turma: {turma_nome}")
-        print(f"   Data/Hora: {data_hora}")
-        print(f"   Motivo: {motivo}")
-        print(f"\n💡 Próximos passos:")
-        print(f"   - Atribuir outro mentor")
-        print(f"   - Ou remarcar a aula para outra data")
+        logger.warning(f"Aula #{aula_id} RECUSADA! Mentor: {mentor_nome}, Turma: {turma_nome}, Data/Hora: {data_hora}, Motivo: {motivo}")
+        logger.info("Proximos passos: Atribuir outro mentor ou remarcar a aula para outra data")
         
         # Enviar notificação Slack
         try:
@@ -453,8 +439,8 @@ def recusar_aula(aula_id, mentor_id, motivo):
                 motivo=motivo
             )
         except Exception as e:
-            print(f"⚠️  Aviso: Erro ao enviar notificação Slack: {e}")
-        
+            logger.warning(f"Erro ao enviar notificacao Slack: {e}")
+
         return {
             'sucesso': True,
             'aula_id': aula_id,
@@ -467,7 +453,7 @@ def recusar_aula(aula_id, mentor_id, motivo):
         }
         
     except Exception as e:
-        print(f"❌ Erro ao recusar aula: {e}")
+        logger.error(f"Erro ao recusar aula: {e}")
         if conn:
             conn.rollback()
         return None
@@ -521,7 +507,7 @@ def ver_logs_aula(aula_id):
         resultados = cur.fetchall()
         
         if not resultados:
-            print(f"📭 Nenhum log encontrado para aula #{aula_id}")
+            logger.info(f"Nenhum log encontrado para aula #{aula_id}")
             return []
         
         logs = []
@@ -542,7 +528,7 @@ def ver_logs_aula(aula_id):
         return logs
         
     except Exception as e:
-        print(f"❌ Erro ao buscar logs: {e}")
+        logger.error(f"Erro ao buscar logs: {e}")
         return []
     finally:
         if 'cur' in locals() and cur:
@@ -556,24 +542,18 @@ def mostrar_logs_aula(aula_id):
     Mostra os logs de forma formatada e legível.
     """
     
-    print(f"\n📜 HISTÓRICO DE LOGS - Aula #{aula_id}")
-    print("="*70)
-    
+    logger.info(f"HISTORICO DE LOGS - Aula #{aula_id}")
+
     logs = ver_logs_aula(aula_id)
-    
+
     if not logs:
-        print("Nenhuma ação registada ainda.")
+        logger.info("Nenhuma acao registada ainda.")
         return
-    
+
     for i, log in enumerate(logs, 1):
-        print(f"\n{i}. {log['tipo_acao'].upper()}")
-        print(f"   Data: {log['criado_em']}")
-        print(f"   Descrição: {log['descricao']}")
-        if log['usuario']:
-            print(f"   Por: {log['usuario']}")
-        if log['dados_adicionais']:
-            print(f"   Detalhes: {log['dados_adicionais']}")
-        print("-"*70)
+        logger.info(f"{i}. {log['tipo_acao'].upper()} | Data: {log['criado_em']} | Descricao: {log['descricao']}" +
+                     (f" | Por: {log['usuario']}" if log['usuario'] else "") +
+                     (f" | Detalhes: {log['dados_adicionais']}" if log['dados_adicionais'] else ""))
 
 
 # ==============================================================================
@@ -637,12 +617,12 @@ def listar_aulas_pendentes_mentor(mentor_id):
         cur.close()
         conn.close()
         
-        print(f"📋 {len(aulas)} aula(s) pendente(s) de confirmação")
+        logger.info(f"{len(aulas)} aula(s) pendente(s) de confirmacao")
         
         return aulas
         
     except Exception as e:
-        print(f"❌ Erro ao listar aulas pendentes: {e}")
+        logger.error(f"Erro ao listar aulas pendentes: {e}")
         return []
     finally:
         if 'cur' in locals() and cur:
@@ -661,16 +641,7 @@ if __name__ == "__main__":
     Execute: python services/confirmacao_service.py
     """
     
-    print("="*70)
-    print(" TESTE DO SERVIÇO DE CONFIRMAÇÃO ".center(70))
-    print("="*70)
-    print()
-    
-    print("💡 Funções disponíveis:")
-    print("   1. confirmar_aula(aula_id, mentor_id, observacao)")
-    print("   2. recusar_aula(aula_id, mentor_id, motivo)")
-    print("   3. ver_logs_aula(aula_id)")
-    print("   4. listar_aulas_pendentes_mentor(mentor_id)")
-    print()
-    print("💡 Para usar, cria aulas primeiro e testa as funções!")
+    logger.info("TESTE DO SERVICO DE CONFIRMACAO")
+    logger.info("Funcoes disponiveis: 1. confirmar_aula(aula_id, mentor_id, observacao) 2. recusar_aula(aula_id, mentor_id, motivo) 3. ver_logs_aula(aula_id) 4. listar_aulas_pendentes_mentor(mentor_id)")
+    logger.info("Para usar, cria aulas primeiro e testa as funcoes!")
     

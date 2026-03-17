@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +42,9 @@ import {
   History,
   MapPin,
   User,
+  Building2,
+  Mic2,
+  Navigation,
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { api } from '@/lib/api';
@@ -52,6 +55,7 @@ import type {
   EquipamentoStats,
   EquipamentoHistorico,
   EquipamentoOcupacao,
+  EquipamentoLocalizacao,
   KitCategoria,
 } from '@/types';
 
@@ -84,6 +88,23 @@ function EstadoBadge({ estado }: { estado: string }) {
   );
 }
 
+const LOC_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  estabelecimento: Building2,
+  mentor: User,
+  estudio: Mic2,
+};
+
+function LocationBadge({ tipo, nome }: { tipo: string | null; nome: string | null }) {
+  if (!nome) return <span className="text-muted-foreground text-sm">-</span>;
+  const Icon = (tipo && LOC_ICON[tipo]) || MapPin;
+  return (
+    <span className="flex items-center gap-1 text-sm min-w-0 w-full">
+      <Icon className="h-3 w-3 shrink-0" />
+      <span className="truncate">{nome}</span>
+    </span>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -100,8 +121,12 @@ const Equipamento = () => {
   // Dialogs
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isHistoricoOpen, setIsHistoricoOpen] = useState(false);
+  const [isLocOpen, setIsLocOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<EquipamentoItem | null>(null);
   const [historicoItemId, setHistoricoItemId] = useState<number | null>(null);
+  const [locTarget, setLocTarget] = useState<EquipamentoItem | null>(null);
+  const [locSearch, setLocSearch] = useState('');
+  const [locSelected, setLocSelected] = useState<EquipamentoLocalizacao | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -143,6 +168,12 @@ const Equipamento = () => {
     enabled: !!historicoItemId,
   });
 
+  const { data: localizacoes = [] } = useQuery<EquipamentoLocalizacao[]>({
+    queryKey: ['equipamento-localizacoes'],
+    queryFn: () => api.get('/api/equipamento/localizacoes').then(r => r.data),
+    enabled: isLocOpen,
+  });
+
   // ---------------------------------------------------------------------------
   // Mutations
   // ---------------------------------------------------------------------------
@@ -181,6 +212,18 @@ const Equipamento = () => {
     onError: () => toast({ title: 'Erro', description: 'Nao foi possivel remover o item.', variant: 'destructive' }),
   });
 
+  const locMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { tipo: string; ref_id: string | number | null; nome: string } }) =>
+      api.patch(`/api/equipamento/itens/${id}/localizacao`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['equipamento-itens'] });
+      toast({ title: 'Localização atualizada', description: 'A localização do equipamento foi registada.' });
+      setIsLocOpen(false);
+      setLocTarget(null);
+    },
+    onError: () => toast({ title: 'Erro', description: 'Não foi possível atualizar a localização.', variant: 'destructive' }),
+  });
+
   // ---------------------------------------------------------------------------
   // Handlers
   // ---------------------------------------------------------------------------
@@ -206,6 +249,25 @@ const Equipamento = () => {
   const openHistorico = (itemId: number) => {
     setHistoricoItemId(itemId);
     setIsHistoricoOpen(true);
+  };
+
+  const openLocalizacao = (item: EquipamentoItem) => {
+    setLocTarget(item);
+    setLocSelected(null);
+    setLocSearch('');
+    setIsLocOpen(true);
+  };
+
+  const handleSubmitLoc = () => {
+    if (!locTarget || !locSelected) return;
+    locMutation.mutate({
+      id: locTarget.id,
+      data: {
+        tipo: locSelected.tipo,
+        ref_id: locSelected.ref_id,
+        nome: locSelected.nome,
+      },
+    });
   };
 
   const handleSubmit = () => {
@@ -376,22 +438,26 @@ const Equipamento = () => {
                 {filteredItens.map(item => (
                   <div key={item.id} className="rounded-lg border bg-card p-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold text-sm">{item.identificador}</p>
-                        <p className="text-xs text-muted-foreground">{item.nome}</p>
+                      <div className="min-w-0 flex-1 overflow-hidden">
+                        <p className="font-semibold text-sm truncate">{item.identificador}</p>
+                        <p className="text-xs text-muted-foreground truncate">{item.nome}</p>
                       </div>
-                      <EstadoBadge estado={item.estado} />
+                      <div className="flex items-center gap-1 shrink-0">
+                        <EstadoBadge estado={item.estado} />
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteMutation.mutate(item.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                    <div className="space-y-1 text-xs text-muted-foreground">
                       <Badge variant="secondary">{item.categoria_nome}</Badge>
-                      {item.localizacao_nome && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="h-3 w-3" />{item.localizacao_nome}
-                        </span>
-                      )}
+                      <button className="flex items-center gap-1 w-full hover:text-foreground transition-colors" onClick={() => openLocalizacao(item)} title="Atualizar localização">
+                        <LocationBadge tipo={item.localizacao_tipo} nome={item.localizacao_nome} />
+                        {!item.localizacao_nome && <Navigation className="h-3 w-3" />}
+                      </button>
                       {item.responsavel_nome && (
-                        <span className="flex items-center gap-1">
-                          <User className="h-3 w-3" />{item.responsavel_nome}
+                        <span className="flex items-center gap-1 truncate">
+                          <User className="h-3 w-3 shrink-0" /><span className="truncate">{item.responsavel_nome}</span>
                         </span>
                       )}
                     </div>
@@ -401,14 +467,14 @@ const Equipamento = () => {
                       </p>
                     )}
                     <div className="flex items-center gap-2 pt-1 border-t border-border">
+                      <Button variant="ghost" size="sm" className="h-8 flex-1 text-xs gap-1" onClick={() => openLocalizacao(item)}>
+                        <Navigation className="h-3.5 w-3.5" /> Localização
+                      </Button>
                       <Button variant="ghost" size="sm" className="h-8 flex-1 text-xs gap-1" onClick={() => openHistorico(item.id)}>
                         <History className="h-3.5 w-3.5" /> Histórico
                       </Button>
                       <Button variant="ghost" size="sm" className="h-8 flex-1 text-xs gap-1" onClick={() => openEdit(item)}>
                         <Edit2 className="h-3.5 w-3.5" /> Editar
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive shrink-0" onClick={() => deleteMutation.mutate(item.id)}>
-                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
@@ -424,10 +490,10 @@ const Equipamento = () => {
                       <TableHead>Tipo</TableHead>
                       <TableHead>Categoria</TableHead>
                       <TableHead>Estado</TableHead>
-                      <TableHead>Última Localização</TableHead>
-                      <TableHead>Último responsavel</TableHead>
-                      <TableHead>Última utilizacao</TableHead>
-                      <TableHead className="w-[100px]">Ações</TableHead>
+                      <TableHead>Localização</TableHead>
+                      <TableHead>Último responsável</TableHead>
+                      <TableHead>Última utilização</TableHead>
+                      <TableHead className="w-[120px]">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -442,14 +508,7 @@ const Equipamento = () => {
                           <EstadoBadge estado={item.estado} />
                         </TableCell>
                         <TableCell>
-                          {item.localizacao_nome ? (
-                            <span className="flex items-center gap-1 text-sm">
-                              <MapPin className="h-3 w-3" />
-                              {item.localizacao_nome}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
+                          <LocationBadge tipo={item.localizacao_tipo} nome={item.localizacao_nome} />
                         </TableCell>
                         <TableCell>
                           {item.responsavel_nome ? (
@@ -468,7 +527,10 @@ const Equipamento = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openHistorico(item.id)} title="Historico">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openLocalizacao(item)} title="Atualizar localização">
+                              <Navigation className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openHistorico(item.id)} title="Histórico">
                               <History className="h-4 w-4" />
                             </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(item)} title="Editar">
@@ -637,6 +699,69 @@ const Equipamento = () => {
               </div>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Location Dialog */}
+      <Dialog open={isLocOpen} onOpenChange={(open) => { if (!open) { setIsLocOpen(false); setLocTarget(null); } }}>
+        <DialogContent className="w-full sm:max-w-md max-h-[95dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Navigation className="h-4 w-4" />
+              Localização do equipamento
+            </DialogTitle>
+          </DialogHeader>
+
+          {locTarget && (
+            <p className="text-sm text-muted-foreground">
+              Indica onde ficou o <strong>{locTarget.identificador}</strong>.
+            </p>
+          )}
+
+          <div className="space-y-3">
+            <Input
+              placeholder="Pesquisar localização..."
+              value={locSearch}
+              onChange={(e) => setLocSearch(e.target.value)}
+              className="h-9"
+            />
+
+            <div className="max-h-[300px] overflow-y-auto space-y-1">
+              {localizacoes
+                .filter(loc => loc.nome.toLowerCase().includes(locSearch.toLowerCase()))
+                .map((loc, idx) => {
+                  const Icon = LOC_ICON[loc.tipo] || MapPin;
+                  const isSelected = locSelected?.tipo === loc.tipo && locSelected?.ref_id === loc.ref_id;
+                  const tipoLabel = loc.tipo === 'estabelecimento' ? 'Estabelecimento' : loc.tipo === 'mentor' ? 'Membro' : 'Estúdio';
+                  return (
+                    <button
+                      key={`${loc.tipo}-${loc.ref_id ?? idx}`}
+                      onClick={() => setLocSelected(loc)}
+                      className={`w-full flex items-center gap-3 p-2.5 rounded-lg border text-left text-sm transition-colors ${
+                        isSelected ? 'border-primary bg-primary/5' : 'border-transparent hover:bg-muted/50'
+                      }`}
+                    >
+                      <Icon className={`h-4 w-4 shrink-0 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{loc.nome}</p>
+                        <p className="text-xs text-muted-foreground">{tipoLabel}</p>
+                      </div>
+                      {isSelected && <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />}
+                    </button>
+                  );
+                })}
+              {localizacoes.filter(loc => loc.nome.toLowerCase().includes(locSearch.toLowerCase())).length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">Nenhuma localização encontrada.</p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setIsLocOpen(false); setLocTarget(null); }}>Cancelar</Button>
+            <Button onClick={handleSubmitLoc} disabled={!locSelected || locMutation.isPending}>
+              {locMutation.isPending ? 'A guardar...' : 'Confirmar'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -56,7 +56,7 @@ origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_origin_regex=r"(https://app-rap-novaescola.*\.vercel\.app|https://.*\.rapnovaescola\.pt|http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):\d+)",
+    allow_origin_regex=r"(https://app-rap-novaescola(-[a-z0-9]+)*\.vercel\.app|https://([a-z0-9-]+\.)?rapnovaescola\.pt|http://(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):\d+)",
     allow_credentials=True,
     allow_methods=["*"],  # Permite todos os métodos (GET, POST, PUT, etc)
     allow_headers=["*"],  # Permite todos os cabeçalhos
@@ -70,7 +70,7 @@ app.add_middleware(
 # -----------------------------------------------------------------------------
 
 @app.get("/api/estudio/reservas", tags=["Estudio"])
-async def get_estudio_reservas():
+async def get_estudio_reservas(user=Depends(get_current_user_required)):
     """Lista todas as reservas de estúdio."""
     return estudio_service.listar_reservas()
 
@@ -86,14 +86,14 @@ class ReservaCreate(BaseModel):
     criado_por_id: Optional[str] = None
 
 @app.post("/api/estudio/reservas", tags=["Estudio"])
-async def create_estudio_reserva(reserva: ReservaCreate):
+async def create_estudio_reserva(reserva: ReservaCreate, user=Depends(get_current_user_required)):
     """Cria uma nova reserva de estúdio."""
     resultado = estudio_service.criar_reserva(reserva.dict())
     if not resultado:
         raise HTTPException(status_code=500, detail="Erro ao criar reserva")
     return resultado
 @app.delete("/api/estudio/reservas/{reserva_id}", tags=["Estudio"])
-async def delete_estudio_reserva(reserva_id: int):
+async def delete_estudio_reserva(reserva_id: int, user=Depends(get_current_user_required)):
     """Apaga uma reserva de estúdio."""
     sucesso = estudio_service.apagar_reserva(reserva_id)
     if not sucesso:
@@ -413,30 +413,36 @@ async def get_notifications(user=Depends(get_current_user_required)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/notifications/{id}/read", tags=["Notifications"])
-async def mark_notification_read(id: int):
+async def mark_notification_read(id: int, user=Depends(get_current_user_required)):
     """
-    Marca notificação como lida.
+    Marca notificação como lida (apenas do próprio utilizador).
     """
-    try:
-        sucesso = notification_service.marcar_como_lida(id)
-        if sucesso:
-            return {"message": "Notificação marcada como lida"}
+    uid = user.get("sub")
+    notif = notification_service.obter_notificacao(id)
+    if not notif:
         raise HTTPException(status_code=404, detail="Notificação não encontrada")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if notif.get("user_id") != uid:
+        raise HTTPException(status_code=403, detail="Sem permissão para esta notificação")
+    sucesso = notification_service.marcar_como_lida(id)
+    if sucesso:
+        return {"message": "Notificação marcada como lida"}
+    raise HTTPException(status_code=500, detail="Erro ao marcar notificação")
 
 @app.delete("/api/notifications/{id}", tags=["Notifications"])
-async def delete_notification(id: int):
+async def delete_notification(id: int, user=Depends(get_current_user_required)):
     """
-    Apaga notificação.
+    Apaga notificação (apenas do próprio utilizador).
     """
-    try:
-        sucesso = notification_service.apagar_notificacao(id)
-        if sucesso:
-            return {"message": "Notificação apagada"}
+    uid = user.get("sub")
+    notif = notification_service.obter_notificacao(id)
+    if not notif:
         raise HTTPException(status_code=404, detail="Notificação não encontrada")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    if notif.get("user_id") != uid:
+        raise HTTPException(status_code=403, detail="Sem permissão para esta notificação")
+    sucesso = notification_service.apagar_notificacao(id)
+    if sucesso:
+        return {"message": "Notificação apagada"}
+    raise HTTPException(status_code=500, detail="Erro ao apagar notificação")
 
 @app.delete("/api/notifications", tags=["Notifications"])
 async def delete_all_notifications(user=Depends(get_current_user_required)):
@@ -612,7 +618,7 @@ class ConflitosVerificar(BaseModel):
     excluir_aula_id: Optional[int] = None
 
 @app.post("/api/equipamento/verificar-conflitos", tags=["Equipamento"])
-async def verificar_conflitos_equipamento(payload: ConflitosVerificar):
+async def verificar_conflitos_equipamento(payload: ConflitosVerificar, user=Depends(get_current_user_required)):
     """Verifica conflitos temporais de equipamento."""
     conflitos = equipment_service.verificar_conflitos(
         payload.item_ids, payload.data_hora, payload.duracao_minutos, payload.excluir_aula_id
@@ -632,12 +638,13 @@ async def verificar_conflitos_equipamento(payload: ConflitosVerificar):
 async def get_equipamento_itens(
     categoria_id: Optional[int] = None,
     estado: Optional[str] = None,
+    user=Depends(get_current_user_required),
 ):
     """Lista todos os itens individuais de equipamento (localizacao/responsavel derivados de sessoes)."""
     return equipment_service.listar_itens(categoria_id, estado)
 
 @app.get("/api/equipamento/stats", tags=["Equipamento"])
-async def get_equipamento_stats():
+async def get_equipamento_stats(user=Depends(get_current_user_required)):
     """Estatisticas globais de equipamento."""
     return equipment_service.obter_stats()
 
@@ -649,7 +656,7 @@ class ItemCreate(BaseModel):
     observacoes: Optional[str] = None
 
 @app.post("/api/equipamento/itens", tags=["Equipamento"])
-async def post_equipamento_item(item: ItemCreate):
+async def post_equipamento_item(item: ItemCreate, user=Depends(get_current_user_required)):
     """Cria um novo item de equipamento individual."""
     resultado = equipment_service.criar_item(item.dict())
     if not resultado:
@@ -664,7 +671,7 @@ class ItemUpdate(BaseModel):
     categoria_id: Optional[int] = None
 
 @app.put("/api/equipamento/itens/{item_id}", tags=["Equipamento"])
-async def put_equipamento_item(item_id: int, item: ItemUpdate):
+async def put_equipamento_item(item_id: int, item: ItemUpdate, user=Depends(get_current_user_required)):
     """Atualiza um item de equipamento."""
     dados = {k: v for k, v in item.dict().items() if v is not None}
     sucesso = equipment_service.atualizar_item(item_id, dados)
@@ -673,7 +680,7 @@ async def put_equipamento_item(item_id: int, item: ItemUpdate):
     return {"message": "Item atualizado"}
 
 @app.delete("/api/equipamento/itens/{item_id}", tags=["Equipamento"])
-async def delete_equipamento_item(item_id: int):
+async def delete_equipamento_item(item_id: int, user=Depends(get_current_user_required)):
     """Remove um item de equipamento."""
     sucesso = equipment_service.apagar_item(item_id)
     if not sucesso:
@@ -687,7 +694,7 @@ class UtilizacaoCreate(BaseModel):
     observacoes: Optional[str] = None
 
 @app.post("/api/equipamento/itens/{item_id}/utilizacao", tags=["Equipamento"])
-async def post_utilizacao(item_id: int, payload: UtilizacaoCreate):
+async def post_utilizacao(item_id: int, payload: UtilizacaoCreate, user=Depends(get_current_user_required)):
     """Regista utilizacao de um item."""
     sucesso = equipment_service.registar_utilizacao(
         item_id, payload.user_id, payload.user_nome, payload.aula_id, payload.observacoes
@@ -697,15 +704,39 @@ async def post_utilizacao(item_id: int, payload: UtilizacaoCreate):
     return {"message": "Utilizacao registada"}
 
 @app.get("/api/equipamento/itens/{item_id}/historico", tags=["Equipamento"])
-async def get_historico_item(item_id: int):
+async def get_historico_item(item_id: int, user=Depends(get_current_user_required)):
     """Lista historico de utilizacao de um item."""
     return equipment_service.listar_historico(item_id)
 
 @app.get("/api/equipamento/itens/{item_id}/ocupacoes", tags=["Equipamento"])
-async def get_ocupacoes_item(item_id: int):
+async def get_ocupacoes_item(item_id: int, user=Depends(get_current_user_required)):
     """Lista sessoes futuras que usam este item."""
     return equipment_service.listar_ocupacoes_item(item_id)
 
+
+class LocalizacaoPayload(BaseModel):
+    tipo: str  # 'estabelecimento' | 'mentor' | 'estudio'
+    ref_id: Optional[str] = None
+    nome: str
+
+
+@app.patch("/api/equipamento/itens/{item_id}/localizacao", tags=["Equipamento"])
+async def patch_localizacao_item(item_id: int, payload: LocalizacaoPayload, user=Depends(get_current_user_required)):
+    """Atualiza a localizacao manual de um item de equipamento."""
+    if payload.tipo not in ('estabelecimento', 'mentor', 'estudio'):
+        raise HTTPException(status_code=400, detail="Tipo de localização inválido. Usar: estabelecimento, mentor, estudio")
+    ok = equipment_service.atualizar_localizacao(
+        item_id, payload.tipo, payload.ref_id, payload.nome, user["sub"]
+    )
+    if not ok:
+        raise HTTPException(status_code=404, detail="Item não encontrado")
+    return {"message": "Localização atualizada"}
+
+
+@app.get("/api/equipamento/localizacoes", tags=["Equipamento"])
+async def get_localizacoes_possiveis(user=Depends(get_current_user_required)):
+    """Lista todas as localizacoes possiveis para equipamento (estabelecimentos, membros, estudio)."""
+    return equipment_service.listar_localizacoes_possiveis()
 
 
 @app.get("/api/estabelecimentos", tags=["Core"])
@@ -1169,35 +1200,7 @@ async def get_curriculo():
 async def get_wiki_hierarquia(projeto_id: int):
     """Hierarquia completa: Projeto > Estabelecimentos > Turmas > Disciplinas > Atividades."""
     result = wiki_service.listar_hierarquia_projeto(projeto_id)
-    print(f"[DEBUG wiki] projeto_id={projeto_id} → {len(result)} estabelecimentos")
     return result
-
-@app.get("/api/wiki/debug/{projeto_id}", tags=["Wiki"])
-async def debug_wiki(projeto_id: int):
-    """Debug: mostra o que a DB retorna passo a passo."""
-    from database.connection import get_db_connection
-    conn = get_db_connection()
-    cur = conn.cursor()
-    try:
-        cur.execute("SELECT e.id, e.nome FROM estabelecimentos e JOIN projeto_estabelecimentos pe ON pe.estabelecimento_id = e.id WHERE pe.projeto_id = %s", (projeto_id,))
-        estabs = cur.fetchall()
-        cur.execute("SELECT COUNT(*) FROM turma_disciplinas")
-        td_count = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM turma_atividades")
-        ta_count = cur.fetchone()[0]
-        cur.execute("SELECT column_name FROM information_schema.columns WHERE table_name='turmas' ORDER BY column_name")
-        turma_cols = [r[0] for r in cur.fetchall()]
-        return {
-            "estabelecimentos_no_projeto": [{"id": e[0], "nome": e[1]} for e in estabs],
-            "turma_disciplinas_count": td_count,
-            "turma_atividades_count": ta_count,
-            "turmas_columns": turma_cols,
-        }
-    except Exception as e:
-        return {"error": str(e)}
-    finally:
-        cur.close()
-        conn.close()
 
 @app.get("/api/wiki/turma/{turma_id}/disciplinas", tags=["Wiki"])
 async def get_wiki_turma_disciplinas(turma_id: int):
@@ -1352,6 +1355,13 @@ async def ai_agent_horarios(payload: AIAgentMessage, user=Depends(get_current_us
     )
     return resultado
 
+
+# --- Shutdown gracioso do pool de conexões ---
+from database.connection import close_pool
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    close_pool()
 
 # 3. PONTO DE ENTRADA PARA ARRANCAR O SERVIDOR
 # -----------------------------------------------------------------------------

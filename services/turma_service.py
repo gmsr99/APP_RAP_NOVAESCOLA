@@ -10,10 +10,13 @@ principalmente para preencher formulários no frontend.
 
 import sys
 import os
+import logging
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from database.connection import get_db_connection
+
+logger = logging.getLogger(__name__)
 
 def listar_turmas_com_estabelecimento(estabelecimento_id=None):
     """
@@ -56,7 +59,7 @@ def listar_turmas_com_estabelecimento(estabelecimento_id=None):
         return turmas
         
     except Exception as e:
-        print(f"❌ Erro ao listar turmas: {e}")
+        logger.error(f"Erro ao listar turmas: {e}")
         return []
     finally:
         if 'cur' in locals() and cur:
@@ -76,7 +79,7 @@ def listar_estabelecimentos():
         return [{'id': r[0], 'nome': r[1], 'sigla': r[2] or '', 'morada': r[3], 'latitude': r[4], 'longitude': r[5]} for r in resultados]
         
     except Exception as e:
-        print(f"❌ Erro ao listar estabelecimentos: {e}")
+        logger.error(f"Erro ao listar estabelecimentos: {e}")
         return []
     finally:
         if 'cur' in locals() and cur:
@@ -104,7 +107,7 @@ def criar_estabelecimento(nome: str, sigla: str = None, morada: str = None, lati
 
         return {'id': nova_inst[0], 'nome': nova_inst[1], 'sigla': nova_inst[2]}
     except Exception as e:
-        print(f"❌ Erro ao criar estabelecimento: {e}")
+        logger.error(f"Erro ao criar estabelecimento: {e}")
         if 'conn' in locals() and conn:
             conn.rollback()
         return None
@@ -127,7 +130,7 @@ def atualizar_estabelecimento(id: int, nome: str, sigla: str = None, morada: str
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Erro ao atualizar estabelecimento: {e}")
+        logger.error(f"Erro ao atualizar estabelecimento: {e}")
         if 'conn' in locals() and conn:
             conn.rollback()
         return False
@@ -147,7 +150,7 @@ def apagar_estabelecimento(id: int):
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Erro ao apagar estabelecimento: {e}")
+        logger.error(f"Erro ao apagar estabelecimento: {e}")
         if 'conn' in locals() and conn:
             conn.rollback()
         return False
@@ -184,7 +187,7 @@ def criar_turma(nome: str, estabelecimento_id: str):
             'estabelecimento_id': nova_turma[2]
         }
     except Exception as e:
-        print(f"❌ Erro ao criar turma: {e}")
+        logger.error(f"Erro ao criar turma: {e}")
         if 'conn' in locals() and conn:
             conn.rollback()
         return None
@@ -203,7 +206,7 @@ def listar_mentores():
         mentores = cur.fetchall()
         return [{'id': m[0], 'nome': m[1], 'latitude': m[2], 'longitude': m[3], 'perfil': m[4]} for m in mentores]
     except Exception as e:
-        print(f"❌ Erro ao listar mentores: {e}")
+        logger.error(f"Erro ao listar mentores: {e}")
         return []
     finally:
         if 'cur' in locals() and cur:
@@ -220,7 +223,7 @@ def obter_email_mentor(id: int):
         result = cur.fetchone()
         return result[0] if result else None
     except Exception as e:
-        print(f"❌ Erro ao obter email do mentor: {e}")
+        logger.error(f"Erro ao obter email do mentor: {e}")
         return None
     finally:
         if 'cur' in locals() and cur:
@@ -237,7 +240,7 @@ def listar_produtores():
         produtores = cur.fetchall()
         return [{'id': m[0], 'nome': m[1]} for m in produtores]
     except Exception as e:
-        print(f"❌ Erro ao listar produtores: {e}")
+        logger.error(f"Erro ao listar produtores: {e}")
         return []
     finally:
         if 'cur' in locals() and cur:
@@ -258,7 +261,7 @@ def atualizar_turma(id: int, nome: str, estabelecimento_id: int):
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Erro ao atualizar turma: {e}")
+        logger.error(f"Erro ao atualizar turma: {e}")
         if 'conn' in locals() and conn:
             conn.rollback()
         return False
@@ -278,7 +281,7 @@ def apagar_turma(id: int):
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Erro ao apagar turma: {e}")
+        logger.error(f"Erro ao apagar turma: {e}")
         if 'conn' in locals() and conn:
             conn.rollback()
         return False
@@ -303,7 +306,7 @@ def listar_disciplinas_turma(turma_id: int):
         rows = cur.fetchall()
         return [{'id': r[0], 'nome': r[1], 'musicas_previstas': r[2], 'descricao': r[3]} for r in rows]
     except Exception as e:
-        print(f"❌ Erro ao listar disciplinas da turma: {e}")
+        logger.error(f"Erro ao listar disciplinas da turma: {e}")
         return []
     finally:
         if 'cur' in locals() and cur: cur.close()
@@ -351,7 +354,7 @@ def obter_mentor_por_user_id(user_id: str, email: str = None):
             return {'id': row[0], 'nome': row[1], 'morada': row[2], 'latitude': row[3], 'longitude': row[4]}
         return None
     except Exception as e:
-        print(f"❌ Erro ao obter mentor por user_id: {e}")
+        logger.error(f"Erro ao obter mentor por user_id: {e}")
         return None
     finally:
         if cur:
@@ -380,7 +383,7 @@ def criar_mentor(user_id: str, nome: str, email: str, perfil: str):
             return {'id': row[0], 'nome': row[1], 'morada': row[2], 'latitude': row[3], 'longitude': row[4]}
         return None
     except Exception as e:
-        print(f"❌ Erro ao criar mentor: {e}")
+        logger.error(f"Erro ao criar mentor: {e}")
         if conn:
             conn.rollback()
         return None
@@ -403,7 +406,7 @@ def atualizar_localizacao_mentor(mentor_id: int, morada: str, latitude: float, l
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Erro ao atualizar localização do mentor: {e}")
+        logger.error(f"Erro ao atualizar localizacao do mentor: {e}")
         if 'conn' in locals() and conn:
             conn.rollback()
         return False

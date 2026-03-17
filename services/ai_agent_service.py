@@ -19,8 +19,11 @@ from typing import Any, Dict, List, Optional
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
+import logging
 
 load_dotenv()
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Cliente Gemini (lazy init)
@@ -323,7 +326,7 @@ def processar_mensagem(
                     nome_funcao = fc.name
                     args_funcao = dict(fc.args) if fc.args else {}
 
-                    print(f"🤖 AI Agent: chamando {nome_funcao}({json.dumps(args_funcao, ensure_ascii=False)})")
+                    logger.info(f"AI Agent: chamando {nome_funcao}({json.dumps(args_funcao, ensure_ascii=False)})")
 
                     resultado = _executar_ferramenta(nome_funcao, args_funcao)
 
@@ -363,7 +366,7 @@ def processar_mensagem(
         }
 
     except Exception as e:
-        print(f"❌ Erro no AI Agent: {e}")
+        logger.error(f"Erro no AI Agent: {e}")
         return {
             "resposta": f"❌ Ocorreu um erro ao processar o pedido: {str(e)}",
             "historico": historico or [],

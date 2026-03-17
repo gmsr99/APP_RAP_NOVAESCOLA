@@ -61,7 +61,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Book, Layers, Calendar, Edit2, Plus, Trash2, Save, Users, Building2, X, Music, Clock, HelpCircle, ChevronDown, Link2Off,
+  Book, Layers, Calendar, Edit2, Plus, Trash2, Save, Users, Building2, X, Music, Clock, HelpCircle, ChevronDown, Link2Off, Loader2,
 } from "lucide-react";
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -211,7 +211,7 @@ const Wiki = () => {
     enabled: !!selectedProjetoId,
   });
 
-  const { data: wikiHierarquia = [] } = useQuery({
+  const { data: wikiHierarquia = [], isLoading: hierarquiaLoading } = useQuery({
     queryKey: ['wiki-hierarquia', selectedProjetoId],
     queryFn: async () => {
       const res = await api.get(`/api/wiki/projeto/${selectedProjetoId}`);
@@ -697,6 +697,10 @@ const Wiki = () => {
             <p className="text-sm text-muted-foreground italic py-4 text-center">
               Seleciona um projeto acima para ver a hierarquia completa.
             </p>
+          ) : hierarquiaLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
           ) : wikiHierarquia.length === 0 ? (
             <div className="py-10 text-center space-y-3">
               <Building2 className="h-10 w-10 text-muted-foreground/30 mx-auto" />
