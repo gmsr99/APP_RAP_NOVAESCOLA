@@ -1350,6 +1350,68 @@ async def ai_agent_horarios(payload: AIAgentMessage, user=Depends(get_current_us
     return resultado
 
 
+# -----------------------------------------------------------------------------
+# Endpoints de Atalhos
+# -----------------------------------------------------------------------------
+from services import atalho_service
+
+ATALHO_EDITOR_ROLES = {"direcao", "it_support"}
+
+class AtalhoCreate(BaseModel):
+    titulo: str
+    descricao: Optional[str] = None
+    url: str
+    imagem_url: Optional[str] = None
+    ordem: Optional[int] = 0
+
+class AtalhoUpdate(BaseModel):
+    titulo: str
+    descricao: Optional[str] = None
+    url: str
+    imagem_url: Optional[str] = None
+    ordem: Optional[int] = 0
+
+@app.get("/api/atalhos", tags=["Atalhos"])
+async def get_atalhos(user=Depends(get_current_user_required)):
+    """Lista todos os atalhos. Acessível a todos os utilizadores autenticados."""
+    return atalho_service.listar_atalhos()
+
+@app.post("/api/atalhos", tags=["Atalhos"])
+async def post_atalho(payload: AtalhoCreate, user=Depends(get_current_user_required)):
+    """Cria um novo atalho. Apenas direcao e it_support."""
+    user_id = user.get("sub")
+    role = atalho_service.get_user_role(user_id)
+    if role not in ATALHO_EDITOR_ROLES:
+        raise HTTPException(status_code=403, detail="Sem permissão para criar atalhos.")
+    resultado = atalho_service.criar_atalho(payload.dict())
+    if not resultado:
+        raise HTTPException(status_code=500, detail="Erro ao criar atalho.")
+    return resultado
+
+@app.put("/api/atalhos/{atalho_id}", tags=["Atalhos"])
+async def put_atalho(atalho_id: int, payload: AtalhoUpdate, user=Depends(get_current_user_required)):
+    """Atualiza um atalho existente. Apenas direcao e it_support."""
+    user_id = user.get("sub")
+    role = atalho_service.get_user_role(user_id)
+    if role not in ATALHO_EDITOR_ROLES:
+        raise HTTPException(status_code=403, detail="Sem permissão para editar atalhos.")
+    resultado = atalho_service.atualizar_atalho(atalho_id, payload.dict())
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Atalho não encontrado.")
+    return resultado
+
+@app.delete("/api/atalhos/{atalho_id}", tags=["Atalhos"])
+async def delete_atalho(atalho_id: int, user=Depends(get_current_user_required)):
+    """Apaga um atalho. Apenas direcao e it_support."""
+    user_id = user.get("sub")
+    role = atalho_service.get_user_role(user_id)
+    if role not in ATALHO_EDITOR_ROLES:
+        raise HTTPException(status_code=403, detail="Sem permissão para apagar atalhos.")
+    sucesso = atalho_service.apagar_atalho(atalho_id)
+    if not sucesso:
+        raise HTTPException(status_code=404, detail="Atalho não encontrado.")
+    return {"ok": True}
+
 # --- Shutdown gracioso do pool de conexões ---
 from database.connection import close_pool
 

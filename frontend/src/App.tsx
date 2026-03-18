@@ -25,6 +25,7 @@ import UpdatePassword from "./pages/UpdatePassword";
 import NotFound from "./pages/NotFound";
 import Wiki from "./pages/Wiki";
 import Estatisticas from "./pages/Estatisticas";
+import Atalhos from "./pages/Atalhos";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient();
@@ -72,6 +73,7 @@ function AppContent() {
           <Route path="/myspace" element={<MySpace />} />
           <Route path="/wiki" element={<Wiki />} />
           <Route path="/estatisticas" element={<Estatisticas />} />
+          <Route path="/atalhos" element={<Atalhos />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

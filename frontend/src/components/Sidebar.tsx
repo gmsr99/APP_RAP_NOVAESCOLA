@@ -18,12 +18,15 @@ import {
   BarChart3,
   X,
   MoreHorizontal,
+  Link2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import React, { useState } from 'react';
 
 const allProfiles = ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'];
+
+const atalhosItem: NavItem = { name: 'Atalhos', href: '/atalhos', icon: Link2, profiles: allProfiles };
 
 type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; profiles: string[]; disabled?: boolean };
 type SeparatorItem = { separator: true };
@@ -111,7 +114,7 @@ export function Sidebar() {
         )}
         {collapsed && (
           <Link to="/" className="mx-auto">
-            <img src={logo} alt="RAP Nova Escola" className="h-12 w-auto" />
+            <img src={logo} alt="RAP Nova Escola" className="h-8 w-auto max-w-[40px] object-contain" />
           </Link>
         )}
       </div>
@@ -124,6 +127,8 @@ export function Sidebar() {
           }
           return <NavItemLink key={item.name} item={item} collapsed={collapsed} />;
         })}
+        <div className="my-2 border-t border-sidebar-border" />
+        <NavItemLink item={atalhosItem} collapsed={collapsed} />
       </nav>
 
       {/* Collapse Button */}
@@ -178,6 +183,8 @@ export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () =>
             }
             return <NavItemLink key={item.name} item={item} collapsed={false} onClick={onClose} />;
           })}
+          <div className="my-2 border-t border-sidebar-border" />
+          <NavItemLink item={atalhosItem} collapsed={false} onClick={onClose} />
         </nav>
       </SheetContent>
     </Sheet>
