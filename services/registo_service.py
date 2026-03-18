@@ -11,6 +11,9 @@ from typing import Any, Dict, List, Optional
 from sqlmodel import Session, text
 
 from database.database import engine
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -119,7 +122,7 @@ def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
         return result
 
     except Exception as e:
-        print(f"❌ Erro ao listar sessões registáveis: {e}")
+        logger.error(f"Erro ao listar sessões registáveis: {e}")
         return []
 
 
@@ -213,7 +216,7 @@ def listar_todas_sessoes_registaveis() -> List[Dict[str, Any]]:
         return result
 
     except Exception as e:
-        print(f"❌ Erro ao listar todas as sessões registáveis: {e}")
+        logger.error(f"Erro ao listar todas as sessões registáveis: {e}")
         return []
 
 
@@ -298,7 +301,7 @@ def listar_registos(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
         return result
 
     except Exception as e:
-        print(f"❌ Erro ao listar registos: {e}")
+        logger.error(f"Erro ao listar registos: {e}")
         return []
 
 
@@ -349,7 +352,7 @@ def criar_registo(
             session.commit()
 
         if row:
-            print(f"✅ Registo #{row.id} criado para aula #{aula_id}")
+            logger.info(f"Registo #{row.id} criado para aula #{aula_id}")
             return {
                 "id": row.id,
                 "aula_id": aula_id,
@@ -358,7 +361,7 @@ def criar_registo(
         return None
 
     except Exception as e:
-        print(f"❌ Erro ao criar registo: {e}")
+        logger.error(f"Erro ao criar registo: {e}")
         return None
 
 
@@ -453,7 +456,7 @@ def listar_registos_export(
         return result
 
     except Exception as e:
-        print(f"❌ Erro ao exportar registos: {e}")
+        logger.error(f"Erro ao exportar registos: {e}")
         return []
 
 
@@ -467,9 +470,9 @@ def apagar_registo(registo_id: int, user_id: str) -> bool:
         with Session(engine) as session:
             session.exec(sql, params={"id": registo_id, "user_id": user_id})
             session.commit()
-        print(f"✅ Registo #{registo_id} apagado")
+        logger.info(f"Registo #{registo_id} apagado")
         return True
 
     except Exception as e:
-        print(f"❌ Erro ao apagar registo: {e}")
+        logger.error(f"Erro ao apagar registo: {e}")
         return False

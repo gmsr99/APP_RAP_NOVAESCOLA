@@ -61,7 +61,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Book, Layers, Calendar, Edit2, Plus, Trash2, Save, Users, Building2, X, Music, Clock, HelpCircle, ChevronDown, Link2Off, Loader2,
+  Book, Layers, Calendar, Edit2, Plus, Trash2, Save, Users, Building2, X, Music, Clock, HelpCircle, ChevronDown, Link2Off,
 } from "lucide-react";
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -211,7 +211,7 @@ const Wiki = () => {
     enabled: !!selectedProjetoId,
   });
 
-  const { data: wikiHierarquia = [], isLoading: hierarquiaLoading } = useQuery({
+  const { data: wikiHierarquia = [], isLoading: hierarquiaLoading, isError: hierarquiaError } = useQuery({
     queryKey: ['wiki-hierarquia', selectedProjetoId],
     queryFn: async () => {
       const res = await api.get(`/api/wiki/projeto/${selectedProjetoId}`);
@@ -529,7 +529,7 @@ const Wiki = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
-        <div>
+        <div className="hidden sm:block">
           <h1 className="text-2xl sm:text-3xl font-display font-bold flex items-center gap-2">
             <Book className="h-8 w-8 text-primary" />
             Wiki / Base de Conhecimento
@@ -697,9 +697,22 @@ const Wiki = () => {
             <p className="text-sm text-muted-foreground italic py-4 text-center">
               Seleciona um projeto acima para ver a hierarquia completa.
             </p>
+          ) : hierarquiaError ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
+              <p className="text-sm font-medium text-destructive">Erro ao carregar hierarquia.</p>
+              <p className="text-xs">Verifica a ligação e tenta novamente.</p>
+            </div>
           ) : hierarquiaLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <div className="space-y-3 py-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-5 w-1/3 rounded bg-muted animate-pulse" />
+                  <div className="ml-4 space-y-1.5">
+                    <div className="h-4 w-1/2 rounded bg-muted animate-pulse" />
+                    <div className="h-4 w-2/5 rounded bg-muted animate-pulse" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : wikiHierarquia.length === 0 ? (
             <div className="py-10 text-center space-y-3">

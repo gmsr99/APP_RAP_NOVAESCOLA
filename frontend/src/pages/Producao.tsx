@@ -198,7 +198,7 @@ const Producao = () => {
     enabled: !!modalProjetoId,
   });
 
-  const { data: musicas = [], isLoading } = useQuery({
+  const { data: musicas = [], isLoading, isError } = useQuery({
     queryKey: ['musicas', selectedProjetoId],
     queryFn: async () => {
       const url = selectedProjetoId
@@ -794,13 +794,40 @@ const Producao = () => {
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
-  if (isLoading) return <div className="text-center py-12 text-muted-foreground">A carregar...</div>;
+  if (isLoading) return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-2">
+          <div className="h-8 w-40 rounded-md bg-muted animate-pulse" />
+          <div className="h-4 w-64 rounded-md bg-muted animate-pulse" />
+        </div>
+        <div className="h-9 w-32 rounded-md bg-muted animate-pulse" />
+      </div>
+      <div className="rounded-lg border">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 p-4 border-b last:border-0">
+            <div className="h-4 w-1/3 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-1/4 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-1/5 rounded bg-muted animate-pulse ml-auto" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (isError) return (
+    <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
+      <X className="h-8 w-8 text-destructive" />
+      <p className="font-medium">Erro ao carregar músicas.</p>
+      <p className="text-sm">Verifica a ligação e tenta novamente.</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+        <div className="hidden sm:block">
           <h1 className="text-2xl sm:text-3xl font-display font-bold">Produção</h1>
           <p className="text-muted-foreground mt-1">Gestão do fluxo de trabalho de produção musical.</p>
         </div>

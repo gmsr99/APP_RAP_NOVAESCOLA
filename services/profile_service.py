@@ -1,5 +1,8 @@
 from supabase import create_client
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Initialize Supabase client
 supabase_url = os.environ.get("SUPABASE_URL")
@@ -34,7 +37,7 @@ def listar_perfis():
         conn.close()
         return rows
     except Exception as e:
-        print(f"Erro ao listar perfis: {e}")
+        logger.error(f"Erro ao listar perfis: {e}")
         return []
 
 def apagar_utilizador(user_id: str):
@@ -48,7 +51,7 @@ def apagar_utilizador(user_id: str):
         supabase.table("profiles").delete().eq("id", user_id).execute()
         return True
     except Exception as e:
-        print(f"Erro ao apagar utilizador {user_id}: {e}")
+        logger.error(f"Erro ao apagar utilizador {user_id}: {e}")
         raise e
 
 def atualizar_membro(user_id: str, dados: dict):
@@ -81,7 +84,7 @@ def atualizar_membro(user_id: str, dados: dict):
             supabase.auth.admin.update_user_by_id(user_id, {"user_metadata": meta_update})
         return True
     except Exception as e:
-        print(f"Erro ao atualizar membro {user_id}: {e}")
+        logger.error(f"Erro ao atualizar membro {user_id}: {e}")
         if 'conn' in locals() and conn:
             conn.rollback()
         return False
@@ -97,5 +100,5 @@ def obter_profile_id_por_email(email):
             return response.data[0]['id']
         return None
     except Exception as e:
-        print(f"Erro ao obter ID do perfil: {e}")
+        logger.error(f"Erro ao obter ID do perfil: {e}")
         return None

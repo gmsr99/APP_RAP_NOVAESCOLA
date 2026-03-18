@@ -409,8 +409,7 @@ async def get_notifications(user=Depends(get_current_user_required)):
         return notificacoes
     except Exception as e:
         # Se for erro de auth, já foi tratado pelo Depends
-        print(f"Erro ao listar notificações: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/notifications/{id}/read", tags=["Notifications"])
 async def mark_notification_read(id: int, user=Depends(get_current_user_required)):
@@ -539,8 +538,13 @@ async def delete_equipa_member(user_id: str, user=Depends(get_current_user_requi
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class EquipaMembroUpdate(BaseModel):
+    role: Optional[str] = None
+    full_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
 @app.patch("/api/equipa/{user_id}", tags=["Core"])
-async def update_equipa_member(user_id: str, payload: dict, user=Depends(get_current_user_required)):
+async def update_equipa_member(user_id: str, payload: EquipaMembroUpdate, user=Depends(get_current_user_required)):
     """Atualiza role, nome e avatar de um membro (apenas direção/it_support)."""
     caller_id = user.get("sub")
     perfis = profile_service.listar_perfis()
@@ -553,9 +557,10 @@ async def update_equipa_member(user_id: str, payload: dict, user=Depends(get_cur
     if not target_profile:
         raise HTTPException(status_code=404, detail="Utilizador não encontrado.")
     ROLES_VALIDOS = {"mentor", "produtor", "mentor_produtor", "coordenador", "direcao", "it_support"}
-    if "role" in payload and payload["role"] not in ROLES_VALIDOS:
+    if payload.role is not None and payload.role not in ROLES_VALIDOS:
         raise HTTPException(status_code=400, detail="Role inválido.")
-    sucesso = profile_service.atualizar_membro(user_id, payload)
+    dados = {k: v for k, v in payload.model_dump().items() if v is not None}
+    sucesso = profile_service.atualizar_membro(user_id, dados)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar membro.")
     return {"ok": True}
@@ -739,22 +744,6 @@ async def get_localizacoes_possiveis(user=Depends(get_current_user_required)):
     return equipment_service.listar_localizacoes_possiveis()
 
 
-@app.get("/api/estabelecimentos", tags=["Core"])
-async def get_estabelecimentos():
-    """Lista estabelecimentos."""
-    return turma_service.listar_estabelecimentos()
-
-class EstabelecimentoCreate(BaseModel):
-    nome: str
-
-@app.post("/api/estabelecimentos", tags=["Core"])
-async def create_estabelecimento(inst: EstabelecimentoCreate):
-    """Cria um novo estabelecimento."""
-    res = turma_service.criar_estabelecimento(inst.nome)
-    if res:
-        return res
-    raise HTTPException(status_code=400, detail="Falha ao criar estabelecimento (pode já existir)")
-
 class TurmaCreate(BaseModel):
     nome: str
     estabelecimento_id: str
@@ -808,7 +797,6 @@ async def update_alunos_turma(turma_id: int, payload: AlunosUpdate):
 async def get_turma_disciplinas(turma_id: int):
     """Lista as disciplinas locais de uma turma."""
     return turma_service.listar_disciplinas_turma(turma_id)
-    return {"message": "Disciplinas atualizadas"}
 
 @app.get("/api/mentores", tags=["Core"])
 async def get_mentores():
@@ -1018,10 +1006,16 @@ async def desarquivar_musica(musica_id: int):
         raise HTTPException(status_code=400, detail=mensagem)
     return {"message": mensagem}
 
+class MusicaDetalhesUpdate(BaseModel):
+    titulo: Optional[str] = None
+    deadline: Optional[str] = None
+    notas: Optional[str] = None
+    link_demo: Optional[str] = None
+
 @app.patch("/api/musicas/{musica_id}", tags=["Producao"])
-async def update_musica_detalhes(musica_id: int, payload: dict, user=Depends(get_current_user_required)):
+async def update_musica_detalhes(musica_id: int, payload: MusicaDetalhesUpdate, user=Depends(get_current_user_required)):
     """Atualiza detalhes editáveis de uma música (deadline, notas, link_demo, titulo)."""
-    sucesso = musica_service.atualizar_detalhes(musica_id, payload)
+    sucesso = musica_service.atualizar_detalhes(musica_id, {k: v for k, v in payload.model_dump().items() if v is not None})
     if not sucesso:
         raise HTTPException(status_code=400, detail="Erro ao atualizar música")
     return {"message": "Música atualizada"}
@@ -1137,7 +1131,7 @@ class MentorLocationUpdate(BaseModel):
     longitude: Optional[float] = None
 
 @app.patch("/api/mentores/{mentor_id}/location", tags=["Core"])
-async def update_mentor_location(mentor_id: int, payload: MentorLocationUpdate):
+async def update_mentor_location(mentor_id: int, payload: MentorLocationUpdate, user=Depends(get_current_user_required)):
     """Atualiza a morada e coordenadas de um mentor."""
     sucesso = turma_service.atualizar_localizacao_mentor(
         mentor_id, payload.morada, payload.latitude, payload.longitude
@@ -1376,5 +1370,7 @@ if __name__ == "__main__":
     - `reload=True`: O servidor reiniciará automaticamente sempre que houver
       uma alteração no código, o que é muito útil durante o desenvolvimento.
     """
-    print("A arrancar a API do RAP Nova Escola em http://localhost:8000")
+    import logging
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger(__name__).info("A arrancar a API do RAP Nova Escola em http://localhost:8000")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

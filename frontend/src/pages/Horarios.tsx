@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import AIAgentChat from '@/components/AIAgentChat';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -42,6 +42,7 @@ import {
   Package,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   CalendarDays,
   List,
   Calendar as CalendarIcon,
@@ -53,6 +54,7 @@ import {
   Star,
   CheckCircle2,
   Sparkles,
+  XCircle,
 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -67,6 +69,8 @@ import {
   isSameDay,
   addWeeks,
   subWeeks,
+  addDays,
+  subDays,
   startOfMonth,
   endOfMonth,
   addMonths,
@@ -83,10 +87,10 @@ import { useAuth } from '@/contexts/AuthContext'; // Import useAuth for user ID
 
 const statusColors: Record<SessionStatus, string> = {
   rascunho: 'bg-muted text-muted-foreground border-border/50',
-  pendente: 'bg-[#3399cd] text-white border-[#3399cd]',
-  confirmada: 'bg-[#4EA380] text-white border-[#4EA380]',
+  pendente: 'bg-[#d99426] text-white border-[#d99426]',
+  confirmada: 'bg-[#3399ce] text-white border-[#3399ce]',
   recusada: 'bg-[#A35339] text-white border-[#A35339]',
-  terminada: 'bg-[#6B7280] text-white border-[#6B7280]',
+  terminada: 'bg-[#4ea381] text-white border-[#4ea381]',
 };
 
 // Estilos para eventos autónomos
@@ -102,10 +106,10 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusDots: Record<string, string> = {
-  pendente: 'bg-[#3399cd]',
-  confirmada: 'bg-[#4EA380]',
+  pendente: 'bg-[#d99426]',
+  confirmada: 'bg-[#3399ce]',
   recusada: 'bg-[#A35339]',
-  terminada: 'bg-[#6B7280]',
+  terminada: 'bg-[#4ea381]',
 };
 
 /** Inline component to show equipment items for a session */
@@ -225,6 +229,67 @@ const Horarios = () => {
   // Confirmação para ações em sessões de outros users
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
+  // Confirmação de apagar sessão
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+
+  // Mobile: dia selecionado para vista de dia único
+  const [selectedDay, setSelectedDay] = useState(new Date());
+  const handlePrevDay = () => setSelectedDay(prev => subDays(prev, 1));
+  const handleNextDay = () => setSelectedDay(prev => addDays(prev, 1));
+
+  // Swipe carrossel para mudar de dia no mobile
+  const swipeTouchStartX = useRef<number | null>(null);
+  const [dragX, setDragX] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const handleSwipeTouchStart = (e: React.TouchEvent) => {
+    if (isAnimating) return;
+    swipeTouchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleSwipeTouchMove = (e: React.TouchEvent) => {
+    if (swipeTouchStartX.current === null || isAnimating) return;
+    setDragX(e.touches[0].clientX - swipeTouchStartX.current);
+  };
+
+  const handleSwipeTouchEnd = (e: React.TouchEvent) => {
+    if (swipeTouchStartX.current === null || isAnimating) return;
+    const delta = e.changedTouches[0].clientX - swipeTouchStartX.current;
+    swipeTouchStartX.current = null;
+    const vw = window.innerWidth;
+
+    if (Math.abs(delta) < 50) {
+      // Snap back ao centro
+      setIsAnimating(true);
+      setDragX(0);
+      setTimeout(() => setIsAnimating(false), 250);
+      return;
+    }
+
+    const goNext = delta < 0; // swipe left → próximo dia
+
+    // Fase 1: slide out para o lado do swipe
+    setIsAnimating(true);
+    setDragX(goNext ? -vw : vw);
+
+    setTimeout(() => {
+      // Fase 2: muda o conteúdo + reposiciona instantaneamente no lado oposto
+      setIsAnimating(false);
+      setDragX(goNext ? vw : -vw);
+      if (goNext) setSelectedDay(prev => addDays(prev, 1));
+      else setSelectedDay(prev => subDays(prev, 1));
+
+      // Fase 3: slide in para o centro
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsAnimating(true);
+          setDragX(0);
+          setTimeout(() => setIsAnimating(false), 250);
+        });
+      });
+    }, 250);
+  };
+
   // Estado "Terminar sessão"
   const [isTerminarOpen, setIsTerminarOpen] = useState(false);
   const [terminarSessionId, setTerminarSessionId] = useState<number | null>(null);
@@ -276,6 +341,7 @@ const Horarios = () => {
   });
 
   const [selectedKitCatId, setSelectedKitCatId] = useState<string>('');
+  const [kitItemsOpen, setKitItemsOpen] = useState(false);
   const [checkedItemIds, setCheckedItemIds] = useState<Set<number>>(new Set());
 
   // Fetch Equipa (para dropdown do formulário autónomo)
@@ -555,6 +621,7 @@ const Horarios = () => {
   const handleToday = () => {
     setCurrentWeek(new Date());
     setCurrentMonth(new Date());
+    setSelectedDay(new Date());
   };
 
   const getNavigationLabel = () => {
@@ -910,14 +977,93 @@ const Horarios = () => {
   };
 
   const handleDelete = () => {
-    if (editingSession && confirm('Tem a certeza que deseja apagar esta sessão?')) {
-      deleteSessionMutation.mutate(editingSession.id);
-    }
+    if (editingSession) setDeleteConfirmOpen(true);
   };
 
   const openDetailView = (session: AulaAPI) => {
     setViewSession(session);
     setIsDetailOpen(true);
+  };
+
+  /** Renderiza os eventos posicionados dentro de uma coluna de dia (reutilizado em desktop e mobile). */
+  const renderDayEvents = (day: Date, compact = false) => {
+    const daySessions = getSessionsForDay(day);
+    const eventsForLayout = daySessions.map(session => ({
+      ...session,
+      start: new Date(session.data_hora),
+      end: addMinutes(new Date(session.data_hora), session.duracao_minutos),
+    }));
+    const layoutEvents = computeEventLayout(eventsForLayout);
+
+    if (layoutEvents.length === 0) {
+      return (
+        <p className="text-xs text-muted-foreground text-center py-4 relative z-10">
+          Sem sessões
+        </p>
+      );
+    }
+
+    return layoutEvents.map((event) => {
+      const isAutonomous = event.is_autonomous;
+      const isRealized = event.is_realized;
+      const eventClass = isAutonomous
+        ? (isRealized ? autonomousRealizedClass : autonomousPlannedClass)
+        : (statusColors[event.estado as SessionStatus] || 'bg-secondary');
+      const zIdx = isRealized ? 20 : isAutonomous ? 5 : (event.zIndex || 10);
+      const iconSize = compact ? 'h-3 w-3' : 'h-2 w-2';
+      const subTextSize = compact ? 'text-[11px]' : 'text-[9px]';
+
+      return (
+        <div
+          key={event.id}
+          onClick={() => openDetailView(event)}
+          style={{ top: event.top, height: event.height, left: event.left, width: event.width, position: 'absolute', zIndex: zIdx }}
+          className={cn(
+            'p-1 leading-tight rounded-md border cursor-pointer hover:opacity-90 transition-opacity overflow-hidden flex flex-col',
+            compact ? 'text-xs' : 'text-[10px]',
+            eventClass
+          )}
+          title={isAutonomous
+            ? `${format(event.start, 'HH:mm')} — ${event.tipo_atividade ?? 'Trabalho Autónomo'}`
+            : `${format(event.start, 'HH:mm')} - ${event.turma_nome}`
+          }
+        >
+          <div className="font-bold flex justify-between items-center">
+            <span>{format(event.start, 'HH:mm')} – {format(event.end, 'HH:mm')}</span>
+            {isAdmin && !isAutonomous && (
+              <Edit2
+                className={cn(iconSize, 'opacity-50 hover:opacity-100 cursor-pointer')}
+                onClick={(e) => { e.stopPropagation(); handleOpenEdit(event); }}
+              />
+            )}
+          </div>
+          {isAutonomous ? (
+            <>
+              <div className={cn('truncate font-semibold flex items-center gap-1', compact ? 'text-xs' : 'text-[10px]')}>
+                <Briefcase className={cn(iconSize, 'flex-shrink-0')} />
+                {event.tipo_atividade ?? 'Trabalho Autónomo'}
+              </div>
+              <div className={cn('truncate opacity-90 mt-0.5 flex items-center gap-1', subTextSize)}>
+                <User className={iconSize} />
+                {equipa?.find(p => p.id === event.responsavel_user_id)?.full_name?.split(' ')[0] ?? '?'}
+              </div>
+              {isRealized && <div className={cn('mt-0.5 opacity-80', subTextSize)}>✓ Realizado</div>}
+            </>
+          ) : (
+            <>
+              <div className={cn('truncate font-semibold', compact ? 'text-xs' : 'text-[10px]')}>
+                {event.turma_nome}
+                <span className="opacity-75 font-normal ml-1">({event.estabelecimento_nome})</span>
+              </div>
+              <div className={cn('truncate opacity-90 mt-0.5 flex items-center gap-1', subTextSize)}>
+                <User className={iconSize} />
+                {event.mentor_nome?.split(' ')[0] ?? 'S/ Mentor'}
+              </div>
+            </>
+          )}
+        </div>
+      );
+    });
   };
 
   return (
@@ -926,7 +1072,7 @@ const Horarios = () => {
 
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+        <div className="hidden sm:block">
           <h1 className="text-2xl sm:text-3xl font-display font-bold">Planeamento de Horários</h1>
           <p className="text-muted-foreground mt-1">
             Gere sessões e acompanha confirmações.
@@ -1189,6 +1335,7 @@ const Horarios = () => {
                             value={selectedKitCatId}
                             onValueChange={(v) => {
                               setSelectedKitCatId(v);
+                              setKitItemsOpen(false);
                               if (v === 'none' || !v) {
                                 setCheckedItemIds(new Set());
                               } else {
@@ -1211,30 +1358,42 @@ const Horarios = () => {
                             const cat = kitCategorias?.find(c => String(c.id) === selectedKitCatId);
                             if (!cat) return null;
                             return (
-                              <div className="space-y-1.5 pl-1 pt-1">
-                                {cat.itens.map(item => {
-                                  const isUnavailable = item.estado === 'indisponivel' || item.estado === 'em_manutencao';
-                                  return (
-                                    <label key={item.id} className={`flex items-center gap-2 text-sm cursor-pointer ${isUnavailable ? 'opacity-50' : ''}`}>
-                                      <input
-                                        type="checkbox"
-                                        checked={checkedItemIds.has(item.id)}
-                                        disabled={isUnavailable}
-                                        onChange={() => {
-                                          setCheckedItemIds(prev => {
-                                            const next = new Set(prev);
-                                            if (next.has(item.id)) next.delete(item.id);
-                                            else next.add(item.id);
-                                            return next;
-                                          });
-                                        }}
-                                        className="rounded border-border"
-                                      />
-                                      {item.identificador || item.nome}
-                                      {isUnavailable && <span className="text-xs text-destructive ml-1">({item.estado})</span>}
-                                    </label>
-                                  );
-                                })}
+                              <div className="rounded-md border border-border">
+                                <button
+                                  type="button"
+                                  onClick={() => setKitItemsOpen(o => !o)}
+                                  className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/50 transition-colors"
+                                >
+                                  <span>Lista de Itens ({checkedItemIds.size}/{cat.itens.length})</span>
+                                  <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${kitItemsOpen ? 'rotate-180' : ''}`} />
+                                </button>
+                                {kitItemsOpen && (
+                                  <div className="space-y-1.5 border-t border-border px-3 py-2">
+                                    {cat.itens.map(item => {
+                                      const isUnavailable = item.estado === 'indisponivel' || item.estado === 'em_manutencao';
+                                      return (
+                                        <label key={item.id} className={`flex items-center gap-2 text-sm cursor-pointer ${isUnavailable ? 'opacity-50' : ''}`}>
+                                          <input
+                                            type="checkbox"
+                                            checked={checkedItemIds.has(item.id)}
+                                            disabled={isUnavailable}
+                                            onChange={() => {
+                                              setCheckedItemIds(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(item.id)) next.delete(item.id);
+                                                else next.add(item.id);
+                                                return next;
+                                              });
+                                            }}
+                                            className="rounded border-border"
+                                          />
+                                          {item.identificador || item.nome}
+                                          {isUnavailable && <span className="text-xs text-destructive ml-1">({item.estado})</span>}
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                )}
                               </div>
                             );
                           })()}
@@ -1681,22 +1840,52 @@ const Horarios = () => {
       {/* View Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-2">
+          {/* Mobile week view: navigate by day */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={viewMode === 'week' ? handlePrevDay : handlePrevious}
+            className="sm:hidden"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          {/* Desktop: navigate by week/month */}
           <Button
             variant="outline"
             size="icon"
             onClick={handlePrevious}
+            className="hidden sm:flex"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div className="min-w-[200px] text-center">
-            <p className="font-medium capitalize">
-              {getNavigationLabel()}
+
+          <div className="min-w-[160px] sm:min-w-[200px] text-center">
+            <p className="font-medium capitalize text-sm sm:text-base">
+              {/* Mobile week view: show selected day */}
+              {viewMode === 'week' ? (
+                <>
+                  <span className="sm:hidden">{format(selectedDay, "EEE, d MMM", { locale: pt })}</span>
+                  <span className="hidden sm:inline">{getNavigationLabel()}</span>
+                </>
+              ) : getNavigationLabel()}
             </p>
           </div>
+
+          {/* Mobile week view: navigate by day */}
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={viewMode === 'week' ? handleNextDay : handleNext}
+            className="sm:hidden"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          {/* Desktop: navigate by week/month */}
           <Button
             variant="outline"
             size="icon"
             onClick={handleNext}
+            className="hidden sm:flex"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -1738,6 +1927,21 @@ const Horarios = () => {
         </div>
       </div>
 
+      {/* Loading / Error */}
+      {aulasLoading && (
+        <div className="grid grid-cols-5 gap-2">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="rounded-lg bg-secondary animate-pulse h-[120px]" />
+          ))}
+        </div>
+      )}
+      {aulasError && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-6 text-center text-destructive">
+          <XCircle className="h-8 w-8 mx-auto mb-2" />
+          <p className="text-sm">Erro ao carregar horários. Tenta novamente.</p>
+        </div>
+      )}
+
       {/* Legend */}
       <div className="flex flex-wrap gap-4">
         {Object.entries(statusLabels).map(([status, label]) => (
@@ -1761,126 +1965,94 @@ const Horarios = () => {
       {/* Replaced sessions with aulasApi mapping */}
 
       {/* Week View */}
-      {
-        viewMode === 'week' && (
-          <div className="grid grid-cols-5 gap-2">
-            {weekDays.map((day) => {
-              const daySessions = getSessionsForDay(day);
-              const isToday = isSameDay(day, new Date());
-
-              // Prepare for layout
-              const eventsForLayout = daySessions.map(session => ({
-                ...session,
-                id: session.id, // Explicitly ensure ID
-                start: new Date(session.data_hora),
-                end: addMinutes(new Date(session.data_hora), session.duracao_minutos)
-              }));
-
-              const layoutEvents = computeEventLayout(eventsForLayout);
-
-              return (
-                <div key={day.toISOString()} className="flex flex-col h-full">
-                  <div className={cn(
-                    'text-center py-2 rounded-t-lg',
-                    isToday ? 'bg-primary text-primary-foreground' : 'bg-secondary'
-                  )}>
-                    <p className="text-xs uppercase">
-                      {format(day, 'EEE', { locale: pt })}
-                    </p>
-                    <p className="text-lg font-bold font-display">
-                      {format(day, 'd')}
-                    </p>
-                  </div>
-                  <div className="bg-card rounded-b-lg relative border border-t-0 border-border h-[800px] overflow-hidden">
-                    {/* Grid lines for hours 07:00–21:00 (14 hours) */}
-                    <div className="absolute inset-0 pointer-events-none">
-                      {Array.from({ length: 14 }).map((_, i) => (
-                        <div key={i} className="border-t border-border/20 w-full" style={{ height: `${100 / 14}%` }} />
-                      ))}
-                    </div>
-
-                    {layoutEvents.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-4 relative z-10">
-                        Sem sessões
-                      </p>
-                    ) : (
-                      layoutEvents.map((event) => {
-                        const isAutonomous = event.is_autonomous;
-                        const isRealized = event.is_realized;
-                        const eventClass = isAutonomous
-                          ? (isRealized ? autonomousRealizedClass : autonomousPlannedClass)
-                          : (statusColors[event.estado as SessionStatus] || 'bg-secondary');
-                        const zIdx = isRealized ? 20 : isAutonomous ? 5 : (event.zIndex || 10);
-
-                        return (
-                          <div
-                            key={event.id}
-                            onClick={() => openDetailView(event)}
-                            style={{
-                              top: event.top,
-                              height: event.height,
-                              left: event.left,
-                              width: event.width,
-                              position: 'absolute',
-                              zIndex: zIdx,
-                            }}
-                            className={cn(
-                              'p-1 text-[10px] leading-tight rounded-md border cursor-pointer hover:opacity-90 transition-opacity overflow-hidden flex flex-col',
-                              eventClass
-                            )}
-                            title={isAutonomous
-                              ? `${format(event.start, 'HH:mm')} — ${event.tipo_atividade ?? 'Trabalho Autónomo'}`
-                              : `${format(event.start, 'HH:mm')} - ${event.turma_nome}`
-                            }
-                          >
-                            <div className="font-bold flex justify-between items-center">
-                              <span>{format(event.start, 'HH:mm')} – {format(event.end, 'HH:mm')}</span>
-                              {isAdmin && !isAutonomous && (
-                                <Edit2
-                                  className="h-3 w-3 opacity-50 hover:opacity-100 cursor-pointer"
-                                  onClick={(e) => { e.stopPropagation(); handleOpenEdit(event); }}
-                                />
-                              )}
-                            </div>
-                            {isAutonomous ? (
-                              <>
-                                <div className="truncate font-semibold text-[10px] flex items-center gap-1">
-                                  <Briefcase className="h-2 w-2 flex-shrink-0" />
-                                  {event.tipo_atividade ?? 'Trabalho Autónomo'}
-                                </div>
-                                <div className="truncate opacity-90 text-[9px] mt-0.5 flex items-center gap-1">
-                                  <User className="h-2 w-2" />
-                                  {equipa?.find(p => p.id === event.responsavel_user_id)?.full_name?.split(' ')[0] ?? '?'}
-                                </div>
-                                {isRealized && (
-                                  <div className="text-[9px] mt-0.5 opacity-80">✓ Realizado</div>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <div className="truncate font-semibold text-[10px]">
-                                  {event.turma_nome}
-                                  <span className="opacity-75 font-normal ml-1">
-                                    ({event.estabelecimento_nome})
-                                  </span>
-                                </div>
-                                <div className="truncate opacity-90 text-[9px] mt-0.5 flex items-center gap-1">
-                                  <User className="h-2 w-2" />
-                                  {event.mentor_nome?.split(' ')[0] ?? 'S/ Mentor'}
-                                </div>
-                              </>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
+      {viewMode === 'week' && (
+        <>
+          {/* ── Mobile: single day view ── */}
+          <div
+            className="sm:hidden flex gap-1"
+            onTouchStart={handleSwipeTouchStart}
+            onTouchMove={handleSwipeTouchMove}
+            onTouchEnd={handleSwipeTouchEnd}
+          >
+            {/* Hour labels — ficam fixas durante o swipe */}
+            <div className="w-9 shrink-0 relative h-[600px]">
+              {Array.from({ length: 14 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute text-[10px] text-muted-foreground/50 leading-none"
+                  style={{ top: `${(i / 14) * 100}%`, transform: 'translateY(-50%)' }}
+                >
+                  {String(i + 7).padStart(2, '0')}h
                 </div>
-              );
-            })}
+              ))}
+            </div>
+            {/* Wrapper que corta o cartão quando sai do ecrã */}
+            <div className="flex-1 overflow-hidden">
+              {/* Cartão do dia — é este que anima */}
+              <div
+                style={{
+                  transform: `translateX(${dragX}px)`,
+                  transition: isAnimating ? 'transform 0.25s ease' : 'none',
+                  willChange: 'transform',
+                }}
+              >
+                <div className="bg-card rounded-lg relative border border-border h-[600px] overflow-hidden">
+                  {/* Grid lines */}
+                  <div className="absolute inset-0 pointer-events-none">
+                    {Array.from({ length: 14 }).map((_, i) => (
+                      <div key={i} className="border-t border-border/20 w-full" style={{ height: `${100 / 14}%` }} />
+                    ))}
+                  </div>
+                  {renderDayEvents(selectedDay, true)}
+                </div>
+              </div>
+            </div>
           </div>
-        )
-      }
+
+          {/* ── Desktop: 5-column week view ── */}
+          <div className="hidden sm:flex gap-1">
+            {/* Hour labels */}
+            <div className="flex flex-col w-9 shrink-0">
+              <div className="h-[62px]" />
+              <div className="relative flex-1 h-[800px]">
+                {Array.from({ length: 14 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="absolute text-[10px] text-muted-foreground/50 leading-none"
+                    style={{ top: `${(i / 14) * 100}%`, transform: 'translateY(-50%)' }}
+                  >
+                    {String(i + 7).padStart(2, '0')}h
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-5 gap-2 flex-1">
+              {weekDays.map((day) => {
+                const isToday = isSameDay(day, new Date());
+                return (
+                  <div key={day.toISOString()} className="flex flex-col h-full">
+                    <div className={cn(
+                      'text-center py-2 rounded-t-lg',
+                      isToday ? 'bg-primary text-primary-foreground' : 'bg-secondary'
+                    )}>
+                      <p className="text-xs uppercase">{format(day, 'EEE', { locale: pt })}</p>
+                      <p className="text-lg font-bold font-display">{format(day, 'd')}</p>
+                    </div>
+                    <div className="bg-card rounded-b-lg relative border border-t-0 border-border h-[800px] overflow-hidden">
+                      <div className="absolute inset-0 pointer-events-none">
+                        {Array.from({ length: 14 }).map((_, i) => (
+                          <div key={i} className="border-t border-border/20 w-full" style={{ height: `${100 / 14}%` }} />
+                        ))}
+                      </div>
+                      {renderDayEvents(day, false)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Month View */}
       {
@@ -1946,12 +2118,19 @@ const Horarios = () => {
                           key={session.id}
                           className={cn(
                             'text-xs px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80',
-                            statusColors[session.estado as SessionStatus] || 'bg-secondary'
+                            session.is_autonomous
+                              ? (session.is_realized ? 'bg-[#4EA380]/20 text-[#2d7a5c] border border-[#4EA380]' : 'bg-muted text-muted-foreground border border-dashed border-muted-foreground/40')
+                              : (statusColors[session.estado as SessionStatus] || 'bg-secondary')
                           )}
-                          title={`${format(new Date(session.data_hora), 'HH:mm')} - ${session.turma_nome}`}
+                          title={`${format(new Date(session.data_hora), 'HH:mm')} - ${session.is_autonomous ? (session.tipo_atividade ?? 'Trabalho Autónomo') : session.turma_nome}`}
+                          onClick={() => openDetailView(session)}
                         >
                           <span className="font-medium">{format(new Date(session.data_hora), 'HH:mm')}</span>
-                          <span className="ml-1 opacity-80">{session.mentor_nome?.split(' ')[0] ?? '—'}</span>
+                          <span className="ml-1 opacity-80">
+                            {session.is_autonomous
+                              ? (session.tipo_atividade ?? 'Autónomo')
+                              : (session.mentor_nome?.split(' ')[0] ?? '—')}
+                          </span>
                         </div>
                       ))}
                       {daySessions.length > 3 && (
@@ -2231,6 +2410,27 @@ const Horarios = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* CONFIRMAÇÃO — apagar sessão */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Apagar sessão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. Queres apagar esta sessão?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-white hover:bg-destructive/90"
+              onClick={() => { if (editingSession) deleteSessionMutation.mutate(editingSession.id); }}
+            >
+              Apagar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* CONFIRMAÇÃO — ação em sessão de outro user */}
       <AlertDialog open={!!pendingAction} onOpenChange={(open) => { if (!open) setPendingAction(null); }}>

@@ -658,7 +658,7 @@ def obter_aula_por_id(aula_id):
         return AulaListItem.model_validate(payload).model_dump()
 
     except Exception as e:
-        print(f"❌ Erro ao obter aula: {e}")
+        logger.error(f"Erro ao obter aula: {e}")
         return None
 
 
@@ -719,7 +719,7 @@ def listar_todas_aulas(limite=100):
         return aulas
 
     except Exception as e:
-        print(f"❌ Erro ao listar aulas: {e}")
+        logger.error(f"Erro ao listar aulas: {e}")
         return []
 
 
@@ -779,7 +779,7 @@ def atualizar_aula(aula_id, dados):
             session.add(aula)
             session.commit()
 
-        print(f"✅ Aula #{aula_id} atualizada com sucesso!")
+        logger.info(f"Aula #{aula_id} atualizada com sucesso!")
 
         if should_notify_mentor_change and mentor_id_para_notificar:
             try:
@@ -801,12 +801,12 @@ def atualizar_aula(aula_id, dados):
                             metadados={"aula_id": aula_id},
                         )
             except Exception as e:
-                print(f"⚠️ Erro ao notificar mentor: {e}")
+                logger.error(f"Erro ao notificar mentor: {e}")
 
         return True
 
     except Exception as e:
-        print(f"❌ Erro ao atualizar aula: {e}")
+        logger.error(f"Erro ao atualizar aula: {e}")
         return False
 
 
@@ -853,7 +853,7 @@ def listar_horas_equipa(projeto_id=None):
             'sessoes_autonomo': row[5],
         } for row in rows]
     except Exception as e:
-        print(f"❌ Erro ao listar horas equipa: {e}")
+        logger.error(f"Erro ao listar horas equipa: {e}")
         return []
     finally:
         if 'cur' in locals() and cur:
@@ -886,7 +886,7 @@ def contar_sessoes_user(user_id):
             'total': (row[0] + row[1]) if row else 0,
         }
     except Exception as e:
-        print(f"❌ Erro ao contar sessões user: {e}")
+        logger.error(f"Erro ao contar sessões user: {e}")
         return {'sessoes_aulas': 0, 'sessoes_autonomo': 0, 'total': 0}
     finally:
         if 'cur' in locals() and cur:
@@ -944,7 +944,7 @@ def obter_proximo_numero_sessao(
         row = cur.fetchone()
         return (row[0] if row else 0) + 1
     except Exception as e:
-        print(f"❌ Erro ao obter próximo número de sessão: {e}")
+        logger.error(f"Erro ao obter próximo número de sessão: {e}")
         return 1
     finally:
         if 'cur' in locals() and cur:
@@ -1013,7 +1013,7 @@ def listar_feedback_sessoes(projeto_id=None):
 
         return resultado
     except Exception as e:
-        print(f"❌ Erro ao listar feedback de sessões: {e}")
+        logger.error(f"Erro ao listar feedback de sessões: {e}")
         return []
     finally:
         if 'cur' in locals() and cur:
@@ -1028,15 +1028,15 @@ def apagar_aula(aula_id):
             # ORM: delete em entidade carregada vira DELETE FROM aulas WHERE id = ? no commit.
             aula = session.get(Aula, aula_id)
             if not aula:
-                print(f"❌ Aula #{aula_id} não encontrada!")
+                logger.error(f"Aula #{aula_id} não encontrada!")
                 return False
 
             session.delete(aula)
             session.commit()
 
-        print(f"✅ Aula #{aula_id} apagada com sucesso!")
+        logger.info(f"Aula #{aula_id} apagada com sucesso!")
         return True
 
     except Exception as e:
-        print(f"❌ Erro ao apagar aula: {e}")
+        logger.error(f"Erro ao apagar aula: {e}")
         return False

@@ -316,7 +316,7 @@ const Registos = () => {
 
   // ─── Queries ────────────────────────────────────────────────────────────
 
-  const { data: sessoes = [] } = useQuery({
+  const { data: sessoes = [], isLoading: sessoesLoading, isError: sessoesError } = useQuery({
     queryKey: ['sessoes-registaveis'],
     queryFn: async () => {
       const res = await api.get('/api/aulas/registaveis');
@@ -324,7 +324,7 @@ const Registos = () => {
     },
   });
 
-  const { data: registos = [] } = useQuery({
+  const { data: registos = [], isLoading: registosLoading, isError: registosError } = useQuery({
     queryKey: ['registos'],
     queryFn: async () => {
       const res = await api.get('/api/registos');
@@ -637,10 +637,36 @@ const Registos = () => {
 
   // ─── Render ─────────────────────────────────────────────────────────────
 
+  if (sessoesLoading || registosLoading) return (
+    <div className="space-y-6">
+      <div className="space-y-2">
+        <div className="h-8 w-56 rounded-md bg-muted animate-pulse" />
+        <div className="h-4 w-80 rounded-md bg-muted animate-pulse" />
+      </div>
+      <div className="rounded-lg border">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 p-4 border-b last:border-0">
+            <div className="h-4 w-1/3 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-1/5 rounded bg-muted animate-pulse" />
+            <div className="h-4 w-1/6 rounded bg-muted animate-pulse ml-auto" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  if (sessoesError || registosError) return (
+    <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
+      <X className="h-8 w-8 text-destructive" />
+      <p className="font-medium">Erro ao carregar registos.</p>
+      <p className="text-sm">Verifica a ligação e tenta novamente.</p>
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
+      <div className="hidden sm:block">
         <h1 className="text-2xl sm:text-3xl font-display font-bold">Registos de Sessão</h1>
         <p className="text-muted-foreground mt-1">
           Regista o que aconteceu em cada sessão e exporta o documento PDF.

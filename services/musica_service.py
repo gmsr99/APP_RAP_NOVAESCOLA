@@ -4,6 +4,9 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from database.connection import get_db_connection
+import logging
+
+logger = logging.getLogger(__name__)
 
 def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None):
     """
@@ -105,7 +108,7 @@ def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None):
             
         return resultado
     except Exception as e:
-        print(f"❌ Erro ao listar músicas: {e}")
+        logger.error(f"Erro ao listar músicas: {e}")
         return []
     finally:
         if 'cur' in locals() and cur: cur.close()
@@ -160,7 +163,7 @@ def criar_musica(dados, criador_id):
         
         return {'id': new_id, 'message': 'Música criada com sucesso'}
     except Exception as e:
-        print(f"❌ Erro ao criar música: {e}")
+        logger.error(f"Erro ao criar música: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return None
     finally:
@@ -253,7 +256,7 @@ def avancar_fase(musica_id, user_id, dados=None):
         return True, f"Fase avançada para {novo_estado}"
         
     except Exception as e:
-        print(f"❌ Erro ao avançar fase: {e}")
+        logger.error(f"Erro ao avançar fase: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False, str(e)
     finally:
@@ -299,7 +302,7 @@ def aceitar_tarefa(musica_id, user_id):
         return True, f"Tarefa aceite! Estado: {novo_estado}"
 
     except Exception as e:
-        print(f"❌ Erro ao aceitar tarefa: {e}")
+        logger.error(f"Erro ao aceitar tarefa: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False, str(e)
     finally:
@@ -336,7 +339,7 @@ def atualizar_detalhes(musica_id, dados):
         conn.commit()
         return True
     except Exception as e:
-        print(f"❌ Erro ao atualizar detalhes: {e}")
+        logger.error(f"Erro ao atualizar detalhes: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False
     finally:
@@ -354,7 +357,7 @@ def apagar_musica(musica_id):
         conn.commit()
         return deleted is not None
     except Exception as e:
-        print(f"❌ Erro ao apagar música: {e}")
+        logger.error(f"Erro ao apagar música: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False
     finally:
@@ -450,7 +453,7 @@ def listar_stats_instituicao(projeto_id=None):
 
         return list(estabs.values())
     except Exception as e:
-        print(f"❌ Erro ao listar stats instituição: {e}")
+        logger.error(f"Erro ao listar stats instituição: {e}")
         return []
     finally:
         if 'cur' in locals() and cur: cur.close()
@@ -509,7 +512,7 @@ def listar_stats_equipa(projeto_id=None):
             m['musicas_atribuidas'] = len(m['musicas'])
         return resultado
     except Exception as e:
-        print(f"❌ Erro ao listar stats equipa: {e}")
+        logger.error(f"Erro ao listar stats equipa: {e}")
         return []
     finally:
         if 'cur' in locals() and cur: cur.close()

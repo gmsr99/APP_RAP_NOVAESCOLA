@@ -31,7 +31,6 @@ import {
 import {
   Package,
   Plus,
-  Loader2,
   Layers,
   CheckCircle2,
   AlertTriangle,
@@ -141,7 +140,7 @@ const Equipamento = () => {
   // Queries
   // ---------------------------------------------------------------------------
 
-  const { data: itens = [], isLoading } = useQuery<EquipamentoItem[]>({
+  const { data: itens = [], isLoading, isError } = useQuery<EquipamentoItem[]>({
     queryKey: ['equipamento-itens'],
     queryFn: () => api.get('/api/equipamento/itens').then(r => r.data),
   });
@@ -312,8 +311,38 @@ const Equipamento = () => {
 
   if (isLoading) {
     return (
-      <div className="flex h-[50vh] items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-2">
+            <div className="h-8 w-48 rounded-md bg-muted animate-pulse" />
+            <div className="h-4 w-64 rounded-md bg-muted animate-pulse" />
+          </div>
+          <div className="h-9 w-32 rounded-md bg-muted animate-pulse" />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-24 rounded-lg border bg-muted animate-pulse" />
+          ))}
+        </div>
+        <div className="rounded-lg border">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 p-4 border-b last:border-0">
+              <div className="h-4 w-1/4 rounded bg-muted animate-pulse" />
+              <div className="h-4 w-1/5 rounded bg-muted animate-pulse" />
+              <div className="h-4 w-1/6 rounded bg-muted animate-pulse ml-auto" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
+        <XCircle className="h-8 w-8 text-destructive" />
+        <p className="font-medium">Erro ao carregar equipamento.</p>
+        <p className="text-sm">Verifica a ligação e tenta novamente.</p>
       </div>
     );
   }
@@ -322,7 +351,7 @@ const Equipamento = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+        <div className="hidden sm:block">
           <h1 className="text-2xl font-display font-bold">Gestao de Material</h1>
           <p className="text-muted-foreground">
             Equipamento individual sincronizado com sessoes.

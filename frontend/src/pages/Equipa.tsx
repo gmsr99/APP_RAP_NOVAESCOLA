@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/select';
 import { api } from '@/services/api';
 import type { PublicProfile } from '@/types';
-import { Loader2, Mail, Shield, Trash2, Pencil } from 'lucide-react';
+import { Mail, Shield, Trash2, Pencil } from 'lucide-react';
 import { useProfile } from '@/contexts/ProfileContext';
 import { toast } from 'sonner';
 
@@ -116,8 +116,27 @@ const Equipa = () => {
 
     if (isLoading) {
         return (
-            <div className="flex h-[50vh] items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <div className="space-y-6">
+                <div className="space-y-2">
+                    <div className="h-8 w-32 rounded-md bg-muted animate-pulse" />
+                    <div className="h-4 w-64 rounded-md bg-muted animate-pulse" />
+                </div>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <Card key={i}>
+                            <CardHeader className="flex flex-row items-center gap-4 pb-2">
+                                <div className="h-12 w-12 rounded-full bg-muted animate-pulse shrink-0" />
+                                <div className="space-y-2 flex-1">
+                                    <div className="h-4 w-3/4 rounded bg-muted animate-pulse" />
+                                    <div className="h-3 w-1/2 rounded bg-muted animate-pulse" />
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="h-3 w-1/3 rounded bg-muted animate-pulse" />
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
             </div>
         );
     }
@@ -132,7 +151,7 @@ const Equipa = () => {
 
     return (
         <div className="space-y-6">
-            <div>
+            <div className="hidden sm:block">
                 <h1 className="text-2xl sm:text-3xl font-display font-bold">Equipa</h1>
                 <p className="text-muted-foreground mt-1">
                     Membros registados na plataforma e os seus cargos.
