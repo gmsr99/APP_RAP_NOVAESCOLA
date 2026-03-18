@@ -5,10 +5,12 @@
  * - Deteta suporte do browser (iOS 16.4+ requer standalone)
  * - Pede permissão ao utilizador via gesto
  * - Subscreve/cancela subscrição no backend
+ * - Usa @/lib/api (axios) consistentemente com o resto da app
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { api } from '@/services/api';
+import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
 /** Converte uma chave VAPID public key (base64url) para Uint8Array */
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -16,6 +18,14 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
   const rawData = window.atob(base64);
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+/** Aguarda o service worker ficar ativo, com timeout de 10s */
+async function waitForSW(): Promise<ServiceWorkerRegistration> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Service worker não iniciou a tempo')), 10000)
+  );
+  return Promise.race([navigator.serviceWorker.ready, timeout]);
 }
 
 export function usePushNotifications() {
@@ -60,21 +70,31 @@ export function usePushNotifications() {
     }
   }
 
-  const subscribe = useCallback(async () => {
-    if (!isSupported) return;
+  const subscribe = useCallback(async (): Promise<boolean> => {
+    if (!isSupported) return false;
     setIsLoading(true);
     try {
-      // Registar SW se ainda não estiver registado
+      // Garantir que o SW está registado e ativo
       await navigator.serviceWorker.register('/sw.js');
-      const reg = await navigator.serviceWorker.ready;
+      const reg = await waitForSW();
 
       // Pedir permissão (deve ser chamado via gesto do utilizador)
       const perm = await Notification.requestPermission();
       setPermission(perm);
-      if (perm !== 'granted') return;
+
+      if (perm === 'denied') {
+        toast.error('Notificações bloqueadas', {
+          description: 'Permite as notificações nas definições do browser.',
+        });
+        return false;
+      }
+      if (perm !== 'granted') return false;
 
       // Obter chave pública VAPID do backend
-      const { public_key } = await api.get<{ public_key: string }>('/api/push/vapid-key');
+      const vapidRes = await api.get<{ public_key: string }>('/api/push/vapid-key');
+      const public_key = vapidRes.data.public_key;
+
+      if (!public_key) throw new Error('VAPID key não recebida do servidor');
 
       // Subscrever no PushManager
       const subscription = await reg.pushManager.subscribe({
@@ -83,15 +103,29 @@ export function usePushNotifications() {
       });
 
       const sub = subscription.toJSON();
+      if (!sub.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) {
+        throw new Error('Dados de subscrição inválidos');
+      }
+
+      // Enviar subscrição ao backend
       await api.post('/api/push/subscribe', {
         endpoint: sub.endpoint,
-        p256dh: sub.keys?.p256dh,
-        auth: sub.keys?.auth,
+        p256dh: sub.keys.p256dh,
+        auth: sub.keys.auth,
       });
 
       setIsSubscribed(true);
-    } catch (err) {
+      toast.success('Notificações ativadas!');
+      return true;
+    } catch (err: any) {
       console.error('Erro ao subscrever push:', err);
+      toast.error('Erro ao ativar notificações', {
+        description: err?.message || 'Tenta novamente mais tarde.',
+      });
+      // Re-verificar estado real caso tenha ficado inconsistente
+      const realState = await _checkSubscription();
+      setIsSubscribed(realState);
+      return false;
     } finally {
       setIsLoading(false);
     }
@@ -107,8 +141,10 @@ export function usePushNotifications() {
         await subscription.unsubscribe();
       }
       setIsSubscribed(false);
-    } catch (err) {
+      toast.success('Notificações desativadas');
+    } catch (err: any) {
       console.error('Erro ao cancelar push:', err);
+      toast.error('Erro ao desativar notificações');
     } finally {
       setIsLoading(false);
     }

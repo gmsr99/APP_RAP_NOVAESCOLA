@@ -27,6 +27,7 @@ import Wiki from "./pages/Wiki";
 import Estatisticas from "./pages/Estatisticas";
 import Atalhos from "./pages/Atalhos";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { PushAutoPrompt } from "@/components/PushAutoPrompt";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +54,7 @@ function AppContent() {
       <Preloader visible={authLoading || navLoading} />
       <Toaster />
       <Sonner />
+      <PushAutoPrompt />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/update-password" element={<UpdatePassword />} />
