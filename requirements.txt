@@ -76,3 +76,6 @@ httpx==0.28.1
 
 # AI Agent (Gemini)
 google-genai>=1.0.0
+
+# Web Push Notifications (VAPID)
+pywebpush>=2.0.0

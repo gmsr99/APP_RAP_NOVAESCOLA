@@ -13,11 +13,12 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Check, Trash2, Bell, Info, CheckCircle, XCircle, Calendar, MessageCircle } from 'lucide-react';
+import { Check, Trash2, Bell, BellOff, Info, CheckCircle, XCircle, Calendar, MessageCircle, Share, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Notification } from '@/types';
 import { useProfile } from '@/contexts/ProfileContext';
 import { useNavigate } from 'react-router-dom';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 
 interface NotificationSidebarProps {
     open: boolean;
@@ -28,6 +29,7 @@ export function NotificationSidebar({ open, onOpenChange }: NotificationSidebarP
     const queryClient = useQueryClient();
     const { user } = useProfile();
     const navigate = useNavigate();
+    const { isSupported, isIOS, isStandalone, isSubscribed, isLoading: pushLoading, permission, subscribe, unsubscribe } = usePushNotifications();
 
     const { data: notifications = [] } = useQuery<Notification[]>({
         queryKey: ['notifications', 'current-user'],
@@ -119,7 +121,50 @@ export function NotificationSidebar({ open, onOpenChange }: NotificationSidebarP
                     </SheetDescription>
                 </SheetHeader>
 
-                <ScrollArea className="h-[calc(100vh-100px)] mt-4 pr-4">
+                {/* Banner iOS: instruções para adicionar ao ecrã principal */}
+                {isIOS && !isStandalone && (
+                    <div className="mx-0 mt-3 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 p-3 text-sm text-blue-800 dark:text-blue-300">
+                        <p className="font-medium mb-1">Ativa notificações no iPhone/iPad</p>
+                        <p className="text-xs text-blue-700 dark:text-blue-400 leading-relaxed">
+                            Para receber notificações, instala esta app:
+                            toca em <Share className="inline h-3.5 w-3.5 mx-0.5" /> e depois em{' '}
+                            <strong>"Adicionar ao Ecrã Principal"</strong> <Plus className="inline h-3.5 w-3.5 mx-0.5" />.
+                        </p>
+                    </div>
+                )}
+
+                {/* Toggle de push notifications */}
+                {isSupported && permission !== 'denied' && (
+                    <div className="mt-3 flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
+                        <div className="flex items-center gap-2 text-sm">
+                            {isSubscribed
+                                ? <Bell className="h-4 w-4 text-primary" />
+                                : <BellOff className="h-4 w-4 text-muted-foreground" />
+                            }
+                            <span className={isSubscribed ? 'text-foreground' : 'text-muted-foreground'}>
+                                {isSubscribed ? 'Notificações ativas' : 'Notificações desativadas'}
+                            </span>
+                        </div>
+                        <Button
+                            variant={isSubscribed ? 'outline' : 'default'}
+                            size="sm"
+                            className="h-7 px-3 text-xs"
+                            disabled={pushLoading}
+                            onClick={isSubscribed ? unsubscribe : subscribe}
+                        >
+                            {pushLoading ? 'A processar...' : isSubscribed ? 'Desativar' : 'Ativar'}
+                        </Button>
+                    </div>
+                )}
+
+                {/* Mensagem se permissão foi negada */}
+                {isSupported && permission === 'denied' && (
+                    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-xs text-amber-800 dark:text-amber-300">
+                        Notificações bloqueadas nas definições do browser.
+                    </div>
+                )}
+
+                <ScrollArea className="h-[calc(100vh-180px)] mt-4 pr-4">
                     <div className="space-y-4">
                         {notifications.length === 0 ? (
                             <div className="text-center text-muted-foreground py-10">

@@ -450,6 +450,42 @@ async def delete_all_notifications(user=Depends(get_current_user_required)):
     count = notification_service.apagar_todas_notificacoes(uid)
     return {"message": f"{count} notificações apagadas"}
 
+# --- Rotas para Web Push Notifications ---
+import os
+from services import push_service
+
+class PushSubscribePayload(BaseModel):
+    endpoint: str
+    p256dh: str
+    auth: str
+
+class PushUnsubscribePayload(BaseModel):
+    endpoint: str
+
+@app.get("/api/push/vapid-key", tags=["Push"])
+async def get_vapid_public_key():
+    """Retorna a chave pública VAPID para o frontend subscrever push."""
+    key = os.getenv("VAPID_PUBLIC_KEY")
+    if not key:
+        raise HTTPException(status_code=503, detail="Push notifications não configuradas")
+    return {"public_key": key}
+
+@app.post("/api/push/subscribe", tags=["Push"])
+async def push_subscribe(payload: PushSubscribePayload, user=Depends(get_current_user_required)):
+    """Guarda subscrição push do utilizador autenticado."""
+    uid = user.get("sub")
+    sucesso = push_service.guardar_subscricao(uid, payload.endpoint, payload.p256dh, payload.auth)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao guardar subscrição")
+    return {"ok": True}
+
+@app.post("/api/push/unsubscribe", tags=["Push"])
+async def push_unsubscribe(payload: PushUnsubscribePayload, user=Depends(get_current_user_required)):
+    """Remove subscrição push do utilizador autenticado."""
+    uid = user.get("sub")
+    push_service.remover_subscricao(uid, payload.endpoint)
+    return {"ok": True}
+
 # --- Rotas para Projetos ---
 from services import projeto_service
 
