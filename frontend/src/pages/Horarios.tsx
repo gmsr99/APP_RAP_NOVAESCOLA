@@ -118,28 +118,53 @@ const EquipamentoView = ({ aulaId }: { aulaId: number }) => {
     queryKey: ['aula-equipamento', aulaId],
     queryFn: () => api.get(`/api/aulas/${aulaId}/equipamento`).then((r: any) => r.data ?? r),
   });
+  const [openCats, setOpenCats] = useState<Set<string>>(new Set());
+
   if (!data || data.length === 0) return <p className="text-sm">Nenhum</p>;
+
   const grouped = data.reduce<Record<string, typeof data>>((acc, item) => {
     const cat = item.categoria_nome;
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(item);
     return acc;
   }, {});
+
+  const toggleCat = (cat: string) =>
+    setOpenCats(prev => {
+      const next = new Set(prev);
+      next.has(cat) ? next.delete(cat) : next.add(cat);
+      return next;
+    });
+
   return (
     <div className="space-y-1">
-      {Object.entries(grouped).map(([cat, items]) => (
-        <div key={cat}>
-          <p className="text-xs font-medium text-muted-foreground">{cat}</p>
-          {items.map(item => (
-            <p key={item.id} className="text-sm">
-              {'\u2022'} {item.identificador || item.nome}
-              {item.estado && item.estado !== 'excelente' && (
-                <span className="text-xs text-warning ml-1">({item.estado})</span>
-              )}
-            </p>
-          ))}
-        </div>
-      ))}
+      {Object.entries(grouped).map(([cat, items]) => {
+        const isOpen = openCats.has(cat);
+        return (
+          <div key={cat} className="rounded-md border border-border/50 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleCat(cat)}
+              className="flex w-full items-center justify-between px-2.5 py-1.5 text-xs font-medium hover:bg-muted/50 transition-colors"
+            >
+              <span>{cat} <span className="text-muted-foreground font-normal">({items.length})</span></span>
+              <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {isOpen && (
+              <div className="border-t border-border/50 px-2.5 py-1.5 space-y-0.5">
+                {items.map(item => (
+                  <p key={item.id} className="text-xs">
+                    {'\u2022'} {item.identificador || item.nome}
+                    {item.estado && item.estado !== 'excelente' && (
+                      <span className="text-xs text-warning ml-1">({item.estado})</span>
+                    )}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 };
@@ -217,6 +242,8 @@ const Horarios = () => {
   const isAdmin = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
   const { user } = useAuth(); // Get current user
   const [filterMode, setFilterMode] = useState<'all' | 'mine'>(profile === 'mentor' ? 'mine' : 'all');
+  const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
+  const [filterMemberId, setFilterMemberId] = useState<string | null>(null);
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<'week' | 'month' | 'list'>('week');
@@ -365,6 +392,13 @@ const Horarios = () => {
     queryKey: ['projeto-estabs', selectedProjetoId],
     queryFn: () => api.get<Estabelecimento[]>(`/api/projetos/${selectedProjetoId}/estabelecimentos`),
     enabled: !!selectedProjetoId,
+  });
+
+  // Estabelecimentos do projeto selecionado no FILTRO (independente do form)
+  const { data: filterProjetoEstabs } = useQuery({
+    queryKey: ['projeto-estabs-filter', filterProjectId],
+    queryFn: () => api.get<Estabelecimento[]>(`/api/projetos/${filterProjectId}/estabelecimentos`),
+    enabled: !!filterProjectId,
   });
 
   // Turmas filtradas pelo estabelecimento selecionado (reactive query)
@@ -585,20 +619,36 @@ const Horarios = () => {
     paddingDays.push(day);
   }
 
-  const getSessionsForDay = (date: Date) => {
-    if (!aulasApi || !Array.isArray(aulasApi)) return [];
+  // Effective member id: 'mine' uses current user, explicit member filter uses that id
+  const effectiveMemberId = filterMode === 'mine' ? (user?.id ?? null) : filterMemberId;
 
-    let filtered = aulasApi.filter(a => isSameDay(new Date(a.data_hora), date));
-
-    // Filter by "My Classes"
-    if (filterMode === 'mine' && user) {
-      filtered = filtered.filter(a =>
-        a.mentor_user_id === user.id ||
-        (a.is_autonomous && a.responsavel_user_id === user.id)
+  const applyActiveFilters = (list: typeof aulasApi) => {
+    if (!list) return [];
+    let out = list;
+    if (effectiveMemberId) {
+      out = out.filter(a =>
+        a.mentor_user_id === effectiveMemberId ||
+        a.responsavel_user_id === effectiveMemberId
       );
     }
+    if (filterProjectId !== null) {
+      const estabIds = new Set((filterProjetoEstabs ?? []).map(e => e.id));
+      out = out.filter(a => {
+        if (a.turma_id) {
+          const turma = turmas?.find(t => t.id === a.turma_id);
+          if (turma) return estabIds.has(turma.estabelecimento_id);
+        }
+        // fallback para sessões autónomas sem turma
+        return a.projeto_id === filterProjectId;
+      });
+    }
+    return out;
+  };
 
-    return filtered;
+  const getSessionsForDay = (date: Date) => {
+    if (!aulasApi || !Array.isArray(aulasApi)) return [];
+    const forDay = aulasApi.filter(a => isSameDay(new Date(a.data_hora), date));
+    return applyActiveFilters(forDay);
   };
 
   // Navigation helpers
@@ -841,6 +891,21 @@ const Horarios = () => {
 
   const handleOpenEdit = async (session: AulaAPI) => {
     setEditingSession(session);
+
+    // Pre-populate projeto + estabelecimento cascading
+    if (session.projeto_id) {
+      setSelectedProjetoId(session.projeto_id);
+    } else {
+      setSelectedProjetoId(null);
+    }
+    if (session.turma_id && turmas) {
+      const turma = turmas.find(t => t.id === session.turma_id);
+      if (turma) setSelectedEstabId(turma.estabelecimento_id);
+      else setSelectedEstabId(null);
+    } else {
+      setSelectedEstabId(null);
+    }
+
     setFormData({
       turma_id: session.turma_id,
       duracao_minutos: session.duracao_minutos,
@@ -1714,20 +1779,67 @@ const Horarios = () => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="turma">Turma</Label>
+                      <Label htmlFor="edit-projeto">Projeto</Label>
                       <Select
-                        value={formData.turma_id ? String(formData.turma_id) : ''}
-                        onValueChange={(v) => setFormData({ ...formData, turma_id: Number(v) })}
+                        value={selectedProjetoId ? String(selectedProjetoId) : ''}
+                        onValueChange={(v) => {
+                          setSelectedProjetoId(Number(v));
+                          setSelectedEstabId(null);
+                          setFormData({ ...formData, turma_id: undefined, atividade_uuid: null });
+                          setSelectedDisciplinaId(null);
+                        }}
                       >
-                        <SelectTrigger id="turma">
-                          <SelectValue placeholder="Selecionar Turma" />
+                        <SelectTrigger id="edit-projeto">
+                          <SelectValue placeholder="Selecionar Projeto" />
                         </SelectTrigger>
                         <SelectContent className="bg-popover">
-                          {turmas?.map((t) => (
-                            <SelectItem key={t.id} value={String(t.id)}>{t.display_name}</SelectItem>
+                          {projetos?.map((p) => (
+                            <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="edit-estab">Estabelecimento</Label>
+                        <Select
+                          disabled={!selectedProjetoId}
+                          value={selectedEstabId ? String(selectedEstabId) : ''}
+                          onValueChange={(v) => {
+                            setSelectedEstabId(Number(v));
+                            setFormData({ ...formData, turma_id: undefined });
+                          }}
+                        >
+                          <SelectTrigger id="edit-estab">
+                            <SelectValue placeholder="Selecione..." />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            {projetoEstabs?.map((e) => (
+                              <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="turma">Turma</Label>
+                        <Select
+                          disabled={!selectedEstabId}
+                          value={formData.turma_id ? String(formData.turma_id) : ''}
+                          onValueChange={(v) => {
+                            setFormData({ ...formData, turma_id: Number(v), atividade_uuid: null });
+                            setSelectedDisciplinaId(null);
+                          }}
+                        >
+                          <SelectTrigger id="turma">
+                            <SelectValue placeholder="Selecione..." />
+                          </SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            {(selectedEstabId ? filteredTurmas : turmas)?.map((t) => (
+                              <SelectItem key={t.id} value={String(t.id)}>{t.display_name ?? t.nome}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="mentor">Mentor</Label>
@@ -1754,6 +1866,87 @@ const Horarios = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
+                        <Label htmlFor="disciplina">Disciplina</Label>
+                        <Select
+                          value={selectedDisciplinaId ? String(selectedDisciplinaId) : ''}
+                          onValueChange={(v) => {
+                            setSelectedDisciplinaId(Number(v));
+                            setFormData({ ...formData, atividade_uuid: null });
+                          }}
+                        >
+                          <SelectTrigger id="disciplina">
+                            <SelectValue placeholder="Selecione..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {turmaDisciplinas?.map((d: any) => (
+                              <SelectItem key={d.id} value={String(d.id)}>{d.nome}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="atividade">Atividade</Label>
+                        <Select
+                          disabled={!selectedDisciplinaId || !formData.mentor_id}
+                          value={formData.atividade_uuid || ''}
+                          onValueChange={(v) => setFormData({ ...formData, atividade_uuid: v, codigo_sessao: null, sumario: null, objetivos: null })}
+                        >
+                          <SelectTrigger id="atividade">
+                            <SelectValue placeholder={!formData.mentor_id ? 'Selecione mentor...' : 'Selecione...'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableActivities.map((algo: any) => (
+                              <SelectItem key={algo.uuid} value={algo.uuid}>{algo.nome}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Código de Sessão */}
+                    {formData.atividade_uuid && selectedMentorPerfil && (
+                      <div className="space-y-2">
+                        <Label htmlFor="codigo-sessao">Código de Sessão</Label>
+                        <Select
+                          value={formData.codigo_sessao || ''}
+                          onValueChange={(v) => {
+                            const cod = codigosSessao.find(c => c.codigo === v);
+                            setFormData({
+                              ...formData,
+                              codigo_sessao: v,
+                              sumario: cod?.sumario ?? '',
+                              objetivos: cod?.objetivo ?? '',
+                            });
+                          }}
+                        >
+                          <SelectTrigger id="codigo-sessao">
+                            <SelectValue placeholder={codigosSessao.length === 0 ? 'Sem códigos para esta disciplina' : 'Selecione o tema da sessão...'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {codigosSessao.map(c => (
+                              <SelectItem key={c.codigo} value={c.codigo}>{c.codigo}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+
+                    {/* Preview sumário + objetivos */}
+                    {selectedCodigoPreview && (
+                      <div className="rounded-md border border-border bg-muted/40 p-3 space-y-2 text-sm">
+                        <div>
+                          <p className="font-medium text-muted-foreground mb-1">Sumário</p>
+                          <p className="text-foreground">{selectedCodigoPreview.sumario}</p>
+                        </div>
+                        <div>
+                          <p className="font-medium text-muted-foreground mb-1">Objetivos</p>
+                          <p className="text-foreground whitespace-pre-line">{selectedCodigoPreview.objetivo}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
                         <Label htmlFor="location">Local</Label>
                         <Input
                           id="location"
@@ -1772,6 +1965,75 @@ const Horarios = () => {
                           onChange={(e) => setFormData({ ...formData, tema: e.target.value })}
                         />
                       </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="equipamento">Kit de Material</Label>
+                      <Select
+                        value={selectedKitCatId}
+                        onValueChange={(v) => {
+                          setSelectedKitCatId(v);
+                          setKitItemsOpen(false);
+                          if (v === 'none' || !v) {
+                            setCheckedItemIds(new Set());
+                          } else {
+                            const cat = kitCategorias?.find(c => String(c.id) === v);
+                            if (cat) setCheckedItemIds(new Set(cat.itens.filter(i => i.estado !== 'indisponivel' && i.estado !== 'em_manutencao').map(i => i.id)));
+                          }
+                        }}
+                      >
+                        <SelectTrigger id="equipamento">
+                          <SelectValue placeholder="Selecione kit..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Nenhum</SelectItem>
+                          {kitCategorias?.map(cat => (
+                            <SelectItem key={cat.id} value={String(cat.id)}>{cat.nome}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedKitCatId && selectedKitCatId !== 'none' && (() => {
+                        const cat = kitCategorias?.find(c => String(c.id) === selectedKitCatId);
+                        if (!cat) return null;
+                        return (
+                          <div className="rounded-md border border-border">
+                            <button
+                              type="button"
+                              onClick={() => setKitItemsOpen(o => !o)}
+                              className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium hover:bg-muted/50 transition-colors"
+                            >
+                              <span>Lista de Itens ({checkedItemIds.size}/{cat.itens.length})</span>
+                              <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${kitItemsOpen ? 'rotate-180' : ''}`} />
+                            </button>
+                            {kitItemsOpen && (
+                              <div className="space-y-1.5 border-t border-border px-3 py-2">
+                                {cat.itens.map(item => {
+                                  const isUnavailable = item.estado === 'indisponivel' || item.estado === 'em_manutencao';
+                                  return (
+                                    <label key={item.id} className={`flex items-center gap-2 text-sm cursor-pointer ${isUnavailable ? 'opacity-50' : ''}`}>
+                                      <input
+                                        type="checkbox"
+                                        checked={checkedItemIds.has(item.id)}
+                                        disabled={isUnavailable}
+                                        onChange={() => {
+                                          setCheckedItemIds(prev => {
+                                            const next = new Set(prev);
+                                            if (next.has(item.id)) next.delete(item.id);
+                                            else next.add(item.id);
+                                            return next;
+                                          });
+                                        }}
+                                        className="rounded border-border"
+                                      />
+                                      {item.identificador || item.nome}
+                                      {isUnavailable && <span className="text-xs text-destructive ml-1">({item.estado})</span>}
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="obs">Observações</Label>
@@ -1812,16 +2074,17 @@ const Horarios = () => {
       </div>
 
       {/* Filter Controls */}
-      <div className="flex items-center gap-2 mb-4">
-        <span className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="text-sm font-medium text-muted-foreground flex items-center gap-1 shrink-0">
           <Filter className="h-4 w-4" />
           Filtro:
         </span>
-        <div className="flex items-center rounded-md border border-input bg-transparent p-1">
+        {/* Todas / Minhas */}
+        <div className="flex items-center rounded-md border border-input bg-transparent p-1 shrink-0">
           <Button
-            variant={filterMode === 'all' ? 'secondary' : 'ghost'}
+            variant={filterMode === 'all' && !filterMemberId ? 'secondary' : 'ghost'}
             size="sm"
-            onClick={() => setFilterMode('all')}
+            onClick={() => { setFilterMode('all'); setFilterMemberId(null); }}
             className="h-7 text-xs"
           >
             Todas as Aulas
@@ -1829,12 +2092,49 @@ const Horarios = () => {
           <Button
             variant={filterMode === 'mine' ? 'secondary' : 'ghost'}
             size="sm"
-            onClick={() => setFilterMode('mine')}
+            onClick={() => { setFilterMode('mine'); setFilterMemberId(null); }}
             className="h-7 text-xs"
           >
             Minhas Aulas
           </Button>
         </div>
+        {/* Projeto */}
+        <Select
+          value={filterProjectId !== null ? String(filterProjectId) : 'all'}
+          onValueChange={(v) => setFilterProjectId(v === 'all' ? null : Number(v))}
+        >
+          <SelectTrigger className="h-8 text-xs w-auto min-w-[150px] max-w-[200px]">
+            <SelectValue placeholder="Todos os Projetos" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os Projetos</SelectItem>
+            {projetos?.map((p) => (
+              <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {/* Membro da Equipa */}
+        <Select
+          value={filterMemberId ?? 'all'}
+          onValueChange={(v) => {
+            if (v === 'all') {
+              setFilterMemberId(null);
+            } else {
+              setFilterMemberId(v);
+              setFilterMode('all');
+            }
+          }}
+        >
+          <SelectTrigger className="h-8 text-xs w-auto min-w-[150px] max-w-[200px]">
+            <SelectValue placeholder="Todos os Membros" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos os Membros</SelectItem>
+            {equipa?.map((p) => (
+              <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* View Controls */}
@@ -2151,7 +2451,7 @@ const Horarios = () => {
       {
         viewMode === 'list' && (
           <div className="space-y-3">
-            {aulasApi && Array.isArray(aulasApi) && aulasApi
+            {aulasApi && Array.isArray(aulasApi) && applyActiveFilters(aulasApi)
               .filter(a => {
                 const d = new Date(a.data_hora);
                 return d >= weekStart && d <= weekEnd;
