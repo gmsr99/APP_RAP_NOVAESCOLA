@@ -1942,8 +1942,8 @@ const Horarios = () => {
         </div>
       )}
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4">
+      {/* Legend — desktop only (no mobile aparece abaixo do calendário) */}
+      <div className="hidden sm:flex flex-wrap gap-4">
         {Object.entries(statusLabels).map(([status, label]) => (
           <div key={status} className="flex items-center gap-2">
             <div className={cn('w-3 h-3 rounded-full', statusDots[status as SessionStatus])} />
@@ -2204,6 +2204,24 @@ const Horarios = () => {
           </div>
         )
       }
+
+      {/* Legend — mobile only (abaixo do calendário) */}
+      <div className="sm:hidden flex flex-wrap gap-3 pt-1">
+        {Object.entries(statusLabels).map(([status, label]) => (
+          <div key={status} className="flex items-center gap-1.5">
+            <div className={cn('w-2.5 h-2.5 rounded-full', statusDots[status as SessionStatus])} />
+            <span className="text-xs text-muted-foreground">{label}</span>
+          </div>
+        ))}
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-sm border border-dashed border-muted-foreground/60 bg-muted/50" />
+          <span className="text-xs text-muted-foreground">Trabalho Planeado</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-sm border border-[#4EA380] bg-[#4EA380]/20" />
+          <span className="text-xs text-muted-foreground">Trabalho Realizado</span>
+        </div>
+      </div>
 
       {/* DETAIL VIEW MODAL */}
       <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>

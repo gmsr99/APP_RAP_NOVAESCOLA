@@ -121,15 +121,15 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  'gravação': 'bg-blue-100 text-blue-700',
-  'edição': 'bg-blue-100 text-blue-700',
-  'pool_mistura': 'bg-purple-100 text-purple-700',
-  'mistura_wip': 'bg-purple-100 text-purple-700',
-  'pool_feedback': 'bg-orange-100 text-orange-700',
-  'feedback_wip': 'bg-orange-100 text-orange-700',
-  'pool_finalização': 'bg-pink-100 text-pink-700',
-  'finalização_wip': 'bg-pink-100 text-pink-700',
-  'concluído': 'bg-green-100 text-green-700',
+  'gravação':         'bg-[#3399cd]/15 text-[#3399cd]',
+  'edição':           'bg-[#3399cd]/15 text-[#3399cd]',
+  'pool_mistura':     'bg-[#6B7280]/20 text-[#9CA3AF]',
+  'mistura_wip':      'bg-[#3399cd]/25 text-[#5bb5e0]',
+  'pool_feedback':    'bg-[#A35339]/15 text-[#c4845a]',
+  'feedback_wip':     'bg-[#A35339]/25 text-[#d49070]',
+  'pool_finalização': 'bg-[#4EA380]/15 text-[#4EA380]',
+  'finalização_wip':  'bg-[#4EA380]/25 text-[#6ec49e]',
+  'concluído':        'bg-[#4EA380]/30 text-[#4EA380]',
 };
 
 const ACTION_LABELS: Record<string, string> = {

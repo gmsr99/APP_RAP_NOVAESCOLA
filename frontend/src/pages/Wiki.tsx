@@ -725,27 +725,27 @@ const Wiki = () => {
               )}
             </div>
           ) : (
-            <Accordion type="multiple" className="w-full">
+            <Accordion type="multiple" className="w-full space-y-2">
               {wikiHierarquia.map((estab) => (
-                <AccordionItem key={`est-${estab.id}`} value={`est-${estab.id}`}>
-                  <div className="flex items-center">
-                    <AccordionTrigger className="hover:no-underline flex-1">
-                      <div className="flex items-center gap-3">
-                        <Building2 className="h-4 w-4 text-primary" />
-                        <span className="font-medium text-lg">{estab.nome}</span>
-                        {estab.sigla && <Badge variant="secondary" className="text-xs">{estab.sigla}</Badge>}
-                        <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
-                          {estab.turmas.length} turmas
-                        </span>
-                      </div>
-                    </AccordionTrigger>
+                <AccordionItem key={`est-${estab.id}`} value={`est-${estab.id}`} className="border rounded-lg px-3 border-b">
+                  {/* Nome — linha 1 */}
+                  <AccordionTrigger className="hover:no-underline py-3">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-primary shrink-0" />
+                      <span className="font-medium text-left">{estab.nome}</span>
+                    </div>
+                  </AccordionTrigger>
+                  {/* Badges + ações — linha 2 */}
+                  <div className="flex items-center gap-2 pb-3 flex-wrap -mt-1">
+                    {estab.sigla && <Badge variant="secondary" className="text-xs">{estab.sigla}</Badge>}
+                    <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">{estab.turmas.length} turmas</span>
                     {isCoordinator && (
-                      <div className="flex items-center gap-1 ml-1 shrink-0">
+                      <div className="flex gap-1 ml-auto">
                         <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => {
                           const e = estabelecimentos.find(x => x.id === estab.id);
                           if (e) openEditEstab(e);
                         }}>
-                          <Edit2 className="h-3 w-3" /> Editar Estabelecimento
+                          <Edit2 className="h-3 w-3" /> Editar
                         </Button>
                         <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openNewTurma(estab.id)}>
                           <Plus className="h-3 w-3" /> Nova Turma
@@ -754,7 +754,7 @@ const Wiki = () => {
                     )}
                   </div>
                   <AccordionContent>
-                    <div className="border-l-2 border-primary/20 pl-4 ml-2 space-y-2">
+                    <div className="space-y-2 pb-2">
                       {estab.turmas.length === 0 ? (
                         <div className="py-3 flex items-center gap-3">
                           <p className="text-sm text-muted-foreground italic">Nenhuma turma registada.</p>
@@ -765,32 +765,32 @@ const Wiki = () => {
                           )}
                         </div>
                       ) : (
-                        <Accordion type="multiple" className="w-full">
+                        <Accordion type="multiple" className="w-full space-y-1.5">
                           {estab.turmas.map((turma) => (
-                            <AccordionItem key={`turma-${turma.id}`} value={`turma-${turma.id}`}>
-                              <div className="flex items-center">
-                                <AccordionTrigger className="hover:no-underline flex-1">
-                                  <div className="flex items-center gap-3">
-                                    <Users className="h-4 w-4 text-muted-foreground" />
-                                    <span className="font-medium">{turma.nome}</span>
-                                    <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
-                                      {turma.disciplinas.length} disciplinas
-                                    </span>
-                                  </div>
-                                </AccordionTrigger>
+                            <AccordionItem key={`turma-${turma.id}`} value={`turma-${turma.id}`} className="border rounded-md px-3 border-b bg-muted/20">
+                              {/* Nome — linha 1 */}
+                              <AccordionTrigger className="hover:no-underline py-2.5">
+                                <div className="flex items-center gap-2">
+                                  <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+                                  <span className="font-medium text-left text-sm">{turma.nome}</span>
+                                </div>
+                              </AccordionTrigger>
+                              {/* Badges + ações — linha 2 */}
+                              <div className="flex items-center gap-2 pb-2.5 flex-wrap -mt-1">
+                                <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">{turma.disciplinas.length} disciplinas</span>
                                 {isCoordinator && (
-                                  <div className="flex items-center gap-1 ml-1 shrink-0">
-                                    <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openEditTurma(turma, estab.id)}>
-                                      <Edit2 className="h-3 w-3" /> Editar Turma
+                                  <div className="flex gap-1 ml-auto">
+                                    <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openEditTurma(turma, estab.id)}>
+                                      <Edit2 className="h-3 w-3" /> Editar
                                     </Button>
-                                    <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openNewDisciplina(turma.id)}>
+                                    <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openNewDisciplina(turma.id)}>
                                       <Plus className="h-3 w-3" /> Nova Disciplina
                                     </Button>
                                   </div>
                                 )}
                               </div>
                               <AccordionContent>
-                                <div className="border-l-2 border-blue-400/25 pl-4 ml-2 space-y-3">
+                                <div className="space-y-1.5 pb-2">
                                   {turma.disciplinas.length === 0 ? (
                                     <div className="py-3 flex items-center gap-3">
                                       <p className="text-sm text-muted-foreground italic">Nenhuma disciplina atribuída.</p>
@@ -801,28 +801,28 @@ const Wiki = () => {
                                       )}
                                     </div>
                                   ) : (
-                                    <Accordion type="multiple" className="w-full">
+                                    <Accordion type="multiple" className="w-full space-y-1">
                                       {turma.disciplinas.map((disc) => (
-                                        <AccordionItem key={`disc-${disc.id}`} value={`disc-${disc.id}`}>
-                                          <div className="flex items-center">
-                                            <AccordionTrigger className="hover:no-underline py-2 flex-1">
-                                              <div className="flex items-center gap-2">
-                                                <Book className="h-4 w-4 text-purple-500" />
-                                                <span className="font-medium">{disc.nome}</span>
-                                                {disc.musicas_previstas > 0 && (
-                                                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                                    <Music className="h-3 w-3" /> {disc.musicas_previstas}
-                                                  </span>
-                                                )}
-                                                <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">
-                                                  {disc.atividades.length} atividades
-                                                </span>
-                                              </div>
-                                            </AccordionTrigger>
+                                        <AccordionItem key={`disc-${disc.id}`} value={`disc-${disc.id}`} className="border rounded-md px-3 border-b bg-muted/10">
+                                          {/* Nome — linha 1 */}
+                                          <AccordionTrigger className="hover:no-underline py-2">
+                                            <div className="flex items-center gap-2">
+                                              <Book className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                                              <span className="font-medium text-left text-sm">{disc.nome}</span>
+                                            </div>
+                                          </AccordionTrigger>
+                                          {/* Badges + ações — linha 2 */}
+                                          <div className="flex items-center gap-2 pb-2 flex-wrap -mt-1">
+                                            {disc.musicas_previstas > 0 && (
+                                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                                <Music className="h-3 w-3" /> {disc.musicas_previstas} músicas
+                                              </span>
+                                            )}
+                                            <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">{disc.atividades.length} atividades</span>
                                             {isCoordinator && (
-                                              <div className="flex items-center gap-1 ml-1 shrink-0">
+                                              <div className="flex gap-1 ml-auto">
                                                 <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openEditDisciplina(disc)}>
-                                                  <Edit2 className="h-3 w-3" /> Editar Disciplina
+                                                  <Edit2 className="h-3 w-3" /> Editar
                                                 </Button>
                                                 <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openNewAtividade(disc.id)}>
                                                   <Plus className="h-3 w-3" /> Nova Atividade

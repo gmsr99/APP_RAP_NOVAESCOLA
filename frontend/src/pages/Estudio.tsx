@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { format, startOfWeek, addDays, isSameDay, addWeeks, subWeeks, parseISO } from 'date-fns';
+import { useState, useRef } from 'react';
+import { format, startOfWeek, addDays, subDays, isSameDay, addWeeks, subWeeks, parseISO } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { useProfile } from '@/contexts/ProfileContext';
 // import { users } from '@/data/mockData'; // Removed mock users
@@ -192,7 +192,81 @@ export default function Estudio() {
 
   const handlePreviousWeek = () => setCurrentWeekStart(subWeeks(currentWeekStart, 1));
   const handleNextWeek = () => setCurrentWeekStart(addWeeks(currentWeekStart, 1));
-  const handleToday = () => setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const handleToday = () => {
+    setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }));
+    setSelectedDay(new Date());
+  };
+
+  // Mobile: dia único com swipe carrossel
+  const [selectedDay, setSelectedDay] = useState(new Date());
+  const [dragX, setDragX] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const swipeTouchStartX = useRef<number | null>(null);
+  const swipeTouchStartY = useRef<number | null>(null);
+  const swipeDirection = useRef<'horizontal' | 'vertical' | null>(null);
+
+  const handlePrevDay = () => setSelectedDay(prev => subDays(prev, 1));
+  const handleNextDay = () => setSelectedDay(prev => addDays(prev, 1));
+
+  const handleSwipeTouchStart = (e: React.TouchEvent) => {
+    if (isAnimating) return;
+    swipeTouchStartX.current = e.touches[0].clientX;
+    swipeTouchStartY.current = e.touches[0].clientY;
+    swipeDirection.current = null;
+  };
+
+  const handleSwipeTouchMove = (e: React.TouchEvent) => {
+    if (swipeTouchStartX.current === null || swipeTouchStartY.current === null || isAnimating) return;
+    const dx = e.touches[0].clientX - swipeTouchStartX.current;
+    const dy = e.touches[0].clientY - swipeTouchStartY.current;
+    // Determina direção na primeira vez que o movimento é significativo
+    if (swipeDirection.current === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+      swipeDirection.current = Math.abs(dx) >= Math.abs(dy) ? 'horizontal' : 'vertical';
+    }
+    if (swipeDirection.current !== 'horizontal') return;
+    setDragX(dx);
+  };
+
+  const handleSwipeTouchEnd = (e: React.TouchEvent) => {
+    const startX = swipeTouchStartX.current;
+    const wasHorizontal = swipeDirection.current === 'horizontal';
+    swipeTouchStartX.current = null;
+    swipeTouchStartY.current = null;
+    swipeDirection.current = null;
+
+    if (!wasHorizontal || startX === null || isAnimating) {
+      if (dragX !== 0) { setIsAnimating(true); setDragX(0); setTimeout(() => setIsAnimating(false), 250); }
+      return;
+    }
+
+    const delta = e.changedTouches[0].clientX - startX;
+    const vw = window.innerWidth;
+
+    if (Math.abs(delta) < 50) {
+      setIsAnimating(true);
+      setDragX(0);
+      setTimeout(() => setIsAnimating(false), 250);
+      return;
+    }
+
+    const goNext = delta < 0;
+    setIsAnimating(true);
+    setDragX(goNext ? -vw : vw);
+
+    setTimeout(() => {
+      setIsAnimating(false);
+      setDragX(goNext ? vw : -vw);
+      if (goNext) setSelectedDay(prev => addDays(prev, 1));
+      else setSelectedDay(prev => subDays(prev, 1));
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setIsAnimating(true);
+          setDragX(0);
+          setTimeout(() => setIsAnimating(false), 250);
+        });
+      });
+    }, 250);
+  };
 
   const openNewBookingDialog = (date: Date) => {
     setSelectedDate(date);
@@ -264,6 +338,55 @@ export default function Estudio() {
 
   const getBookingTypeInfo = (type: StudioBooking['type']) => {
     return bookingTypes.find(t => t.value === type) || bookingTypes[4];
+  };
+
+  /** Renderiza os eventos posicionados de um dia (reutilizado em desktop e mobile). */
+  const renderDayBookings = (day: Date) => {
+    const dayBookings = getBookingsForDay(day);
+    const eventsForLayout = dayBookings.map(booking => {
+      const [startHour, startMinute] = booking.startTime.split(':').map(Number);
+      const [endHour, endMinute] = booking.endTime.split(':').map(Number);
+      const start = setMinutes(setHours(new Date(day), startHour), startMinute);
+      const end = setMinutes(setHours(new Date(day), endHour), endMinute);
+      return { ...booking, start, end };
+    });
+    const layoutEvents = computeEventLayout(eventsForLayout);
+
+    if (layoutEvents.length === 0) {
+      return (
+        <p className="text-xs text-muted-foreground text-center py-4 relative z-10">
+          Disponível
+        </p>
+      );
+    }
+
+    return layoutEvents.map((booking) => {
+      const typeInfo = getBookingTypeInfo(booking.type);
+      return (
+        <button
+          key={booking.id}
+          style={{
+            top: booking.top,
+            height: booking.height,
+            left: booking.left,
+            width: booking.width,
+            position: 'absolute',
+            zIndex: booking.zIndex || 10,
+          }}
+          onClick={() => openBookingDetails(booking)}
+          className={cn(
+            'block text-left p-1 rounded-sm text-[10px] leading-tight transition-colors border overflow-hidden flex flex-col',
+            'bg-card hover:bg-secondary border-border',
+            typeInfo.color.replace('bg-', 'border-l-4 border-')
+          )}
+          title={`${booking.startTime} - ${booking.endTime} | ${booking.artist}`}
+        >
+          <div className="font-bold text-xs truncate">{booking.startTime}</div>
+          <div className="font-medium truncate">{booking.artist}</div>
+          <div className="text-muted-foreground truncate opacity-80">{booking.project}</div>
+        </button>
+      );
+    });
   };
 
   return (
@@ -428,8 +551,8 @@ export default function Estudio() {
         </Dialog>
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3">
+      {/* Legend — desktop only */}
+      <div className="hidden sm:flex flex-wrap gap-3">
         {bookingTypes.map(type => (
           <div key={type.value} className="flex items-center gap-2">
             <div className={cn('w-3 h-3 rounded-full', type.color)} />
@@ -443,44 +566,84 @@ export default function Estudio() {
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="icon" onClick={handlePreviousWeek}>
+              {/* Mobile: navega por dia */}
+              <Button variant="outline" size="icon" onClick={handlePrevDay} className="sm:hidden">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" onClick={handleToday}>
-                Hoje
+              {/* Desktop: navega por semana */}
+              <Button variant="outline" size="icon" onClick={handlePreviousWeek} className="hidden sm:flex">
+                <ChevronLeft className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon" onClick={handleNextWeek}>
+              <Button variant="outline" size="sm" onClick={handleToday}>Hoje</Button>
+              {/* Mobile */}
+              <Button variant="outline" size="icon" onClick={handleNextDay} className="sm:hidden">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              {/* Desktop */}
+              <Button variant="outline" size="icon" onClick={handleNextWeek} className="hidden sm:flex">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            <CardTitle className="text-lg">
-              {format(currentWeekStart, "d MMM", { locale: pt })} - {format(addDays(currentWeekStart, 6), "d MMM yyyy", { locale: pt })}
+            <CardTitle className="text-lg capitalize">
+              {/* Mobile: mostra dia selecionado */}
+              <span className="sm:hidden">{format(selectedDay, "EEE, d MMM", { locale: pt })}</span>
+              {/* Desktop: mostra intervalo da semana */}
+              <span className="hidden sm:inline">
+                {format(currentWeekStart, "d MMM", { locale: pt })} — {format(addDays(currentWeekStart, 6), "d MMM yyyy", { locale: pt })}
+              </span>
             </CardTitle>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-7 gap-2">
+          {/* ── Mobile: vista de dia único com swipe ── */}
+          <div
+            className="sm:hidden overflow-hidden"
+            style={{ touchAction: 'pan-y' }}
+            onTouchStart={handleSwipeTouchStart}
+            onTouchMove={handleSwipeTouchMove}
+            onTouchEnd={handleSwipeTouchEnd}
+          >
+            {/* Cartão animado */}
+            <div
+              style={{
+                transform: `translateX(${dragX}px)`,
+                transition: isAnimating ? 'transform 0.25s ease' : 'none',
+                willChange: 'transform',
+              }}
+            >
+              {/* Scroll vertical para ver todas as horas */}
+              <div className="h-[500px] overflow-y-auto">
+                <div
+                  className={cn(
+                    'h-[1000px] rounded-lg border flex flex-col',
+                    isSameDay(selectedDay, new Date()) ? 'border-primary bg-primary/5' : 'border-border'
+                  )}
+                >
+                  <div className="flex items-center justify-between p-2 flex-shrink-0 border-b border-border/50">
+                    <p className={cn('text-sm font-semibold', isSameDay(selectedDay, new Date()) && 'text-primary')}>
+                      {format(selectedDay, "EEEE, d 'de' MMMM", { locale: pt })}
+                    </p>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openNewBookingDialog(selectedDay)}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="relative flex-grow w-full overflow-hidden">
+                    <div className="absolute inset-0 pointer-events-none">
+                      {Array.from({ length: 24 }).map((_, i) => (
+                        <div key={i} className="border-t border-border/20 h-[4.16%] w-full box-border" />
+                      ))}
+                    </div>
+                    {renderDayBookings(selectedDay)}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Desktop: grelha semanal de 7 colunas ── */}
+          <div className="hidden sm:grid grid-cols-7 gap-2">
             {weekDays.map((day) => {
-              const dayBookings = getBookingsForDay(day);
               const isToday = isSameDay(day, new Date());
-
-              // Prepare for layout
-              const eventsForLayout = dayBookings.map(booking => {
-                const [startHour, startMinute] = booking.startTime.split(':').map(Number);
-                const [endHour, endMinute] = booking.endTime.split(':').map(Number);
-
-                const start = setMinutes(setHours(new Date(day), startHour), startMinute);
-                const end = setMinutes(setHours(new Date(day), endHour), endMinute);
-
-                return {
-                  ...booking,
-                  start,
-                  end
-                };
-              });
-
-              const layoutEvents = computeEventLayout(eventsForLayout);
-
               return (
                 <div
                   key={day.toISOString()}
@@ -494,66 +657,21 @@ export default function Estudio() {
                       <p className="text-xs text-muted-foreground uppercase">
                         {format(day, 'EEE', { locale: pt })}
                       </p>
-                      <p className={cn(
-                        'text-lg font-semibold',
-                        isToday && 'text-primary'
-                      )}>
+                      <p className={cn('text-lg font-semibold', isToday && 'text-primary')}>
                         {format(day, 'd')}
                       </p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={() => openNewBookingDialog(day)}
-                    >
+                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => openNewBookingDialog(day)}>
                       <Plus className="h-3 w-3" />
                     </Button>
                   </div>
-
                   <div className="relative flex-grow w-full overflow-hidden border-t border-border/50">
-                    {/* Grid lines for hours */}
                     <div className="absolute inset-0 pointer-events-none">
                       {Array.from({ length: 24 }).map((_, i) => (
                         <div key={i} className="border-t border-border/20 h-[4.16%] w-full box-border" />
                       ))}
                     </div>
-
-                    {layoutEvents.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-4 relative z-10">
-                        Disponível
-                      </p>
-                    ) : (
-                      layoutEvents.map((booking) => {
-                        const typeInfo = getBookingTypeInfo(booking.type);
-                        return (
-                          <button
-                            key={booking.id}
-                            style={{
-                              top: booking.top,
-                              height: booking.height,
-                              left: booking.left,
-                              width: booking.width,
-                              position: 'absolute',
-                              zIndex: booking.zIndex || 10
-                            }}
-                            onClick={() => openBookingDetails(booking)}
-                            className={cn(
-                              'block text-left p-1 rounded-sm text-[10px] leading-tight transition-colors border overflow-hidden flex flex-col',
-                              'bg-card hover:bg-secondary border-border',
-                              typeInfo.color.replace('bg-', 'border-l-4 border-') // Use color as border accent
-                            )}
-                            title={`${booking.startTime} - ${booking.endTime} | ${booking.artist}`}
-                          >
-                            <div className="font-bold text-xs truncate">
-                              {booking.startTime}
-                            </div>
-                            <div className="font-medium truncate">{booking.artist}</div>
-                            <div className="text-muted-foreground truncate opacity-80">{booking.project}</div>
-                          </button>
-                        );
-                      })
-                    )}
+                    {renderDayBookings(day)}
                   </div>
                 </div>
               );
@@ -561,6 +679,16 @@ export default function Estudio() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Legend — mobile only (abaixo do calendário) */}
+      <div className="sm:hidden flex flex-wrap gap-3">
+        {bookingTypes.map(type => (
+          <div key={type.value} className="flex items-center gap-1.5">
+            <div className={cn('w-2.5 h-2.5 rounded-full', type.color)} />
+            <span className="text-xs text-muted-foreground">{type.label}</span>
+          </div>
+        ))}
+      </div>
 
       {/* Today's Schedule */}
       <Card>
