@@ -6,11 +6,12 @@
 const CACHE_NAME = 'rnebpm-v1';
 
 self.addEventListener('install', () => {
-  self.skipWaiting();
+  // Não chamar skipWaiting() nem clients.claim() — causam ecrã branco em iOS
+  // O SW ativa automaticamente na primeira instalação (sem SW anterior)
 });
 
-self.addEventListener('activate', (event) => {
-  event.waitUntil(clients.claim());
+self.addEventListener('activate', () => {
+  // Não reclama clientes existentes para evitar reload forçado em iOS
 });
 
 // ---------------------------------------------------------------------------
