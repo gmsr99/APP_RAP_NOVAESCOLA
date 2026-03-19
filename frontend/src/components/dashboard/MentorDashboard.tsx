@@ -181,7 +181,7 @@ export function MentorDashboard() {
         </h1>
         <p className="text-muted-foreground mt-1">
           {pendingSessions.length > 0
-            ? `Tens ${pendingSessions.length} sessão${pendingSessions.length > 1 ? 'ões' : ''} por confirmar.`
+            ? `Tens ${pendingSessions.length} ${pendingSessions.length === 1 ? 'sessão' : 'sessões'} por confirmar.`
             : 'Todas as tuas sessões estão confirmadas.'
           }
         </p>

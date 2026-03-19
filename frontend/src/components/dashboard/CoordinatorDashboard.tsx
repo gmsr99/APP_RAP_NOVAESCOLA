@@ -244,7 +244,7 @@ export function CoordinatorDashboard() {
             </div>
             <div>
               <p className="font-medium text-sm" style={{ color: '#4ac9d7' }}>
-                {pendingSessions.length} sessão{pendingSessions.length > 1 ? 'ões' : ''} por confirmar
+                {pendingSessions.length} {pendingSessions.length === 1 ? 'sessão' : 'sessões'} por confirmar
               </p>
               <p className="text-xs text-muted-foreground">Aguardam resposta dos mentores</p>
             </div>
@@ -260,7 +260,7 @@ export function CoordinatorDashboard() {
         <div className="flex items-center justify-between px-5 pt-5 pb-3">
           <div>
             <h2 className="font-semibold">Sessões de Hoje</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">{todaySessions.length} sessão{todaySessions.length !== 1 ? 'ões' : ''} agendada{todaySessions.length !== 1 ? 's' : ''}</p>
+            <p className="text-xs text-muted-foreground mt-0.5">{todaySessions.length} {todaySessions.length === 1 ? 'sessão' : 'sessões'} agendada{todaySessions.length !== 1 ? 's' : ''}</p>
           </div>
           <Button variant="ghost" size="sm" asChild>
             <Link to="/horarios">
