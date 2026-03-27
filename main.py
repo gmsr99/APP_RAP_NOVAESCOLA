@@ -1570,17 +1570,20 @@ async def chatbot(payload: ChatbotRequest, _user=Depends(get_current_user_requir
 
     contents.append(_genai_types.Content(role="user", parts=[_genai_types.Part(text=msgs[-1].content)]))
 
-    client = _genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-    response = client.models.generate_content(
-        model="gemini-2.0-flash-001",
-        contents=contents,
-        config=_genai_types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            max_output_tokens=1000,
-        ),
-    )
-
-    return {"role": "assistant", "content": response.text}
+    try:
+        client = _genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=contents,
+            config=_genai_types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                max_output_tokens=1000,
+            ),
+        )
+        return {"role": "assistant", "content": response.text}
+    except Exception as exc:
+        _chatbot_logger.error(f"Erro Gemini no chatbot: {exc}")
+        raise HTTPException(status_code=502, detail="Erro ao comunicar com o modelo AI.")
 
 
 # -----------------------------------------------------------------------------
