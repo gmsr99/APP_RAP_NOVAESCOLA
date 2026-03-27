@@ -77,5 +77,17 @@ httpx==0.28.1
 # AI Agent (Gemini)
 google-genai>=1.0.0
 
+# Google Drive API (sync da knowledge base)
+google-api-python-client>=2.100.0
+google-auth>=2.20.0
+
+# Extração de texto de documentos
+pypdf>=3.0.0
+python-docx>=0.8.11
+
+# Scheduler para cron jobs (sync diário da Drive)
+apscheduler>=3.10.0
+pytz>=2023.3
+
 # Web Push Notifications (VAPID)
 pywebpush>=2.0.0

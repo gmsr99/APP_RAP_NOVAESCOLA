@@ -7,12 +7,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
-import { BarChart3, Clock, Music, Star, MessageSquare, Building2, Calendar, Layers } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { BarChart3, Clock, Music, Star, MessageSquare, Building2, Calendar, Layers, FileSpreadsheet, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { Bar, BarChart, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell, Tooltip, Legend } from 'recharts';
-import { Users } from 'lucide-react';
+import { useProfile } from '@/contexts/ProfileContext';
+import { ExportAtividadesModal } from '@/components/ExportAtividadesModal';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -66,10 +68,14 @@ interface FeedbackItem {
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function Estatisticas() {
+  const { profile } = useProfile();
+  const canExport = profile === 'direcao' || profile === 'it_support';
+
   const [selectedProjetoId, setSelectedProjetoId] = useState<string>('');
   const [mentorFilter, setMentorFilter] = useState('all');
   const [disciplinaFilter, setDisciplinaFilter] = useState('all');
   const [instituicaoFilter, setInstituicaoFilter] = useState('all');
+  const [exportOpen, setExportOpen] = useState(false);
 
   // ─── Queries ────────────────────────────────────────────────────────────────
 
@@ -222,8 +228,31 @@ export default function Estatisticas() {
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <BarChart3 className="h-6 w-6" /> Estatísticas
         </h1>
-        <ProjetoSelect projetos={projetos} value={selectedProjetoId} onChange={setSelectedProjetoId} />
+        <div className="flex items-center gap-2 flex-wrap">
+          {canExport && projetoId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExportOpen(true)}
+              className="gap-2 text-green-600 border-green-600/40 hover:bg-green-50 dark:hover:bg-green-950/30"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              Exportar Dados
+            </Button>
+          )}
+          <ProjetoSelect projetos={projetos} value={selectedProjetoId} onChange={setSelectedProjetoId} />
+        </div>
       </div>
+
+      {/* Modal de Export */}
+      {canExport && (
+        <ExportAtividadesModal
+          open={exportOpen}
+          onOpenChange={setExportOpen}
+          projetoId={projetoId}
+          projetoNome={projetos.find(p => p.id === projetoId)?.nome ?? ''}
+        />
+      )}
 
       {/* KPI Cards */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">

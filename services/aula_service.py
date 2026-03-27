@@ -4,7 +4,7 @@ Serviço de aulas migrado para SQLModel.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Union
 
 from sqlmodel import Session, select
@@ -1020,6 +1020,107 @@ def listar_feedback_sessoes(projeto_id=None):
             cur.close()
         if 'conn' in locals() and conn:
             conn.close()
+
+
+def listar_aulas_export(
+    projeto_id: int,
+    tipo_sessao: str = "todas",
+    estados: list = None,
+) -> list:
+    """
+    Exporta atividades/sessões de um projeto com filtros.
+    tipo_sessao: 'todas' | 'presenciais' | 'autonomas'
+    estados: lista de estados, e.g. ['terminada', 'confirmada']. None = todos.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        conditions = ["a.projeto_id = %s"]
+        params: list = [projeto_id]
+
+        if tipo_sessao == "presenciais":
+            conditions.append("a.is_autonomous = FALSE")
+        elif tipo_sessao == "autonomas":
+            conditions.append("a.is_autonomous = TRUE")
+
+        if estados:
+            placeholders = ", ".join(["%s"] * len(estados))
+            conditions.append(f"a.estado IN ({placeholders})")
+            params.extend(estados)
+
+        where = "WHERE " + " AND ".join(conditions)
+
+        cur.execute(f"""
+            SELECT
+                a.id,
+                a.codigo_sessao,
+                a.data_hora,
+                a.duracao_minutos,
+                a.tipo,
+                a.estado,
+                a.is_autonomous,
+                a.is_realized,
+                a.tipo_atividade,
+                a.tema,
+                a.local,
+                a.objetivos,
+                a.sumario,
+                a.observacoes,
+                a.avaliacao,
+                a.obs_termino,
+                a.criado_em,
+                t.nome         AS turma_nome,
+                e.nome         AS estabelecimento_nome,
+                e.sigla        AS estabelecimento_sigla,
+                m.nome         AS mentor_nome,
+                pr.nome        AS projeto_nome,
+                resp.full_name AS responsavel_nome
+            FROM aulas a
+            LEFT JOIN turmas t         ON a.turma_id = t.id
+            LEFT JOIN estabelecimentos e ON t.estabelecimento_id = e.id
+            LEFT JOIN mentores m       ON a.mentor_id = m.id
+            LEFT JOIN projetos pr      ON a.projeto_id = pr.id
+            LEFT JOIN profiles resp    ON a.responsavel_user_id = resp.id::text
+            {where}
+            ORDER BY a.data_hora ASC
+        """, params)
+
+        rows = cur.fetchall()
+        cols = [desc[0] for desc in cur.description]
+        result = []
+        for row in rows:
+            d = dict(zip(cols, row))
+            # Determinar o responsável: mentor para presenciais, responsavel para autónomas
+            if d.get("is_autonomous"):
+                d["colaborador"] = d.get("responsavel_nome") or ""
+            else:
+                d["colaborador"] = d.get("mentor_nome") or ""
+            # Calcular hora início / fim
+            data_hora = d.get("data_hora")
+            duracao = d.get("duracao_minutos") or 0
+            if data_hora:
+                if not isinstance(data_hora, datetime):
+                    data_hora = datetime.fromisoformat(str(data_hora))
+                d["hora_inicio"] = data_hora.strftime("%H:%M")
+                d["hora_fim"] = (data_hora + timedelta(minutes=duracao)).strftime("%H:%M")
+                d["data_fmt"] = data_hora.strftime("%d/%m/%Y")
+                d["data_hora_iso"] = data_hora.isoformat()
+            else:
+                d["hora_inicio"] = ""
+                d["hora_fim"] = ""
+                d["data_fmt"] = ""
+                d["data_hora_iso"] = ""
+            d["duracao_horas"] = round(duracao / 60, 2) if duracao else 0
+            result.append(d)
+
+        cur.close()
+        conn.close()
+        return result
+
+    except Exception as e:
+        logger.error(f"Erro ao exportar aulas: {e}")
+        return []
 
 
 def apagar_aula(aula_id):

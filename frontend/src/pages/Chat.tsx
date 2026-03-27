@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { api } from '@/lib/api';
@@ -19,6 +20,7 @@ import type { ChatMessage, ChatChannelWithMeta, PublicProfile } from '@/types';
 export default function Chat() {
   const { user } = useAuth();
   const userId = user?.id;
+  const navigate = useNavigate();
 
   const [channels, setChannels] = useState<ChatChannelWithMeta[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string | null>(null);
@@ -419,7 +421,7 @@ export default function Chat() {
                 </span>
               </div>
               <button
-                onClick={() => window.open('https://chat-nova-escola-bice.vercel.app/', '_blank', 'noopener,noreferrer')}
+                onClick={() => navigate('/chatbot')}
                 className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
               >
                 <Avatar className="h-5 w-5">

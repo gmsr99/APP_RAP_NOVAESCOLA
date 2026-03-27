@@ -31,6 +31,8 @@ frontend/node_modules/
 
 # Local secrets / artifacts
 slack_webhook_url
+service_account.json
+KNOWLEDGE_BASE.md
 
 # Backups
 z_BackUP (não mexer)/

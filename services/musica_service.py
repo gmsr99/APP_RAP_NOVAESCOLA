@@ -1,5 +1,6 @@
 import sys
 import os
+from datetime import date, timedelta
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -7,6 +8,48 @@ from database.connection import get_db_connection
 import logging
 
 logger = logging.getLogger(__name__)
+
+# Dias de deadline automática por fase (apenas estados com responsável atribuído)
+FASE_DEADLINES_DIAS = {
+    'gravação': 3,
+    'edição': 2,
+    'mistura_wip': 3,
+    'feedback_wip': 2,
+    'finalização_wip': 3,
+}
+
+def _calcular_fase_deadline(estado: str):
+    """Retorna a data de deadline para o estado, ou None se for pool."""
+    dias = FASE_DEADLINES_DIAS.get(estado)
+    if dias is None:
+        return None
+    return date.today() + timedelta(days=dias)
+
+def _buscar_users_por_roles(roles: list) -> list:
+    """Retorna lista de user_id com os roles indicados."""
+    conn = None
+    cur = None
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        placeholders = ','.join(['%s'] * len(roles))
+        cur.execute(f"SELECT id FROM profiles WHERE role IN ({placeholders})", roles)
+        return [str(row[0]) for row in cur.fetchall()]
+    except Exception as e:
+        logger.error("Erro ao buscar users por role: %s", e)
+        return []
+    finally:
+        if cur: cur.close()
+        if conn: conn.close()
+
+def _notificar_users(user_ids: list, tipo: str, titulo: str, mensagem: str, link: str = '/producao'):
+    """Envia notificação in-app + push a uma lista de utilizadores."""
+    try:
+        from services.notification_service import criar_notificacao
+        for uid in user_ids:
+            criar_notificacao(uid, tipo, titulo, mensagem, link)
+    except Exception as e:
+        logger.warning("Erro ao notificar users: %s", e)
 
 def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None):
     """
@@ -48,7 +91,8 @@ def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None):
                 m.finalizado_por_id, p_fin.full_name as finalizado_por_nome,
                 m.deadline,
                 m.notas,
-                m.projeto_id
+                m.projeto_id,
+                m.fase_deadline
             FROM musicas m
             LEFT JOIN turmas t ON m.turma_id = t.id
             LEFT JOIN estabelecimentos e ON t.estabelecimento_id = e.id
@@ -103,7 +147,8 @@ def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None):
                 } if row[19] else None,
                 'deadline': row[21].isoformat() if row[21] else None,
                 'notas': row[22],
-                'projeto_id': row[23]
+                'projeto_id': row[23],
+                'fase_deadline': row[24].isoformat() if row[24] else None,
             })
             
         return resultado
@@ -152,11 +197,12 @@ def criar_musica(dados, criador_id):
             if d_row:
                 disciplina_texto = d_row[0]
 
+        fase_dl_inicial = _calcular_fase_deadline(estado_inicial)
         cur.execute("""
-            INSERT INTO musicas (titulo, turma_id, disciplina, disciplina_id, estado, criador_id, responsavel_id, projeto_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO musicas (titulo, turma_id, disciplina, disciplina_id, estado, criador_id, responsavel_id, projeto_id, fase_deadline)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
-        """, (dados['titulo'], dados['turma_id'], disciplina_texto, disciplina_id, estado_inicial, criador_id, responsavel_inicial, dados.get('projeto_id')))
+        """, (dados['titulo'], dados['turma_id'], disciplina_texto, disciplina_id, estado_inicial, criador_id, responsavel_inicial, dados.get('projeto_id'), fase_dl_inicial))
         
         new_id = cur.fetchone()[0]
         conn.commit()
@@ -178,90 +224,149 @@ def avancar_fase(musica_id, user_id, dados=None):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
-        # Obter estado atual e responsável
-        cur.execute("SELECT estado, responsavel_id FROM musicas WHERE id = %s", (musica_id,))
+
+        # Obter estado atual, responsável e título
+        cur.execute("SELECT estado, responsavel_id, titulo FROM musicas WHERE id = %s", (musica_id,))
         row = cur.fetchone()
-        
+
         if not row:
             return False, "Música não encontrada"
-            
+
         estado_atual = row[0]
         responsavel_atual = row[1]
-        
+        titulo_musica = row[2]
+
         # Validar permissão (Apenas o responsável atual pode avançar, exceto se for Pool)
-        # Nota: UUIDs vêm como strings do Supabase/Auth geralmente, confirmar se o DB retorna string ou UUID obj
         if responsavel_atual and str(responsavel_atual) != str(user_id):
             return False, "Apenas o responsável atual pode avançar a fase."
 
         novo_estado = None
         novo_responsavel = None # Se None, vai para Pool
-        
+
         # --- MÁQUINA DE ESTADOS ---
-        
+
         # 1. Mentor: Gravação -> Edição (Responsável mantém-se Mentor)
-        # FASE A -> FASE A
         if estado_atual == 'gravação':
             novo_estado = 'edição'
-            novo_responsavel = user_id 
-            cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, updated_at = NOW() WHERE id = %s",
-                       (novo_estado, novo_responsavel, musica_id))
-            
+            novo_responsavel = user_id
+            fase_dl = _calcular_fase_deadline(novo_estado)
+            cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, fase_deadline = %s, updated_at = NOW() WHERE id = %s",
+                       (novo_estado, novo_responsavel, fase_dl, musica_id))
+
         # 2. Mentor: Edição -> Pool Mistura (Liberta para Produtores)
-        # FASE A -> FASE B
         elif estado_atual == 'edição':
             novo_estado = 'pool_mistura'
-            novo_responsavel = None 
-            cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, updated_at = NOW() WHERE id = %s",
+            novo_responsavel = None
+            cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, fase_deadline = NULL, updated_at = NOW() WHERE id = %s",
                        (novo_estado, novo_responsavel, musica_id))
-            
+
         # 3. Produtor: Mistura WIP -> Pool Feedback (Liberta para Coordenadores)
-        # FASE B -> FASE C
         elif estado_atual == 'mistura_wip':
             novo_estado = 'pool_feedback'
             novo_responsavel = None
-            # TRACKING: Quem misturou? O user atual.
-            cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, misturado_por_id = %s, updated_at = NOW() WHERE id = %s",
+            cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, misturado_por_id = %s, fase_deadline = NULL, updated_at = NOW() WHERE id = %s",
                        (novo_estado, novo_responsavel, user_id, musica_id))
-            
+
         # 4. Coordenador: Feedback WIP -> Pool Finalização (Envia feedback e liberta para Produtores)
-        # FASE C -> FASE D
         elif estado_atual == 'feedback_wip':
             novo_estado = 'pool_finalização'
             novo_responsavel = None
             feedback_texto = dados.get('feedback') if dados else None
-            
-            # TRACKING: Quem reviu? O user atual.
             if feedback_texto:
-                cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, revisto_por_id = %s, feedback = %s, updated_at = NOW() WHERE id = %s",
+                cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, revisto_por_id = %s, feedback = %s, fase_deadline = NULL, updated_at = NOW() WHERE id = %s",
                            (novo_estado, novo_responsavel, user_id, feedback_texto, musica_id))
             else:
-                 cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, revisto_por_id = %s, updated_at = NOW() WHERE id = %s",
+                cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, revisto_por_id = %s, fase_deadline = NULL, updated_at = NOW() WHERE id = %s",
                            (novo_estado, novo_responsavel, user_id, musica_id))
 
         # 5. Produtor: Finalização WIP -> Concluído
-        # FASE D -> FIM
         elif estado_atual == 'finalização_wip':
             novo_estado = 'concluído'
-            novo_responsavel = None # Sistema/Arquivo
-            # TRACKING: Quem finalizou? O user atual.
-            cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, finalizado_por_id = %s, updated_at = NOW() WHERE id = %s",
+            novo_responsavel = None
+            cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, finalizado_por_id = %s, fase_deadline = NULL, updated_at = NOW() WHERE id = %s",
                        (novo_estado, novo_responsavel, user_id, musica_id))
-            
+
         else:
             return False, f"Transição inválida a partir de '{estado_atual}' via 'avançar'."
-            
+
         conn.commit()
-        
+        cur.close()
+        conn.close()
+
+        # --- NOTIFICAÇÕES PÓS-TRANSIÇÃO (fora da transação, em background) ---
+        _notificar_transicao(musica_id, titulo_musica, estado_atual, novo_estado, user_id)
+
         return True, f"Fase avançada para {novo_estado}"
-        
+
     except Exception as e:
         logger.error(f"Erro ao avançar fase: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False, str(e)
     finally:
-        if 'cur' in locals() and cur: cur.close()
-        if 'conn' in locals() and conn: conn.close()
+        if 'cur' in locals() and cur:
+            try: cur.close()
+            except Exception: pass
+        if 'conn' in locals() and conn:
+            try: conn.close()
+            except Exception: pass
+
+
+def _notificar_transicao(musica_id, titulo_musica, _estado_anterior, novo_estado, user_id):
+    """Envia notificações relevantes após cada transição de fase."""
+    try:
+        link = '/producao'
+
+        if novo_estado == 'pool_mistura':
+            # Notificar todos os produtores: nova música disponível
+            uids = _buscar_users_por_roles(['produtor', 'mentor_produtor'])
+            _notificar_users(
+                uids, 'producao_pool',
+                f'Nova música para mistura',
+                f'"{titulo_musica}" está disponível para mistura no laboratório.',
+                link
+            )
+
+        elif novo_estado == 'pool_feedback':
+            # Notificar coordenadores e mentores: mistura pronta para feedback
+            uids = _buscar_users_por_roles(['coordenador', 'mentor', 'mentor_produtor'])
+            _notificar_users(
+                uids, 'producao_pool',
+                f'Música pronta para feedback',
+                f'"{titulo_musica}" foi misturada e aguarda revisão/feedback.',
+                link
+            )
+
+        elif novo_estado == 'pool_finalização':
+            # Notificar todos os produtores: música com feedback, pronta para finalização
+            uids = _buscar_users_por_roles(['produtor', 'mentor_produtor'])
+            _notificar_users(
+                uids, 'producao_pool',
+                f'Nova música para finalização',
+                f'"{titulo_musica}" tem feedback e está disponível para finalização.',
+                link
+            )
+
+        elif novo_estado == 'concluído':
+            # Notificar o criador da música
+            try:
+                conn = get_db_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT criador_id FROM musicas WHERE id = %s", (musica_id,))
+                row = cur.fetchone()
+                cur.close()
+                conn.close()
+                if row and row[0] and str(row[0]) != str(user_id):
+                    _notificar_users(
+                        [str(row[0])], 'producao_concluido',
+                        f'Música concluída!',
+                        f'"{titulo_musica}" foi finalizada com sucesso.',
+                        link
+                    )
+            except Exception as e:
+                logger.warning("Erro ao notificar criador na conclusão: %s", e)
+
+    except Exception as e:
+        logger.warning("Erro em _notificar_transicao: %s", e)
 
 def aceitar_tarefa(musica_id, user_id):
     """
@@ -270,33 +375,33 @@ def aceitar_tarefa(musica_id, user_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
+
         cur.execute("SELECT estado, responsavel_id FROM musicas WHERE id = %s", (musica_id,))
         row = cur.fetchone()
-        
+
         if not row: return False, "Música não encontrada"
-        
+
         estado_atual = row[0]
         responsavel_atual = row[1]
-        
+
         if responsavel_atual is not None:
-             return False, "Esta música já tem um responsável atribuído."
-             
+            return False, "Esta música já tem um responsável atribuído."
+
         novo_estado = None
-        
-        # --- LÓGICA DE CLAIM ---
+
         if estado_atual == 'pool_mistura':
             novo_estado = 'mistura_wip'
         elif estado_atual == 'pool_feedback':
             novo_estado = 'feedback_wip'
         elif estado_atual == 'pool_finalização':
-            novo_estado = 'finalização_wip' # Corrigido para match com frontend/db enum se houver
+            novo_estado = 'finalização_wip'
         else:
             return False, "Esta música não está numa pool de tarefas disponível."
-            
+
+        fase_dl = _calcular_fase_deadline(novo_estado)
         cur.execute(
-            "UPDATE musicas SET estado = %s, responsavel_id = %s, updated_at = NOW() WHERE id = %s",
-            (novo_estado, user_id, musica_id)
+            "UPDATE musicas SET estado = %s, responsavel_id = %s, fase_deadline = %s, updated_at = NOW() WHERE id = %s",
+            (novo_estado, user_id, fase_dl, musica_id)
         )
         conn.commit()
         return True, f"Tarefa aceite! Estado: {novo_estado}"
@@ -347,6 +452,81 @@ def atualizar_detalhes(musica_id, dados):
         if 'conn' in locals() and conn: conn.close()
 
 
+def atualizar_estado(musica_id, novo_estado):
+    """Atualiza o estado de uma música diretamente (uso admin)."""
+    ESTADOS_VALIDOS = {
+        'gravação', 'edição', 'pool_mistura', 'mistura_wip',
+        'pool_feedback', 'feedback_wip', 'pool_finalização', 'finalização_wip', 'concluído'
+    }
+    if novo_estado not in ESTADOS_VALIDOS:
+        return False, f"Estado inválido: '{novo_estado}'"
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE musicas SET estado = %s, updated_at = NOW() WHERE id = %s RETURNING id",
+            (novo_estado, musica_id)
+        )
+        updated = cur.fetchone()
+        conn.commit()
+        if not updated:
+            return False, "Música não encontrada."
+        return True, f"Estado atualizado para '{novo_estado}'."
+    except Exception as e:
+        logger.error(f"Erro ao atualizar estado: {e}")
+        if 'conn' in locals() and conn: conn.rollback()
+        return False, str(e)
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
+def arquivar_musica(musica_id):
+    """Arquiva uma música."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE musicas SET arquivado = TRUE, updated_at = NOW() WHERE id = %s RETURNING id",
+            (musica_id,)
+        )
+        updated = cur.fetchone()
+        conn.commit()
+        if not updated:
+            return False, "Música não encontrada."
+        return True, "Música arquivada."
+    except Exception as e:
+        logger.error(f"Erro ao arquivar música: {e}")
+        if 'conn' in locals() and conn: conn.rollback()
+        return False, str(e)
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
+def desarquivar_musica(musica_id):
+    """Desarquiva uma música."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE musicas SET arquivado = FALSE, updated_at = NOW() WHERE id = %s RETURNING id",
+            (musica_id,)
+        )
+        updated = cur.fetchone()
+        conn.commit()
+        if not updated:
+            return False, "Música não encontrada."
+        return True, "Música desarquivada."
+    except Exception as e:
+        logger.error(f"Erro ao desarquivar música: {e}")
+        if 'conn' in locals() and conn: conn.rollback()
+        return False, str(e)
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
 def apagar_musica(musica_id):
     """Apaga permanentemente uma música e todas as suas aulas associadas."""
     try:
@@ -363,6 +543,47 @@ def apagar_musica(musica_id):
     finally:
         if 'cur' in locals() and cur: cur.close()
         if 'conn' in locals() and conn: conn.close()
+
+
+def verificar_e_notificar_deadlines():
+    """
+    Verifica músicas em atraso (fase_deadline < hoje) e notifica o responsável.
+    Deve ser chamada periodicamente (ex: cron diário).
+    Retorna o número de notificações enviadas.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT m.id, m.titulo, m.estado, m.responsavel_id, p.full_name
+            FROM musicas m
+            LEFT JOIN profiles p ON p.id = m.responsavel_id
+            WHERE m.fase_deadline < CURRENT_DATE
+              AND m.arquivado = FALSE
+              AND m.estado NOT IN ('concluído', 'pool_mistura', 'pool_feedback', 'pool_finalização')
+              AND m.responsavel_id IS NOT NULL
+        """)
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        from services.notification_service import criar_notificacao
+        count = 0
+        for row in rows:
+            musica_id, titulo, estado, responsavel_id, _ = row
+            criar_notificacao(
+                str(responsavel_id),
+                'producao_atraso',
+                f'Tarefa em atraso: {titulo}',
+                f'A fase "{estado}" de "{titulo}" ultrapassou a deadline. Por favor, conclui o trabalho.',
+                '/producao'
+            )
+            count += 1
+        logger.info("verificar_e_notificar_deadlines: %s notificações enviadas", count)
+        return count
+    except Exception as e:
+        logger.error("Erro em verificar_e_notificar_deadlines: %s", e)
+        return 0
 
 
 def listar_stats_instituicao(projeto_id=None):

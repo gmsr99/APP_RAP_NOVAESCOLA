@@ -5,13 +5,15 @@
 
 const CACHE_NAME = 'rnebpm-v1';
 
-self.addEventListener('install', () => {
-  // Não chamar skipWaiting() nem clients.claim() — causam ecrã branco em iOS
-  // O SW ativa automaticamente na primeira instalação (sem SW anterior)
+self.addEventListener('install', (event) => {
+  // skipWaiting garante que o SW atualizado ativa imediatamente
+  // (necessário para receber pushes sem reiniciar a app)
+  event.waitUntil(self.skipWaiting());
 });
 
-self.addEventListener('activate', () => {
-  // Não reclama clientes existentes para evitar reload forçado em iOS
+self.addEventListener('activate', (event) => {
+  // Tomar controlo de páginas abertas para que pushes sejam tratados pelo SW novo
+  event.waitUntil(self.clients.claim());
 });
 
 // ---------------------------------------------------------------------------
@@ -33,11 +35,8 @@ self.addEventListener('push', (event) => {
     icon: '/icon-192x192.png',
     badge: '/icon-192x192.png',
     data: { url: data.url || '/' },
-    vibrate: [200, 100, 200],
-    requireInteraction: false,
-    // iOS não suporta actions ainda, mas Android sim
-    tag: data.tag || 'rnebpm-notification',
-    renotify: true,
+    // Tag única por notificação para que não se substituam entre si (fix iOS)
+    tag: data.tag || `rnebpm-${Date.now()}`,
   };
 
   event.waitUntil(self.registration.showNotification(title, options));

@@ -49,6 +49,7 @@ import {
   Check,
   Trash2,
   CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, addMinutes } from 'date-fns';
@@ -73,6 +74,7 @@ interface Musica {
   finalizado_por?: { id: string; nome: string };
   deadline?: string | null;
   notas?: string | null;
+  fase_deadline?: string | null;
 }
 
 interface Turma { id: number; nome: string; display_name: string; estabelecimento_id: number }
@@ -130,6 +132,11 @@ const STATUS_COLORS: Record<string, string> = {
   'pool_finalização': 'bg-[#4EA380]/15 text-[#4EA380]',
   'finalização_wip':  'bg-[#4EA380]/25 text-[#6ec49e]',
   'concluído':        'bg-[#4EA380]/30 text-[#4EA380]',
+};
+
+const isOverdue = (m: Musica): boolean => {
+  if (!m.fase_deadline) return false;
+  return new Date(m.fase_deadline) < new Date(new Date().toDateString());
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -495,10 +502,13 @@ const Producao = () => {
           </div>
         ) : (
           activeMusicas.map(m => (
-            <div key={m.id} className="rounded-lg border bg-card p-4 space-y-3">
+            <div key={m.id} className={cn("rounded-lg border bg-card p-4 space-y-3", isOverdue(m) && "border-destructive/60 bg-destructive/5")}>
               {/* Title + badge */}
               <div className="flex items-start justify-between gap-2">
-                <p className="font-semibold text-sm leading-snug">{m.titulo}</p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  {isOverdue(m) && <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />}
+                  <p className={cn("font-semibold text-sm leading-snug", isOverdue(m) && "text-destructive")}>{m.titulo}</p>
+                </div>
                 <Badge variant="secondary" className={cn("text-xs shrink-0", STATUS_COLORS[m.estado])}>
                   {STATUS_LABELS[m.estado] || m.estado}
                 </Badge>
@@ -519,6 +529,11 @@ const Producao = () => {
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Deadline</p>
                   <EditableCell musicId={m.id} field="deadline" value={m.deadline || null} type="date" />
+                  {m.fase_deadline && (
+                    <p className={cn("text-[10px] mt-0.5", isOverdue(m) ? "text-destructive font-medium" : "text-muted-foreground")}>
+                      Fase: {m.fase_deadline}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">Notas</p>
@@ -580,8 +595,13 @@ const Producao = () => {
               </TableRow>
             ) : (
               activeMusicas.map(m => (
-                <TableRow key={m.id}>
-                  <TableCell className="font-medium text-sm">{m.titulo}</TableCell>
+                <TableRow key={m.id} className={cn(isOverdue(m) && "bg-destructive/5 border-l-2 border-l-destructive/60")}>
+                  <TableCell className="font-medium text-sm">
+                    <div className="flex items-center gap-1.5">
+                      {isOverdue(m) && <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0" />}
+                      <span className={cn(isOverdue(m) && "text-destructive")}>{m.titulo}</span>
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className={cn("text-xs", STATUS_COLORS[m.estado])}>
                       {STATUS_LABELS[m.estado] || m.estado}
@@ -596,7 +616,14 @@ const Producao = () => {
                     ) : '—'}
                   </TableCell>
                   <TableCell>
-                    <EditableCell musicId={m.id} field="deadline" value={m.deadline || null} type="date" />
+                    <div className="space-y-0.5">
+                      <EditableCell musicId={m.id} field="deadline" value={m.deadline || null} type="date" />
+                      {m.fase_deadline && (
+                        <p className={cn("text-[10px]", isOverdue(m) ? "text-destructive font-medium" : "text-muted-foreground")}>
+                          Fase: {m.fase_deadline}
+                        </p>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <EditableCell musicId={m.id} field="notas" value={m.notas || null} />
@@ -648,8 +675,16 @@ const Producao = () => {
           const totalHoras = estab.turmas.reduce((s, t) => s + (t.horas_previstas || 0), 0);
           const totalHorasRealizadas = estab.turmas.reduce((s, t) => s + t.horas_realizadas, 0);
           const totalMusicasPrev = estab.turmas.reduce((s, t) => s + (t.musicas_previstas || 0), 0);
-          const totalConcluidas = estab.turmas.reduce((s, t) => s + t.musicas_concluidas, 0);
-          const totalEmCurso = estab.turmas.reduce((s, t) => s + t.musicas_em_curso, 0);
+          const seenTurmaIds = new Set<number>();
+          let totalConcluidas = 0;
+          let totalEmCurso = 0;
+          estab.turmas.forEach(t => {
+            if (!seenTurmaIds.has(t.turma_id)) {
+              seenTurmaIds.add(t.turma_id);
+              totalConcluidas += t.musicas_concluidas;
+              totalEmCurso += t.musicas_em_curso;
+            }
+          });
           const pctHoras = totalHoras > 0 ? Math.round((totalHorasRealizadas / totalHoras) * 100) : 0;
           const pctMusicas = totalMusicasPrev > 0 ? Math.round((totalConcluidas / totalMusicasPrev) * 100) : 0;
           const turmaIds = new Set(estab.turmas.map(t => t.turma_id));

@@ -133,7 +133,7 @@ async def get_me(user=Depends(get_current_user_optional)):
 
 # --- Rotas para Aulas ---
 @app.get("/api/aulas", tags=["Aulas"])
-async def get_todas_aulas():
+async def get_todas_aulas(user=Depends(get_current_user_required)):
     """
     Endpoint para listar todas as aulas existentes.
     Chama o serviço correspondente e retorna os dados.
@@ -142,7 +142,6 @@ async def get_todas_aulas():
         aulas = aula_service.listar_todas_aulas()
         return aulas
     except Exception as e:
-        # Em produção, seria melhor ter um tratamento de erros mais robusto
         return {"error": str(e)}
 
 @app.get("/api/aulas/proximo-numero", tags=["Aulas"])
@@ -152,6 +151,7 @@ async def get_proximo_numero_sessao(
     projeto_id: Optional[int] = None,
     is_autonomous: bool = False,
     responsavel_user_id: Optional[str] = None,
+    user=Depends(get_current_user_required),
 ):
     """Retorna o próximo número de sessão (N+1).
     Preferência: conta por atividade_uuid. Fallback: por turma/projeto (legado).
@@ -180,8 +180,26 @@ async def get_todas_sessoes_registaveis(user=Depends(get_current_user_required))
         raise HTTPException(status_code=403, detail="Acesso negado")
     return registo_service.listar_todas_sessoes_registaveis()
 
+@app.get("/api/aulas/export", tags=["Aulas"])
+async def export_aulas(
+    projeto_id: int,
+    tipo_sessao: Optional[str] = "todas",
+    estados: Optional[str] = None,
+    user=Depends(get_current_user_required),
+):
+    """Exporta lista de atividades/sessões de um projeto (direção / it_support)."""
+    from services import profile_service
+    user_id = user.get("sub")
+    perfis = profile_service.listar_perfis()
+    user_profile = next((p for p in perfis if p.get("id") == user_id), None)
+    if not user_profile or user_profile.get("role") not in ("direcao", "it_support"):
+        raise HTTPException(status_code=403, detail="Sem permissão para exportar atividades.")
+    estados_list = [e.strip() for e in estados.split(",")] if estados else None
+    return aula_service.listar_aulas_export(projeto_id, tipo_sessao or "todas", estados_list)
+
+
 @app.get("/api/aulas/{aula_id}", tags=["Aulas"])
-async def get_aula_by_id(aula_id: int):
+async def get_aula_by_id(aula_id: int, user=Depends(get_current_user_required)):
     """
     Endpoint para obter os detalhes de uma aula específica.
     """
@@ -196,8 +214,10 @@ async def get_aula_by_id(aula_id: int):
 # Modelos Pydantic para validação
 from models.sqlmodel_models import AulaCreate, AulaUpdate
 
+COORD_ROLES = {"coordenador", "direcao", "it_support"}
+
 @app.post("/api/aulas", tags=["Aulas"])
-async def create_aula(aula: AulaCreate):
+async def create_aula(aula: AulaCreate, user=Depends(get_current_user_required)):
     """
     Cria uma nova aula via API (regular ou trabalho autónomo).
     """
@@ -250,7 +270,7 @@ class AulaRecorrenteCreate(BaseModel):
 
 
 @app.post("/api/aulas/recorrentes", tags=["Aulas"])
-async def create_aulas_recorrentes(payload: AulaRecorrenteCreate):
+async def create_aulas_recorrentes(payload: AulaRecorrenteCreate, user=Depends(get_current_user_required)):
     """
     Cria N sessões com recorrência semanal. Funciona para Trabalho Autónomo e Aulas.
     """
@@ -278,7 +298,7 @@ async def create_aulas_recorrentes(payload: AulaRecorrenteCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/aulas/{aula_id}", tags=["Aulas"])
-async def update_aula(aula_id: int, aula: AulaUpdate):
+async def update_aula(aula_id: int, aula: AulaUpdate, user=Depends(get_current_user_required)):
     """
     Atualiza uma aula existente.
     """
@@ -294,7 +314,7 @@ async def update_aula(aula_id: int, aula: AulaUpdate):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/aulas/{aula_id}", tags=["Aulas"])
-async def delete_aula(aula_id: int):
+async def delete_aula(aula_id: int, user=Depends(get_current_user_required)):
     """
     Apaga uma aula.
     """
@@ -309,22 +329,18 @@ async def delete_aula(aula_id: int):
 def _check_session_permission(user: dict, aula_info: dict):
     """Verifica se o user tem permissão para alterar o estado da sessão.
     Coordenadores podem alterar todas. Outros users só as atribuídas a eles."""
-    from services import profile_service
     user_id = user.get("sub")
-    # Check if user is coordinator
-    perfis = profile_service.listar_perfis()
-    user_profile = next((p for p in perfis if p.get("id") == user_id), None)
-    if user_profile and user_profile.get("role") in ("coordenador", "direcao", "it_support"):
+    role = (user.get("user_metadata") or {}).get("role", "")
+    # Coordenadores, direção e IT têm acesso total
+    if role in ("coordenador", "direcao", "it_support"):
         return True
-    # For regular sessions: check if user is the assigned mentor
+    # Sessão regular: apenas o mentor atribuído pode agir
     if not aula_info.get("is_autonomous"):
-        if aula_info.get("mentor_user_id") == user_id:
-            return True
-    # For autonomous sessions: check if user is the responsavel
+        mentor_uid = aula_info.get("mentor_user_id")
+        return mentor_uid is not None and mentor_uid == user_id
+    # Trabalho autónomo: apenas o responsável pode agir
     else:
-        if aula_info.get("responsavel_user_id") == user_id:
-            return True
-    return False
+        return aula_info.get("responsavel_user_id") == user_id
 
 @app.post("/api/aulas/{aula_id}/confirm", tags=["Aulas"])
 async def confirm_aula(aula_id: int, user=Depends(get_current_user_required)):
@@ -403,13 +419,12 @@ async def get_notifications(user=Depends(get_current_user_required)):
         uid = user.get("sub")
         
         if not uid:
-             raise HTTPException(status_code=401, detail="Token inválido ou sem ID")
+            raise HTTPException(status_code=401, detail="Token inválido ou sem ID")
 
         notificacoes = notification_service.listar_notificacoes(uid)
         return notificacoes
     except Exception as e:
-        # Se for erro de auth, já foi tratado pelo Depends
-            raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/notifications/{id}/read", tags=["Notifications"])
 async def mark_notification_read(id: int, user=Depends(get_current_user_required)):
@@ -497,50 +512,60 @@ class ProjetoEstabAssoc(BaseModel):
     estabelecimento_id: int
 
 @app.get("/api/projetos", tags=["Projetos"])
-async def get_projetos():
+async def get_projetos(user=Depends(get_current_user_required)):
     """Lista todos os projetos."""
     return projeto_service.listar_projetos()
 
 @app.post("/api/projetos", tags=["Projetos"])
-async def create_projeto(data: ProjetoCreate):
+async def create_projeto(data: ProjetoCreate, user=Depends(get_current_user_required)):
     """Cria um novo projeto."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     res = projeto_service.criar_projeto(data.nome, data.descricao)
     if not res:
         raise HTTPException(status_code=400, detail="Falha ao criar projeto")
     return res
 
 @app.put("/api/projetos/{id}", tags=["Projetos"])
-async def update_projeto(id: int, data: ProjetoCreate):
+async def update_projeto(id: int, data: ProjetoCreate, user=Depends(get_current_user_required)):
     """Atualiza um projeto."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     sucesso = projeto_service.atualizar_projeto(id, data.nome, data.descricao)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar projeto")
     return {"message": "Projeto atualizado"}
 
 @app.delete("/api/projetos/{id}", tags=["Projetos"])
-async def delete_projeto(id: int):
+async def delete_projeto(id: int, user=Depends(get_current_user_required)):
     """Apaga um projeto."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     sucesso = projeto_service.apagar_projeto(id)
     if not sucesso:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
     return {"message": "Projeto apagado"}
 
 @app.get("/api/projetos/{id}/estabelecimentos", tags=["Projetos"])
-async def get_projeto_estabelecimentos(id: int):
+async def get_projeto_estabelecimentos(id: int, user=Depends(get_current_user_required)):
     """Lista estabelecimentos de um projeto."""
     return projeto_service.listar_estabelecimentos_por_projeto(id)
 
 @app.post("/api/projetos/{id}/estabelecimentos", tags=["Projetos"])
-async def add_projeto_estabelecimento(id: int, data: ProjetoEstabAssoc):
+async def add_projeto_estabelecimento(id: int, data: ProjetoEstabAssoc, user=Depends(get_current_user_required)):
     """Associa um estabelecimento a um projeto."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     sucesso = projeto_service.associar_estabelecimento(id, data.estabelecimento_id)
     if not sucesso:
         raise HTTPException(status_code=400, detail="Falha ao associar estabelecimento")
     return {"message": "Estabelecimento associado"}
 
 @app.delete("/api/projetos/{id}/estabelecimentos/{estab_id}", tags=["Projetos"])
-async def remove_projeto_estabelecimento(id: int, estab_id: int):
+async def remove_projeto_estabelecimento(id: int, estab_id: int, user=Depends(get_current_user_required)):
     """Remove associação entre projeto e estabelecimento."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     sucesso = projeto_service.desassociar_estabelecimento(id, estab_id)
     if not sucesso:
         raise HTTPException(status_code=404, detail="Associação não encontrada")
@@ -550,7 +575,7 @@ async def remove_projeto_estabelecimento(id: int, estab_id: int):
 from services import turma_service, profile_service, estudio_service, notification_service, registo_service, aluno_service
 
 @app.get("/api/equipa", tags=["Core"])
-async def get_equipa():
+async def get_equipa(user=Depends(get_current_user_required)):
     """Lista todos os membros da equipa (perfis públicos)."""
     return profile_service.listar_perfis()
 
@@ -632,12 +657,12 @@ async def update_avatar(payload: AvatarPayload, user=Depends(get_current_user_re
 from services import equipment_service
 
 @app.get("/api/equipamento/categorias", tags=["Equipamento"])
-async def get_categorias_equipamento():
+async def get_categorias_equipamento(user=Depends(get_current_user_required)):
     """Lista categorias de equipamento com os seus itens."""
     return equipment_service.listar_categorias()
 
 @app.get("/api/aulas/{aula_id}/equipamento", tags=["Equipamento"])
-async def get_equipamento_sessao(aula_id: int):
+async def get_equipamento_sessao(aula_id: int, user=Depends(get_current_user_required)):
     """Lista itens de equipamento atribuídos a uma sessão."""
     return equipment_service.listar_equipamento_sessao(aula_id)
 
@@ -645,7 +670,7 @@ class EquipamentoAtribuir(BaseModel):
     item_ids: list[int]
 
 @app.put("/api/aulas/{aula_id}/equipamento", tags=["Equipamento"])
-async def put_equipamento_sessao(aula_id: int, payload: EquipamentoAtribuir):
+async def put_equipamento_sessao(aula_id: int, payload: EquipamentoAtribuir, user=Depends(get_current_user_required)):
     """Atribui itens de equipamento a uma sessão."""
     sucesso = equipment_service.atribuir_equipamento_sessao(aula_id, payload.item_ids)
     if not sucesso:
@@ -785,29 +810,35 @@ class TurmaCreate(BaseModel):
     estabelecimento_id: str
 
 @app.post("/api/turmas", tags=["Core"])
-async def create_turma(turma: TurmaCreate):
+async def create_turma(turma: TurmaCreate, user=Depends(get_current_user_required)):
     """Cria uma nova turma."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     res = turma_service.criar_turma(turma.nome, turma.estabelecimento_id)
     if res:
         return res
     raise HTTPException(status_code=400, detail="Falha ao criar turma (pode já existir)")
 
 @app.get("/api/turmas", tags=["Core"])
-async def get_turmas(estabelecimento_id: Optional[int] = None):
+async def get_turmas(estabelecimento_id: Optional[int] = None, user=Depends(get_current_user_required)):
     """Lista todas as turmas com estabelecimentos. Opcionalmente filtra por estabelecimento_id."""
     return turma_service.listar_turmas_com_estabelecimento(estabelecimento_id)
 
 @app.put("/api/turmas/{id}", tags=["Core"])
-async def update_turma(id: int, turma: TurmaCreate):
+async def update_turma(id: int, turma: TurmaCreate, user=Depends(get_current_user_required)):
     """Atualiza uma turma."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     sucesso = turma_service.atualizar_turma(id, turma.nome, turma.estabelecimento_id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar turma")
     return {"message": "Turma atualizada"}
 
 @app.delete("/api/turmas/{id}", tags=["Core"])
-async def delete_turma(id: int):
+async def delete_turma(id: int, user=Depends(get_current_user_required)):
     """Apaga uma turma."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     sucesso = turma_service.apagar_turma(id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar turma")
@@ -817,7 +848,7 @@ class AlunosUpdate(BaseModel):
     nomes: list[str]
 
 @app.get("/api/turmas/{turma_id}/alunos", tags=["Core"])
-async def get_alunos_turma(turma_id: int):
+async def get_alunos_turma(turma_id: int, user=Depends(get_current_user_required)):
     """Lista os alunos de uma turma."""
     return aluno_service.listar_alunos_por_turma(turma_id)
 
@@ -830,18 +861,18 @@ async def update_alunos_turma(turma_id: int, payload: AlunosUpdate):
     return {"message": "Alunos atualizados"}
 
 @app.get("/api/turmas/{turma_id}/disciplinas", tags=["Core"])
-async def get_turma_disciplinas(turma_id: int):
+async def get_turma_disciplinas(turma_id: int, user=Depends(get_current_user_required)):
     """Lista as disciplinas locais de uma turma."""
     return turma_service.listar_disciplinas_turma(turma_id)
 
 @app.get("/api/mentores", tags=["Core"])
-async def get_mentores():
+async def get_mentores(user=Depends(get_current_user_required)):
     """Lista todos os mentores para dropdown."""
     return turma_service.listar_mentores()
 
 
 @app.get("/api/codigos-sessao", tags=["Core"])
-async def get_codigos_sessao(perfil: str = "", disciplina: str = ""):
+async def get_codigos_sessao(perfil: str = "", disciplina: str = "", user=Depends(get_current_user_required)):
     """
     Retorna códigos de sessão (sumário + objetivo) filtrados por perfil do mentor e disciplina.
     perfil: 'mentor' | 'produtor' | 'mentor_produtor' | 'coordenador' | 'direcao' | 'it_support'
@@ -884,7 +915,7 @@ async def get_codigos_sessao(perfil: str = "", disciplina: str = ""):
     return result
 
 @app.get("/api/produtores", tags=["Core"])
-async def get_produtores():
+async def get_produtores(user=Depends(get_current_user_required)):
     """Lista todos os produtores para dropdown."""
     return turma_service.listar_produtores()
 
@@ -906,6 +937,7 @@ class MusicaCreate(BaseModel):
     titulo: str
     turma_id: int
     disciplina: Optional[str] = None
+    disciplina_id: Optional[int] = None
     projeto_id: Optional[int] = None
 
 @app.post("/api/musicas", tags=["Producao"])
@@ -1047,6 +1079,8 @@ class MusicaDetalhesUpdate(BaseModel):
     deadline: Optional[str] = None
     notas: Optional[str] = None
     link_demo: Optional[str] = None
+    turma_id: Optional[int] = None
+    disciplina_id: Optional[int] = None
 
 @app.patch("/api/musicas/{musica_id}", tags=["Producao"])
 async def update_musica_detalhes(musica_id: int, payload: MusicaDetalhesUpdate, user=Depends(get_current_user_required)):
@@ -1066,6 +1100,15 @@ async def delete_musica(musica_id: int, user=Depends(get_current_user_required))
     if not sucesso:
         raise HTTPException(status_code=404, detail="Música não encontrada.")
     return {"message": "Música apagada."}
+
+@app.post("/api/producao/verificar-deadlines", tags=["Producao"])
+async def verificar_deadlines_musicas(user=Depends(get_current_user_required)):
+    """Verifica músicas em atraso e notifica os responsáveis. Chamar diariamente (cron)."""
+    role = (user.get("user_metadata") or {}).get("role", "")
+    if role not in {"coordenador", "direcao", "it_support"}:
+        raise HTTPException(status_code=403, detail="Sem permissão.")
+    count = musica_service.verificar_e_notificar_deadlines()
+    return {"notificacoes_enviadas": count}
 
 @app.get("/api/producao/stats/instituicao", tags=["Producao"])
 async def get_stats_instituicao(projeto_id: Optional[int] = None, user=Depends(get_current_user_required)):
@@ -1114,7 +1157,7 @@ async def get_produtor_dashboard(user=Depends(get_current_user_required)):
 import httpx
 
 @app.get("/api/geocode/search", tags=["Geocoding"])
-async def geocode_search(q: str):
+async def geocode_search(q: str, user=Depends(get_current_user_required)):
     """Proxy para Nominatim — pesquisa de moradas (Portugal)."""
     async with httpx.AsyncClient() as client:
         resp = await client.get(
@@ -1125,7 +1168,7 @@ async def geocode_search(q: str):
         return resp.json()
 
 @app.get("/api/distance", tags=["Geocoding"])
-async def calculate_distance(lat1: float, lng1: float, lat2: float, lng2: float):
+async def calculate_distance(lat1: float, lng1: float, lat2: float, lng2: float, user=Depends(get_current_user_required)):
     """Calcula distância de condução via OSRM (km)."""
     url = f"https://router.project-osrm.org/route/v1/driving/{lng1},{lat1};{lng2},{lat2}?overview=false"
     async with httpx.AsyncClient() as client:
@@ -1188,25 +1231,31 @@ class EstabelecimentoWikiCreate(BaseModel):
     longitude: Optional[float] = None
 
 @app.get("/api/estabelecimentos", tags=["Wiki"])
-async def get_estabelecimentos():
+async def get_estabelecimentos(user=Depends(get_current_user_required)):
     return turma_service.listar_estabelecimentos()
 
 @app.post("/api/estabelecimentos", tags=["Wiki"])
-async def create_estabelecimento(inst: EstabelecimentoWikiCreate):
+async def create_estabelecimento(inst: EstabelecimentoWikiCreate, user=Depends(get_current_user_required)):
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     res = turma_service.criar_estabelecimento(inst.nome, inst.sigla, inst.morada, inst.latitude, inst.longitude)
     if not res:
         raise HTTPException(status_code=400, detail="Erro ao criar. Possível duplicado.")
     return res
 
 @app.put("/api/estabelecimentos/{id}", tags=["Wiki"])
-async def update_estabelecimento(id: int, inst: EstabelecimentoWikiCreate):
+async def update_estabelecimento(id: int, inst: EstabelecimentoWikiCreate, user=Depends(get_current_user_required)):
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     sucesso = turma_service.atualizar_estabelecimento(id, inst.nome, inst.sigla, inst.morada, inst.latitude, inst.longitude)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar.")
     return {"message": "Atualizado com sucesso"}
 
 @app.delete("/api/estabelecimentos/{id}", tags=["Wiki"])
-async def delete_estabelecimento(id: int):
+async def delete_estabelecimento(id: int, user=Depends(get_current_user_required)):
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     sucesso = turma_service.apagar_estabelecimento(id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar.")
@@ -1220,20 +1269,20 @@ from services import wiki_service
 
 # --- Legacy: currículo global (mantido para compatibilidade) ---
 @app.get("/api/curriculo", tags=["Wiki"])
-async def get_curriculo():
+async def get_curriculo(user=Depends(get_current_user_required)):
     """Lista todo o currículo global (disciplinas e atividades)."""
     return curriculo_service.listar_curriculo()
 
 # --- Wiki v2: disciplinas e atividades locais por turma ---
 
 @app.get("/api/wiki/projeto/{projeto_id}", tags=["Wiki"])
-async def get_wiki_hierarquia(projeto_id: int):
+async def get_wiki_hierarquia(projeto_id: int, user=Depends(get_current_user_required)):
     """Hierarquia completa: Projeto > Estabelecimentos > Turmas > Disciplinas > Atividades."""
     result = wiki_service.listar_hierarquia_projeto(projeto_id)
     return result
 
 @app.get("/api/wiki/turma/{turma_id}/disciplinas", tags=["Wiki"])
-async def get_wiki_turma_disciplinas(turma_id: int):
+async def get_wiki_turma_disciplinas(turma_id: int, user=Depends(get_current_user_required)):
     """Lista disciplinas locais de uma turma com atividades."""
     return wiki_service.listar_disciplinas_turma(turma_id)
 
@@ -1244,8 +1293,10 @@ class TurmaDisciplinaCreate(BaseModel):
     atividades: list = []
 
 @app.post("/api/wiki/turma/{turma_id}/disciplinas", tags=["Wiki"])
-async def create_wiki_disciplina(turma_id: int, payload: TurmaDisciplinaCreate):
+async def create_wiki_disciplina(turma_id: int, payload: TurmaDisciplinaCreate, user=Depends(get_current_user_required)):
     """Cria disciplina local com atividades em batch."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     result = wiki_service.criar_disciplina_turma(
         turma_id, payload.nome, payload.descricao,
         payload.musicas_previstas, payload.atividades
@@ -1260,16 +1311,20 @@ class TurmaDisciplinaUpdate(BaseModel):
     musicas_previstas: int = 0
 
 @app.put("/api/wiki/disciplinas/{td_id}", tags=["Wiki"])
-async def update_wiki_disciplina(td_id: int, payload: TurmaDisciplinaUpdate):
+async def update_wiki_disciplina(td_id: int, payload: TurmaDisciplinaUpdate, user=Depends(get_current_user_required)):
     """Atualiza uma disciplina local."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     sucesso = wiki_service.atualizar_disciplina_turma(td_id, payload.nome, payload.descricao, payload.musicas_previstas)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar disciplina")
     return {"id": td_id, "nome": payload.nome}
 
 @app.delete("/api/wiki/disciplinas/{td_id}", tags=["Wiki"])
-async def delete_wiki_disciplina(td_id: int):
+async def delete_wiki_disciplina(td_id: int, user=Depends(get_current_user_required)):
     """Remove disciplina local (cascade apaga atividades)."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     sucesso = wiki_service.apagar_disciplina_turma(td_id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar disciplina")
@@ -1286,8 +1341,10 @@ class TurmaAtividadeCreate(BaseModel):
     is_autonomous: bool = False
 
 @app.post("/api/wiki/atividades", tags=["Wiki"])
-async def create_wiki_atividade(payload: TurmaAtividadeCreate):
+async def create_wiki_atividade(payload: TurmaAtividadeCreate, user=Depends(get_current_user_required)):
     """Cria uma atividade local."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     result = wiki_service.criar_atividade(
         payload.turma_disciplina_id, payload.nome, payload.codigo,
         payload.sessoes_previstas, payload.horas_por_sessao,
@@ -1307,16 +1364,20 @@ class TurmaAtividadeUpdate(BaseModel):
     is_autonomous: bool = False
 
 @app.put("/api/wiki/atividades/{uuid}", tags=["Wiki"])
-async def update_wiki_atividade(uuid: str, payload: TurmaAtividadeUpdate):
+async def update_wiki_atividade(uuid: str, payload: TurmaAtividadeUpdate, user=Depends(get_current_user_required)):
     """Atualiza uma atividade local por UUID."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     sucesso = wiki_service.atualizar_atividade(uuid, payload.dict())
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar atividade")
     return {"uuid": uuid, "nome": payload.nome}
 
 @app.delete("/api/wiki/atividades/{uuid}", tags=["Wiki"])
-async def delete_wiki_atividade(uuid: str):
+async def delete_wiki_atividade(uuid: str, user=Depends(get_current_user_required)):
     """Remove uma atividade local por UUID."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
     sucesso = wiki_service.apagar_atividade(uuid)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar atividade")
@@ -1387,6 +1448,193 @@ async def ai_agent_horarios(payload: AIAgentMessage, user=Depends(get_current_us
 
 
 # -----------------------------------------------------------------------------
+# Endpoint do Chatbot (Assistente Virtual RNE)
+# -----------------------------------------------------------------------------
+from google import genai as _genai
+from google.genai import types as _genai_types
+import logging as _logging
+
+_chatbot_logger = _logging.getLogger(__name__)
+
+class ChatbotMessage(BaseModel):
+    role: str  # "user" ou "assistant"
+    content: str
+
+class ChatbotRequest(BaseModel):
+    messages: List[ChatbotMessage]
+
+# Cache em memória: evita reler o ficheiro a cada request
+_kb_cache: Optional[str] = None
+
+def _get_knowledge_base() -> str:
+    global _kb_cache
+    if _kb_cache is not None:
+        return _kb_cache
+    kb_path = os.path.join(os.path.dirname(__file__), "KNOWLEDGE_BASE.md")
+    if os.path.exists(kb_path):
+        with open(kb_path, "r", encoding="utf-8") as f:
+            _kb_cache = f.read()
+    else:
+        _kb_cache = ""
+    return _kb_cache
+
+def _invalidate_kb_cache():
+    global _kb_cache
+    _kb_cache = None
+
+_CHATBOT_SYSTEM_PROMPT = """
+Tu és o assistente virtual do RAP Nova Escola.
+És um membro da equipa: próximo, tranquilo, claro e alinhado com a cultura hip-hop e com a missão social e artística do projeto.
+A tua função é apoiar mentores e equipa com orientações práticas, sempre em coerência com a intenção da intervenção do RAP Nova Escola.
+
+MISSÃO E PRIORIDADE DA INTERVENÇÃO:
+• O RAP Nova Escola usa a música, a escrita e a produção como ferramentas de expressão, reflexão e crescimento pessoal.
+• A prioridade do projeto é gerar impacto construtivo: artístico, humano e social.
+• Em qualquer contexto, a intervenção deve ter intenção, orientação e liderança.
+• O foco está no processo, na evolução e na valorização do esforço individual e coletivo.
+
+CONSCIÊNCIA DE CONTEXTO:
+• Em contexto escolar, a prioridade é pedagógica: aprendizagem, conteúdos curriculares e consolidação de competências através da criatividade.
+• Em intervenções prolongadas (clubes), o foco combina três dimensões:
+  • artística (expressão, escrita, performance, produção);
+  • social (escuta, empatia, trabalho coletivo, superação);
+  • humana (confiança, voz própria, consciência emocional).
+• Em contextos de maior vulnerabilidade (prisões e centros de acolhimento), a prioridade é clara:
+  • a sessão deve deixar o participante num estado melhor do que aquele em que entrou;
+  • a expressão é acompanhada de orientação e responsabilidade;
+  • temas sensíveis exigem condução, reflexão e consciência — nunca censura cega, nunca permissividade sem guia.
+
+POSTURA DO ASSISTENTE:
+• Comunica com calor, respeito e sentido de responsabilidade.
+• Valoriza sempre a reflexão, a consciência e o crescimento.
+• Nunca glorifica violência, crime ou discursos destrutivos.
+• Reconhece a criatividade como ferramenta, não como fim solto.
+• Fala como alguém da equipa, alinhado com os valores do projeto.
+
+ESTILO DE COMUNICAÇÃO:
+• Português de Portugal.
+• Linguagem próxima, urbana e acessível (hip-hop, street), sem exageros.
+• Pouco formal, clara e direta.
+• Frases curtas.
+• Tom humano, tranquilo e agregador.
+
+REGRAS DE ESTILO:
+1. Usa **negrito** para destacar palavras-chave, nomes de documentos ou conceitos importantes.
+2. Sempre que mencionares um link ou recurso, usa formatação Markdown: [texto do link](url).
+3. Mantém a resposta visualmente organizada com listas e parágrafos curtos.
+
+FORMA DE RESPONDER:
+• Prioriza respostas práticas e orientadas para a ação.
+• Sempre que fizer sentido, organiza a informação em passos claros, bullet points ou listas numeradas.
+• Mantém uma arquitetura visual limpa e fácil de ler.
+• Vai direto ao essencial.
+
+REGRAS IMPORTANTES:
+1. Usa APENAS a informação presente na "BASE DE CONHECIMENTO".
+2. Nunca inventes processos, regras, decisões ou interpretações.
+3. Se a informação não existir na base de conhecimento:
+    - Diz isso de forma clara e tranquila.
+    - Sugere falar diretamente com o Elton (liderança do projeto).
+4. Não assumes intenções nem contextos não explícitos.
+5. Não dês opiniões pessoais — partilha apenas conhecimento alinhado com o projeto.
+6. Mantém sempre um tom ético, humano e responsável.
+
+EXEMPLO DE FECHO QUANDO NÃO HÁ INFO:
+"Sobre isso não tenho informação documentada. O melhor é falares diretamente com o Elton para alinhar."
+
+NO FINAL DE CADA RESPOSTA:
+• Baseada na informação fornecida, podes indicar o documento onde podem encontrar esta informação.
+• IMPORTANTE: Deixa dois parágrafos de espaço em branco entre a resposta e o documento de referência.
+
+BASE DE CONHECIMENTO:
+{knowledge_base}
+"""
+
+@app.post("/api/chatbot", tags=["Chatbot"])
+async def chatbot(payload: ChatbotRequest, _user=Depends(get_current_user_required)):
+    """Assistente virtual do RAP Nova Escola (Gemini + Knowledge Base)."""
+    system_instruction = _CHATBOT_SYSTEM_PROMPT.format(knowledge_base=_get_knowledge_base())
+
+    # Filtrar saudação inicial do assistant e construir histórico
+    msgs = payload.messages
+    if msgs and msgs[0].role == "assistant":
+        msgs = msgs[1:]
+
+    if not msgs:
+        raise HTTPException(status_code=400, detail="Sem mensagens para processar.")
+
+    contents = []
+    for m in msgs[:-1]:
+        role = "user" if m.role == "user" else "model"
+        contents.append(_genai_types.Content(role=role, parts=[_genai_types.Part(text=m.content)]))
+
+    contents.append(_genai_types.Content(role="user", parts=[_genai_types.Part(text=msgs[-1].content)]))
+
+    client = _genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+    response = client.models.generate_content(
+        model="gemini-2.0-flash-001",
+        contents=contents,
+        config=_genai_types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            max_output_tokens=1000,
+        ),
+    )
+
+    return {"role": "assistant", "content": response.text}
+
+
+# -----------------------------------------------------------------------------
+# Sync da Drive + Cron Job (Knowledge Base)
+# -----------------------------------------------------------------------------
+from services import drive_sync_service
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.cron import CronTrigger
+import pytz
+
+_scheduler = BackgroundScheduler(timezone=pytz.timezone("Europe/Lisbon"))
+
+def _scheduled_sync():
+    try:
+        stats = drive_sync_service.sync_knowledge_base()
+        _invalidate_kb_cache()
+        _chatbot_logger.info(f"Sync agendado concluído: {stats}")
+    except Exception as exc:
+        _chatbot_logger.error(f"Erro no sync agendado: {exc}")
+
+_scheduler.add_job(
+    _scheduled_sync,
+    trigger=CronTrigger(hour=18, minute=0),
+    id="drive_sync_daily",
+    replace_existing=True,
+)
+
+SYNC_ROLES = {"direcao", "it_support", "coordenador"}
+
+@app.on_event("startup")
+async def start_scheduler():
+    if not _scheduler.running:
+        _scheduler.start()
+
+@app.post("/api/chatbot/sync", tags=["Chatbot"])
+async def chatbot_sync(user=Depends(get_current_user_required)):
+    """Força uma sincronização imediata da pasta Drive → KNOWLEDGE_BASE. Apenas admins."""
+    user_id = user.get("sub")
+    perfis = profile_service.listar_perfis()
+    user_profile = next((p for p in perfis if p.get("id") == user_id), None)
+    if not user_profile or user_profile.get("role") not in SYNC_ROLES:
+        raise HTTPException(status_code=403, detail="Sem permissão para sincronizar a knowledge base.")
+
+    try:
+        stats = drive_sync_service.sync_knowledge_base()
+        _invalidate_kb_cache()
+        return stats
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Erro durante o sync: {exc}")
+
+
+# -----------------------------------------------------------------------------
 # Endpoints de Atalhos
 # -----------------------------------------------------------------------------
 from services import atalho_service
@@ -1454,6 +1702,8 @@ from database.connection import close_pool
 @app.on_event("shutdown")
 async def shutdown_event():
     close_pool()
+    if _scheduler.running:
+        _scheduler.shutdown(wait=False)
 
 # 3. PONTO DE ENTRADA PARA ARRANCAR O SERVIDOR
 # -----------------------------------------------------------------------------

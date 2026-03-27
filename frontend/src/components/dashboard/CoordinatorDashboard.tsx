@@ -24,7 +24,10 @@ import {
   Building2,
   User,
   Shield,
+  FileSpreadsheet,
 } from 'lucide-react';
+import { useProfile } from '@/contexts/ProfileContext';
+import { ExportAtividadesModal } from '@/components/ExportAtividadesModal';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
@@ -58,12 +61,15 @@ const statusLabels: Record<string, string> = {
 
 export function CoordinatorDashboard() {
   const queryClient = useQueryClient();
+  const { profile } = useProfile();
+  const canExport = profile === 'direcao' || profile === 'it_support';
 
   const [isTerminarOpen, setIsTerminarOpen] = useState(false);
   const [terminarSessionId, setTerminarSessionId] = useState<number | null>(null);
   const [terminarRating, setTerminarRating] = useState(0);
   const [terminarObs, setTerminarObs] = useState('');
   const [detailView, setDetailView] = useState<'sessoes' | 'locais' | 'mentores' | 'equipa' | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
 
   const { data: sessions = [] } = useQuery({
     queryKey: ['aulas'],
@@ -164,12 +170,25 @@ export function CoordinatorDashboard() {
             {format(now, "EEEE, d 'de' MMMM", { locale: pt })}
           </p>
         </div>
-        <Button asChild className="shrink-0">
-          <Link to="/horarios">
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Sessão
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-end">
+          {canExport && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExportOpen(true)}
+              className="gap-2 text-green-600 border-green-600/40 hover:bg-green-50 dark:hover:bg-green-950/30"
+            >
+              <FileSpreadsheet className="h-4 w-4" />
+              <span className="hidden sm:inline">Exportar Dados</span>
+            </Button>
+          )}
+          <Button asChild className="shrink-0">
+            <Link to="/horarios">
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Sessão
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* Stats Grid */}
@@ -424,6 +443,14 @@ export function CoordinatorDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Export Atividades Modal */}
+      {canExport && (
+        <ExportAtividadesModal
+          open={exportOpen}
+          onOpenChange={setExportOpen}
+        />
+      )}
     </div>
   );
 }

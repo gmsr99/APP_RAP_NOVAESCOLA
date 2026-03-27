@@ -19,6 +19,7 @@ import Equipa from "./pages/Equipa";
 import Equipamento from "./pages/Equipamento";
 import Formacao from "./pages/Formacao";
 import Chat from "./pages/Chat";
+import Chatbot from "./pages/Chatbot";
 import MySpace from "./pages/MySpace";
 import Login from "./pages/Login";
 import UpdatePassword from "./pages/UpdatePassword";
@@ -72,6 +73,7 @@ function AppContent() {
           <Route path="/equipamento" element={<Equipamento />} />
           <Route path="/formacao" element={<Formacao />} />
           <Route path="/chat" element={<Chat />} />
+          <Route path="/chatbot" element={<Chatbot />} />
           <Route path="/myspace" element={<MySpace />} />
           <Route path="/wiki" element={<Wiki />} />
           <Route path="/estatisticas" element={<Estatisticas />} />
