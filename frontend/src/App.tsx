@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { api } from '@/lib/api';
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
@@ -38,6 +39,21 @@ function AppContent() {
   const location = useLocation();
   const [navLoading, setNavLoading] = useState(false);
   const isFirstNav = useRef(true);
+  const queryClient = useQueryClient();
+
+  // Marcar notificação como lida quando o utilizador clica numa push notification
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'mark_notification_read' && event.data?.id) {
+        api.put(`/api/notifications/${event.data.id}/read`).then(() => {
+          queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        }).catch(() => {});
+      }
+    };
+    navigator.serviceWorker.addEventListener('message', handler);
+    return () => navigator.serviceWorker.removeEventListener('message', handler);
+  }, [queryClient]);
 
   // Show preloader briefly on every page navigation (skip first render)
   useEffect(() => {

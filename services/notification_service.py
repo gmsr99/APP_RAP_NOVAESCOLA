@@ -19,11 +19,11 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def _enviar_push_async(user_id, titulo, mensagem, link):
+def _enviar_push_async(user_id, titulo, mensagem, link, notif_id=None):
     """Dispara push notification em background (import lazy para evitar ciclos)."""
     try:
         from services.push_service import enviar_push_para_user
-        enviar_push_para_user(user_id, titulo, mensagem, link)
+        enviar_push_para_user(user_id, titulo, mensagem, link, notif_id=notif_id)
     except Exception as e:
         logger.warning("Push não enviado (não crítico): %s", e)
 
@@ -53,7 +53,7 @@ def criar_notificacao(user_id, tipo, titulo, mensagem, link=None, metadados=None
         logger.info("Notificacao #%s criada para User #%s", notif_id, user_id)
 
         # Disparar push notification em background (não bloqueia)
-        _enviar_push_async(user_id, titulo, mensagem, link)
+        _enviar_push_async(user_id, titulo, mensagem, link, notif_id=notif_id)
 
         return True
 

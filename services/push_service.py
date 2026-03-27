@@ -157,7 +157,7 @@ def _remover_subscricao_por_endpoint(endpoint: str):
             conn.close()
 
 
-def enviar_push_para_user(user_id: str, titulo: str, mensagem: str, link: str = "/"):
+def enviar_push_para_user(user_id: str, titulo: str, mensagem: str, link: str = "/", notif_id=None):
     """
     Envia push notification para todas as subscrições de um utilizador.
     Executado em background thread para não bloquear a resposta da API.
@@ -172,6 +172,8 @@ def enviar_push_para_user(user_id: str, titulo: str, mensagem: str, link: str = 
         if not subs:
             return
         payload = {"title": titulo, "body": mensagem, "url": link or "/"}
+        if notif_id is not None:
+            payload["notif_id"] = notif_id
         for sub in subs:
             _enviar_push(sub, payload, private_key_pem)
 

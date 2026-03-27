@@ -53,8 +53,7 @@ export default function Chatbot() {
           <Bot className="h-4 w-4 text-primary-foreground" />
         </div>
         <div>
-          <h3 className="font-semibold leading-tight text-sm">Assistente RNE</h3>
-          <p className="text-[10px] text-muted-foreground">Powered by Gemini</p>
+          <h3 className="font-semibold leading-tight text-sm">Assistente RAP Nova Escola</h3>
         </div>
       </div>
 

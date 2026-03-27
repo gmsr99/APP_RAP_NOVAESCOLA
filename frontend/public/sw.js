@@ -34,7 +34,7 @@ self.addEventListener('push', (event) => {
     body: data.body || '',
     icon: '/icon-192x192.png',
     badge: '/icon-192x192.png',
-    data: { url: data.url || '/' },
+    data: { url: data.url || '/', notif_id: data.notif_id || null },
     // Tag única por notificação para que não se substituam entre si (fix iOS)
     tag: data.tag || `rnebpm-${Date.now()}`,
   };
@@ -49,6 +49,7 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close();
 
   const targetUrl = event.notification.data?.url || '/';
+  const notifId = event.notification.data?.notif_id;
 
   event.waitUntil(
     clients
@@ -57,13 +58,20 @@ self.addEventListener('notificationclick', (event) => {
         // Se a app já está aberta, foca e navega
         for (const client of clientList) {
           if ('focus' in client) {
-            client.navigate(targetUrl);
-            return client.focus();
+            return client.navigate(targetUrl).then(() => client.focus()).then((focusedClient) => {
+              if (notifId && focusedClient) {
+                focusedClient.postMessage({ type: 'mark_notification_read', id: notifId });
+              }
+            });
           }
         }
         // Senão abre nova janela
         if (clients.openWindow) {
-          return clients.openWindow(targetUrl);
+          return clients.openWindow(targetUrl).then((newClient) => {
+            if (notifId && newClient) {
+              newClient.postMessage({ type: 'mark_notification_read', id: notifId });
+            }
+          });
         }
       })
   );
