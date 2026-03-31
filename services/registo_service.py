@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
     """
-    Retorna sessões terminadas/realizadas deste user que ainda não têm registo.
-    - Aulas presenciais: terminadas + mentor_user_id = user_id
+    Retorna sessões confirmadas/terminadas/realizadas deste user que ainda não têm registo.
+    - Aulas presenciais: confirmadas ou terminadas + mentor_user_id = user_id
     - Trabalho autónomo: is_realized=true + responsavel_user_id = user_id
     """
     sql = text("""
@@ -66,10 +66,10 @@ def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
             -- Sem registo existente
             NOT EXISTS (SELECT 1 FROM registos r WHERE r.aula_id = a.id)
             AND (
-                -- Aulas presenciais terminadas deste mentor
+                -- Aulas presenciais confirmadas ou terminadas deste mentor
                 (
                     a.is_autonomous = FALSE
-                    AND a.estado = 'terminada'
+                    AND a.estado IN ('confirmada', 'terminada')
                     AND m.user_id = :user_id
                 )
                 OR
@@ -128,7 +128,7 @@ def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
 
 def listar_todas_sessoes_registaveis() -> List[Dict[str, Any]]:
     """
-    Retorna TODAS as sessões terminadas/realizadas ainda sem registo.
+    Retorna TODAS as sessões confirmadas/terminadas/realizadas ainda sem registo.
     Para uso exclusivo de coordenadores/direção.
     """
     sql = text("""
@@ -170,7 +170,7 @@ def listar_todas_sessoes_registaveis() -> List[Dict[str, Any]]:
         WHERE
             NOT EXISTS (SELECT 1 FROM registos r WHERE r.aula_id = a.id)
             AND (
-                (a.is_autonomous = FALSE AND a.estado = 'terminada')
+                (a.is_autonomous = FALSE AND a.estado IN ('confirmada', 'terminada'))
                 OR
                 (a.is_autonomous = TRUE AND a.is_realized = TRUE)
             )
