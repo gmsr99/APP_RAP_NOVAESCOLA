@@ -944,7 +944,8 @@ class MusicaCreate(BaseModel):
 async def create_musica(musica: MusicaCreate, user=Depends(get_current_user_required)):
     """Cria uma nova música."""
     criador_id = user.get("sub")
-    resultado = musica_service.criar_musica(musica.dict(), criador_id)
+    criador_role = (user.get("user_metadata") or {}).get("role")
+    resultado = musica_service.criar_musica(musica.dict(), criador_id, criador_role)
     if not resultado:
         raise HTTPException(status_code=500, detail="Erro ao criar música")
     return resultado

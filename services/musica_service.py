@@ -159,7 +159,7 @@ def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None):
         if 'cur' in locals() and cur: cur.close()
         if 'conn' in locals() and conn: conn.close()
 
-def criar_musica(dados, criador_id):
+def criar_musica(dados, criador_id, criador_role=None):
     """
     Cria uma nova música.
     - Se criador é MENTOR: Estado inicial 'gravação', Responsável = Criador (Fase A)
@@ -168,16 +168,13 @@ def criar_musica(dados, criador_id):
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        
-        # Verificar role do criador
-        cur.execute("SELECT role FROM profiles WHERE id = %s", (criador_id,))
-        role_row = cur.fetchone()
-        
-        if not role_row:
-            return None
-            
-        criador_role = role_row[0]
-        
+
+        # Usar role do JWT; apenas consultar profiles como fallback
+        if not criador_role:
+            cur.execute("SELECT role FROM profiles WHERE id = %s", (criador_id,))
+            role_row = cur.fetchone()
+            criador_role = role_row[0] if role_row else 'mentor'
+
         # Lógica de estado inicial baseada no role
         if criador_role == 'produtor' or criador_role == 'mentor_produtor':
             # Produtores saltam a Fase A (Mentor) e vão direto para Fase B (Pool Mistura)
