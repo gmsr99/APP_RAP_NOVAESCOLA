@@ -96,7 +96,7 @@ def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None):
             FROM musicas m
             LEFT JOIN turmas t ON m.turma_id = t.id
             LEFT JOIN estabelecimentos e ON t.estabelecimento_id = e.id
-            LEFT JOIN disciplinas disc ON disc.id = m.disciplina_id
+            LEFT JOIN turma_disciplinas disc ON disc.id = m.disciplina_id
             LEFT JOIN profiles p_resp ON m.responsavel_id = p_resp.id
             LEFT JOIN profiles p_criador ON m.criador_id = p_criador.id
             LEFT JOIN profiles p_mist ON m.misturado_por_id = p_mist.id
@@ -189,7 +189,7 @@ def criar_musica(dados, criador_id, criador_role=None):
         disciplina_texto = dados.get('disciplina')
         disciplina_id = dados.get('disciplina_id')
         if disciplina_id and not disciplina_texto:
-            cur.execute("SELECT nome FROM disciplinas WHERE id = %s", (disciplina_id,))
+            cur.execute("SELECT nome FROM turma_disciplinas WHERE id = %s", (disciplina_id,))
             d_row = cur.fetchone()
             if d_row:
                 disciplina_texto = d_row[0]
