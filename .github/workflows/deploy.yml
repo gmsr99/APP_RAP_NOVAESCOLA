@@ -28,4 +28,5 @@ jobs:
             
             # Rebuild and restart the container
             docker compose down
+            docker builder prune -f
             docker compose up -d --build
