@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { api } from '@/lib/api';
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProfileProvider } from "@/contexts/ProfileContext";
@@ -37,9 +37,18 @@ const queryClient = new QueryClient();
 function AppContent() {
   const { loading: authLoading } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [navLoading, setNavLoading] = useState(false);
   const isFirstNav = useRef(true);
   const queryClient = useQueryClient();
+
+  // Quando o Supabase redireciona o recovery email para a raiz com #type=recovery,
+  // reencaminhar para /update-password preservando o hash com o token.
+  useEffect(() => {
+    if (window.location.hash.includes('type=recovery')) {
+      navigate('/update-password' + window.location.hash, { replace: true });
+    }
+  }, []);
 
   // Marcar notificação como lida quando o utilizador clica numa push notification
   useEffect(() => {
