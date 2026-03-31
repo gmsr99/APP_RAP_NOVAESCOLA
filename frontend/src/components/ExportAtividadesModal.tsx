@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import * as XLSX from 'xlsx';
+import * as XLSX from 'xlsx-js-style';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import {
@@ -85,9 +85,30 @@ const ESTADO_LABELS: Record<string, string> = {
   terminada: 'Terminada',
 };
 
+type ExportRow = {
+  atividade_codigo?: string | null;
+  data_fmt?: string | null;
+  hora_inicio?: string | null;
+  hora_fim?: string | null;
+  duracao_horas?: number | null;
+  tipo?: string | null;
+  estado?: string | null;
+  is_autonomous?: boolean | null;
+  colaborador?: string | null;
+  turma_nome?: string | null;
+  estabelecimento_nome?: string | null;
+  tema?: string | null;
+  tipo_atividade?: string | null;
+  objetivos?: string | null;
+  sumario?: string | null;
+  avaliacao?: number | null;
+  obs_termino?: string | null;
+  observacoes?: string | null;
+};
+
 // ─── Geração do XLSX ─────────────────────────────────────────────────────────
 
-function gerarXLSX(rows: any[], projetoNome: string, tipoLabel: string, estadosLabel: string) {
+function gerarXLSX(rows: ExportRow[], projetoNome: string, tipoLabel: string, estadosLabel: string) {
   const wb = XLSX.utils.book_new();
 
   // ── Metadados do workbook ──
@@ -134,8 +155,8 @@ function gerarXLSX(rows: any[], projetoNome: string, tipoLabel: string, estadosL
     'Observações Gerais',
   ];
 
-  const dataRows = rows.map((r: any) => [
-    r.codigo_sessao    ?? '',
+  const dataRows = rows.map((r) => [
+    r.atividade_codigo ?? '',
     r.data_fmt         ?? '',
     r.hora_inicio      ?? '',
     r.hora_fim         ?? '',
@@ -169,10 +190,15 @@ function gerarXLSX(rows: any[], projetoNome: string, tipoLabel: string, estadosL
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(allSheetData);
+  const tableHeaderRowIndex = headerRows.length;
+  const firstDataRowIndex = tableHeaderRowIndex + 1;
+  const lastDataRowIndex = firstDataRowIndex + dataRows.length - 1;
+  const footerStartRowIndex = lastDataRowIndex + 2;
+  const lastColumnIndex = colHeaders.length - 1;
 
   // ── Larguras das colunas ──
   ws['!cols'] = [
-    { wch: 18 }, // Código
+    { wch: 14 }, // Código
     { wch: 12 }, // Data
     { wch: 10 }, // Hora Início
     { wch: 10 }, // Hora Fim
@@ -191,17 +217,137 @@ function gerarXLSX(rows: any[], projetoNome: string, tipoLabel: string, estadosL
     { wch: 40 }, // Obs Gerais
   ];
 
+  ws['!rows'] = [
+    { hpt: 28 },
+    { hpt: 20 },
+    { hpt: 20 },
+    { hpt: 20 },
+    { hpt: 12 },
+    { hpt: 22 },
+    ...dataRows.map(() => ({ hpt: 30 })),
+    { hpt: 10 },
+    { hpt: 20 },
+    { hpt: 20 },
+  ];
+
   // ── Merge do título principal (linha 1, colunas A–Q) ──
   ws['!merges'] = [
     { s: { r: 0, c: 0 }, e: { r: 0, c: 16 } }, // RAP Nova Escola
     { s: { r: 1, c: 0 }, e: { r: 1, c: 16 } }, // Projeto
     { s: { r: 2, c: 0 }, e: { r: 2, c: 16 } }, // Filtros
     { s: { r: 3, c: 0 }, e: { r: 3, c: 16 } }, // Gerado em
+    { s: { r: footerStartRowIndex, c: 0 }, e: { r: footerStartRowIndex, c: 16 } },
+    { s: { r: footerStartRowIndex + 1, c: 0 }, e: { r: footerStartRowIndex + 1, c: 16 } },
   ];
 
-  // ── Estilos: título, sub-cabeçalho, cabeçalho de colunas ──
-  // (xlsx community não tem suporte nativo a estilos, mas os merges
-  //  e a estrutura já dão um XLS bem organizado)
+  ws['!autofilter'] = {
+    ref: XLSX.utils.encode_range({
+      s: { r: tableHeaderRowIndex, c: 0 },
+      e: { r: Math.max(lastDataRowIndex, tableHeaderRowIndex), c: lastColumnIndex },
+    }),
+  };
+
+  const palette = {
+    ink: '2B3544',
+    inkSoft: '334155',
+    cyanSoft: 'DDF6FA',
+    cyan: '4DC4D9',
+    paper: 'F5F7FA',
+    white: 'FFFFFF',
+    slate: '667085',
+    line: 'D0D7E2',
+    lineDark: '425166',
+  };
+
+  const withColor = (rgb: string) => ({ rgb });
+  const borderAll = {
+    top: { style: 'thin', color: withColor(palette.line) },
+    bottom: { style: 'thin', color: withColor(palette.line) },
+    left: { style: 'thin', color: withColor(palette.line) },
+    right: { style: 'thin', color: withColor(palette.line) },
+  };
+
+  const setStyle = (cellRef: string, style: any) => {
+    if (!ws[cellRef]) return;
+    ws[cellRef].s = style;
+  };
+
+  const styleRowRange = (rowIndex: number, styleFactory: (colIndex: number) => any) => {
+    for (let colIndex = 0; colIndex <= lastColumnIndex; colIndex += 1) {
+      const cellRef = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
+      if (!ws[cellRef]) {
+        ws[cellRef] = { t: 's', v: '' };
+      }
+      setStyle(cellRef, styleFactory(colIndex));
+    }
+  };
+
+  setStyle('A1', {
+    font: { bold: true, sz: 16, color: withColor(palette.white) },
+    fill: { fgColor: withColor(palette.ink) },
+    alignment: { horizontal: 'center', vertical: 'center' },
+    border: {
+      ...borderAll,
+      bottom: { style: 'medium', color: withColor(palette.cyan) },
+    },
+  });
+
+  for (let rowIndex = 1; rowIndex <= 3; rowIndex += 1) {
+    setStyle(`A${rowIndex + 1}`, {
+      font: {
+        bold: rowIndex === 1,
+        sz: rowIndex === 1 ? 11 : 10,
+        color: withColor(rowIndex === 3 ? palette.slate : palette.ink),
+      },
+      fill: { fgColor: withColor(rowIndex === 3 ? palette.paper : palette.cyanSoft) },
+      alignment: { horizontal: 'left', vertical: 'center' },
+      border: borderAll,
+    });
+  }
+
+  styleRowRange(tableHeaderRowIndex, () => ({
+    font: { bold: true, sz: 10, color: withColor(palette.white) },
+    fill: { fgColor: withColor(palette.inkSoft) },
+    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+    border: {
+      top: { style: 'thin', color: withColor(palette.lineDark) },
+      bottom: { style: 'medium', color: withColor(palette.cyan) },
+      left: { style: 'thin', color: withColor(palette.lineDark) },
+      right: { style: 'thin', color: withColor(palette.lineDark) },
+    },
+  }));
+
+  for (let rowIndex = firstDataRowIndex; rowIndex <= lastDataRowIndex; rowIndex += 1) {
+    styleRowRange(rowIndex, (colIndex) => ({
+      font: {
+        sz: 10,
+        color: withColor(palette.ink),
+        bold: colIndex === 0,
+      },
+      fill: {
+        fgColor: withColor(rowIndex % 2 === 0 ? palette.white : palette.paper),
+      },
+      alignment: {
+        vertical: 'top',
+        horizontal: [1, 2, 3, 4, 7, 14].includes(colIndex) ? 'center' : 'left',
+        wrapText: true,
+      },
+      border: borderAll,
+    }));
+  }
+
+  [footerStartRowIndex, footerStartRowIndex + 1].forEach((rowIndex) => {
+    setStyle(XLSX.utils.encode_cell({ r: rowIndex, c: 0 }), {
+      font: {
+        bold: rowIndex === footerStartRowIndex,
+        sz: 10,
+        color: withColor(palette.white),
+      },
+      fill: { fgColor: withColor(palette.ink) },
+      alignment: { horizontal: 'left', vertical: 'center' },
+      border: borderAll,
+    });
+  });
 
   XLSX.utils.book_append_sheet(wb, ws, 'Atividades');
 
@@ -237,7 +383,7 @@ export function ExportAtividadesModal({
   const effectiveProjetoNome = projetoNome ?? selectedProjetoNome;
 
   // Carrega projetos (apenas quando o step 1 é necessário)
-  const { data: projetos = [] } = useQuery<Projeto[]>({
+  const { data: projetos = [], isLoading: projetosLoading } = useQuery<Projeto[]>({
     queryKey: ['projetos'],
     queryFn: async () => (await api.get('/api/projetos')).data,
     enabled: !projetoId,
@@ -335,7 +481,11 @@ export function ExportAtividadesModal({
         {/* ── STEP 1: Escolha de projeto ── */}
         {step === 1 && (
           <div className="space-y-3 py-2">
-            {projetos.length === 0 ? (
+            {projetosLoading ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                A carregar projetos…
+              </p>
+            ) : projetos.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-6">
                 Não existem projetos disponíveis.
               </p>

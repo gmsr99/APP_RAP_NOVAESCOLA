@@ -1054,6 +1054,7 @@ def listar_aulas_export(
         cur.execute(f"""
             SELECT
                 a.id,
+                ta.codigo      AS atividade_codigo,
                 a.codigo_sessao,
                 a.data_hora,
                 a.duracao_minutos,
@@ -1081,6 +1082,7 @@ def listar_aulas_export(
             LEFT JOIN estabelecimentos e ON t.estabelecimento_id = e.id
             LEFT JOIN mentores m       ON a.mentor_id = m.id
             LEFT JOIN projetos pr      ON a.projeto_id = pr.id
+            LEFT JOIN turma_atividades ta ON a.atividade_uuid = ta.uuid
             LEFT JOIN profiles resp    ON a.responsavel_user_id = resp.id::text
             {where}
             ORDER BY a.data_hora ASC
