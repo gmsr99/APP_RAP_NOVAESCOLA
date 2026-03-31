@@ -191,7 +191,7 @@ async def export_aulas(
     from services import profile_service
     user_id = user.get("sub")
     perfis = profile_service.listar_perfis()
-    user_profile = next((p for p in perfis if p.get("id") == user_id), None)
+    user_profile = next((p for p in perfis if str(p.get("id")) == user_id), None)
     if not user_profile or user_profile.get("role") not in ("direcao", "it_support"):
         raise HTTPException(status_code=403, detail="Sem permissão para exportar atividades.")
     estados_list = [e.strip() for e in estados.split(",")] if estados else None
@@ -1013,7 +1013,7 @@ async def export_registos(
     from services import profile_service
     user_id = user.get("sub")
     perfis = profile_service.listar_perfis()
-    user_profile = next((p for p in perfis if p.get("id") == user_id), None)
+    user_profile = next((p for p in perfis if str(p.get("id")) == user_id), None)
     if not user_profile or user_profile.get("role") not in ("coordenador", "direcao", "it_support"):
         raise HTTPException(status_code=403, detail="Sem permissão para exportar registos.")
     user_id_list = [uid.strip() for uid in user_ids.split(",")] if user_ids else None
@@ -1435,7 +1435,7 @@ async def ai_agent_horarios(payload: AIAgentMessage, user=Depends(get_current_us
     # Validar permissões
     user_id = user.get("sub")
     perfis = profile_service.listar_perfis()
-    user_profile = next((p for p in perfis if p.get("id") == user_id), None)
+    user_profile = next((p for p in perfis if str(p.get("id")) == user_id), None)
     if not user_profile or user_profile.get("role") not in ("coordenador", "direcao", "it_support"):
         raise HTTPException(status_code=403, detail="Sem permissão para usar o agente AI.")
 
@@ -1623,7 +1623,7 @@ async def chatbot_sync(user=Depends(get_current_user_required)):
     """Força uma sincronização imediata da pasta Drive → KNOWLEDGE_BASE. Apenas admins."""
     user_id = user.get("sub")
     perfis = profile_service.listar_perfis()
-    user_profile = next((p for p in perfis if p.get("id") == user_id), None)
+    user_profile = next((p for p in perfis if str(p.get("id")) == user_id), None)
     if not user_profile or user_profile.get("role") not in SYNC_ROLES:
         raise HTTPException(status_code=403, detail="Sem permissão para sincronizar a knowledge base.")
 
