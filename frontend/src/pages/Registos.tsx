@@ -49,6 +49,7 @@ import {
   Music2,
   User as UserIcon,
   FileSpreadsheet,
+  Pencil,
 } from 'lucide-react';
 import { format, parseISO, addMinutes } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -112,6 +113,7 @@ interface Registo {
   estabelecimento_nome: string | null;
   estabelecimento_sigla: string | null;
   mentor_nome: string | null;
+  kms_percorridos: number | null;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -138,9 +140,10 @@ function sessionLabel(s: SessaoRegistavel): string {
 // ─── Reusable sub-components ─────────────────────────────────────────────────
 
 /** Single registo row used in both tabs */
-function RegistoRow({ reg, onReExport, onDelete, showMentor }: {
+function RegistoRow({ reg, onReExport, onEdit, onDelete, showMentor }: {
   reg: Registo;
   onReExport: (reg: Registo) => void;
+  onEdit?: (reg: Registo) => void;
   onDelete?: (id: number) => void;
   showMentor: boolean;
 }) {
@@ -175,6 +178,18 @@ function RegistoRow({ reg, onReExport, onDelete, showMentor }: {
         </div>
       </div>
       <div className="flex items-center gap-2 shrink-0">
+        {onEdit && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onEdit(reg)}
+            title="Editar registo"
+            className="h-8 px-2 sm:px-3"
+          >
+            <Pencil className="h-4 w-4 sm:mr-1.5" />
+            <span className="hidden sm:inline">Editar</span>
+          </Button>
+        )}
         <Button
           variant="outline"
           size="sm"
@@ -202,9 +217,10 @@ function RegistoRow({ reg, onReExport, onDelete, showMentor }: {
 }
 
 /** List of registos (used in "Os meus Registos" tab) */
-function RegistoList({ registos, onReExport, onDelete, showMentor }: {
+function RegistoList({ registos, onReExport, onEdit, onDelete, showMentor }: {
   registos: Registo[];
   onReExport: (reg: Registo) => void;
+  onEdit?: (reg: Registo) => void;
   onDelete?: (id: number) => void;
   showMentor: boolean;
 }) {
@@ -224,7 +240,7 @@ function RegistoList({ registos, onReExport, onDelete, showMentor }: {
       </CardHeader>
       <CardContent className="space-y-3">
         {registos.map(reg => (
-          <RegistoRow key={reg.id} reg={reg} onReExport={onReExport} onDelete={onDelete} showMentor={showMentor} />
+          <RegistoRow key={reg.id} reg={reg} onReExport={onReExport} onEdit={onEdit} onDelete={onDelete} showMentor={showMentor} />
         ))}
       </CardContent>
     </Card>
@@ -232,9 +248,10 @@ function RegistoList({ registos, onReExport, onDelete, showMentor }: {
 }
 
 /** All registos grouped by month in an accordion (used in "Todos os Registos" tab) */
-function TodosRegistosAccordion({ registos, onReExport }: {
+function TodosRegistosAccordion({ registos, onReExport, onEdit }: {
   registos: Registo[];
   onReExport: (reg: Registo) => void;
+  onEdit?: (reg: Registo) => void;
 }) {
   if (registos.length === 0) {
     return (
@@ -275,7 +292,7 @@ function TodosRegistosAccordion({ registos, onReExport }: {
               </AccordionTrigger>
               <AccordionContent className="space-y-3">
                 {grouped[month].map(reg => (
-                  <RegistoRow key={reg.id} reg={reg} onReExport={onReExport} showMentor />
+                  <RegistoRow key={reg.id} reg={reg} onReExport={onReExport} onEdit={onEdit} showMentor />
                 ))}
               </AccordionContent>
             </AccordionItem>
@@ -313,6 +330,7 @@ const Registos = () => {
   });
 
   const [selectedSession, setSelectedSession] = useState<SessaoRegistavel | null>(null);
+  const [editingRegisto, setEditingRegisto] = useState<Registo | null>(null);
 
   // ─── Queries ────────────────────────────────────────────────────────────
 
@@ -447,6 +465,21 @@ const Registos = () => {
     },
     onError: () => {
       toast({ title: 'Erro', description: 'Falha ao guardar registo.', variant: 'destructive' });
+    },
+  });
+
+  const updateRegistoMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: any }) =>
+      api.patch(`/api/registos/${id}`, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['registos'] });
+      queryClient.invalidateQueries({ queryKey: ['registos-todos'] });
+      toast({ title: 'Registo atualizado', description: 'As alterações foram guardadas.' });
+      setModalOpen(false);
+      setEditingRegisto(null);
+    },
+    onError: () => {
+      toast({ title: 'Erro', description: 'Falha ao guardar alterações.', variant: 'destructive' });
     },
   });
 
@@ -611,6 +644,45 @@ const Registos = () => {
       console.error('PDF re-export error:', err);
       toast({ title: 'Erro ao gerar PDF', description: 'Verifica a consola para mais detalhes.', variant: 'destructive' });
     }
+  };
+
+  const handleOpenEdit = (reg: Registo) => {
+    setEditingRegisto(reg);
+    setSelectedSession(null);
+    setFormData({
+      atividade: reg.atividade || (reg.is_autonomous ? (reg.tipo_atividade || 'Trabalho Autónomo') : `Sessão ${reg.turma_nome || ''}`.trim()),
+      numero_sessao: reg.numero_sessao || '',
+      data: reg.data_registo || format(parseISO(reg.data_hora), 'dd/MM/yyyy'),
+      local: reg.local_registo || (reg.is_autonomous
+        ? (reg.local || '')
+        : `${reg.estabelecimento_sigla || reg.estabelecimento_nome || ''}${reg.local ? ` - ${reg.local}` : ''}`.trim()),
+      horario: reg.horario || buildHorario(reg.data_hora, reg.duracao_minutos),
+      tecnicos: reg.tecnicos || reg.mentor_nome || '',
+      objetivos_gerais: reg.objetivos_gerais || '',
+      sumario: reg.sumario || '',
+      participantes: reg.participantes || [],
+      kms_percorridos: reg.kms_percorridos != null ? String(reg.kms_percorridos) : '',
+    });
+    setModalOpen(true);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingRegisto) return;
+    updateRegistoMutation.mutate({
+      id: editingRegisto.id,
+      payload: {
+        numero_sessao: formData.numero_sessao || null,
+        objetivos_gerais: formData.objetivos_gerais || null,
+        sumario: formData.sumario || null,
+        participantes: formData.participantes.filter(p => p.nome_completo.trim()),
+        atividade: formData.atividade || null,
+        data_registo: formData.data || null,
+        local_registo: formData.local || null,
+        horario: formData.horario || null,
+        tecnicos: formData.tecnicos || null,
+        kms_percorridos: formData.kms_percorridos ? Number(formData.kms_percorridos) : null,
+      },
+    });
   };
 
   const addParticipant = () => {
@@ -784,6 +856,7 @@ const Registos = () => {
           <RegistoList
             registos={registos}
             onReExport={handleReExportPdf}
+            onEdit={handleOpenEdit}
             onDelete={id => deleteRegistoMutation.mutate(id)}
             showMentor={false}
           />
@@ -803,6 +876,7 @@ const Registos = () => {
             <TodosRegistosAccordion
               registos={todosRegistos}
               onReExport={handleReExportPdf}
+              onEdit={handleOpenEdit}
             />
           </TabsContent>
         )}
@@ -918,15 +992,15 @@ const Registos = () => {
       </Dialog>
 
       {/* ─── Modal: fill form + export PDF ─────────────────────────────── */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+      <Dialog open={modalOpen} onOpenChange={(open) => { if (!open) { setModalOpen(false); setEditingRegisto(null); } }}>
         <DialogContent className="w-full max-w-2xl max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5 text-primary" />
-              Registo de Atividade
+              {editingRegisto ? <Pencil className="h-5 w-5 text-primary" /> : <FileText className="h-5 w-5 text-primary" />}
+              {editingRegisto ? 'Editar Registo' : 'Registo de Atividade'}
             </DialogTitle>
             <DialogDescription>
-              Preenche os campos e exporta o documento PDF oficial.
+              {editingRegisto ? 'Edita os campos e guarda as alterações.' : 'Preenche os campos e exporta o documento PDF oficial.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -990,7 +1064,7 @@ const Registos = () => {
                   className="text-sm"
                 />
               </div>
-              {selectedSession && !selectedSession.is_autonomous && (
+              {((selectedSession && !selectedSession.is_autonomous) || (editingRegisto && !editingRegisto.is_autonomous)) && (
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">Kms Percorridos (ida e volta)</Label>
                   <Input
@@ -1019,7 +1093,7 @@ const Registos = () => {
 
             <div className="space-y-2">
               <Label htmlFor="sum" className="font-medium">
-                {selectedSession?.is_autonomous ? 'Resumo da atividade desenvolvida' : 'Sumário'}
+                {(selectedSession?.is_autonomous || editingRegisto?.is_autonomous) ? 'Resumo da atividade desenvolvida' : 'Sumário'}
               </Label>
               <Textarea
                 id="sum"
@@ -1032,7 +1106,7 @@ const Registos = () => {
             </div>
 
             {/* Participants list — presencial only */}
-            {selectedSession && !selectedSession.is_autonomous && (
+            {((selectedSession && !selectedSession.is_autonomous) || (editingRegisto && !editingRegisto.is_autonomous)) && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="font-medium">Lista de Participantes</Label>
@@ -1075,10 +1149,17 @@ const Registos = () => {
               <Download className="h-4 w-4 mr-2" />
               Exportar PDF
             </Button>
-            <Button onClick={handleSaveAndExport} disabled={createRegistoMutation.isPending} className="flex-1">
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Guardar & Exportar
-            </Button>
+            {editingRegisto ? (
+              <Button onClick={handleSaveEdit} disabled={updateRegistoMutation.isPending} className="flex-1">
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                {updateRegistoMutation.isPending ? 'A guardar...' : 'Guardar alterações'}
+              </Button>
+            ) : (
+              <Button onClick={handleSaveAndExport} disabled={createRegistoMutation.isPending} className="flex-1">
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Guardar & Exportar
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

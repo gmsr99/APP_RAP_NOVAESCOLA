@@ -1055,6 +1055,28 @@ async def create_registo(registo: RegistoCreate, user=Depends(get_current_user_r
         raise HTTPException(status_code=500, detail="Erro ao criar registo. Verifica se a migração 002_registos.sql foi executada.")
     return resultado
 
+class RegistoUpdate(BaseModel):
+    numero_sessao: Optional[str] = None
+    objetivos_gerais: Optional[str] = None
+    sumario: Optional[str] = None
+    participantes: Optional[list] = None
+    atividade: Optional[str] = None
+    data_registo: Optional[str] = None
+    local_registo: Optional[str] = None
+    horario: Optional[str] = None
+    tecnicos: Optional[str] = None
+    kms_percorridos: Optional[float] = None
+
+@app.patch("/api/registos/{registo_id}", tags=["Registos"])
+async def update_registo(registo_id: int, registo: RegistoUpdate, user=Depends(get_current_user_required)):
+    """Edita os campos de um registo existente (apenas o próprio user)."""
+    user_id = user.get("sub")
+    dados = {k: v for k, v in registo.model_dump().items() if v is not None}
+    sucesso = registo_service.atualizar_registo(registo_id, user_id, dados)
+    if not sucesso:
+        raise HTTPException(status_code=404, detail="Registo não encontrado ou sem permissão para editar.")
+    return {"message": "Registo atualizado com sucesso"}
+
 @app.delete("/api/registos/{registo_id}", tags=["Registos"])
 async def delete_registo(registo_id: int, user=Depends(get_current_user_required)):
     """Apaga um registo (devolve sessão ao dropdown)."""

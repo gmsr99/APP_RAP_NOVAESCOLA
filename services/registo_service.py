@@ -460,6 +460,27 @@ def listar_registos_export(
         return []
 
 
+def atualizar_registo(registo_id: int, user_id: str, dados: dict) -> bool:
+    """Atualiza os campos editáveis de um registo (apenas se pertence ao user)."""
+    campos = ["numero_sessao", "objetivos_gerais", "sumario", "participantes",
+              "atividade", "data_registo", "local_registo", "horario", "tecnicos", "kms_percorridos"]
+    sets = ", ".join(f"{c} = :{c}" for c in campos if c in dados)
+    if not sets:
+        return False
+    sql = text(f"UPDATE registos SET {sets} WHERE id = :id AND user_id = :user_id")
+    params = {c: dados[c] for c in campos if c in dados}
+    params["id"] = registo_id
+    params["user_id"] = user_id
+    try:
+        with Session(engine) as session:
+            result = session.exec(sql, params=params)
+            session.commit()
+            return result.rowcount > 0
+    except Exception as e:
+        logger.error(f"Erro ao atualizar registo: {e}")
+        return False
+
+
 def apagar_registo(registo_id: int, user_id: str) -> bool:
     """Apaga um registo (apenas se pertence ao user)."""
     sql = text("""
