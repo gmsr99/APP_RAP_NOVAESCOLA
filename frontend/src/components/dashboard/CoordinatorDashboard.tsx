@@ -26,6 +26,7 @@ import {
   Shield,
   FileSpreadsheet,
 } from 'lucide-react';
+import { OutrasTarefasWidget } from './OutrasTarefasWidget';
 import { useProfile } from '@/contexts/ProfileContext';
 import { ExportAtividadesModal } from '@/components/ExportAtividadesModal';
 import { cn } from '@/lib/utils';
@@ -337,6 +338,9 @@ export function CoordinatorDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Outras Tarefas */}
+      <OutrasTarefasWidget />
 
       {/* Detail Dialog */}
       <Dialog open={!!detailView} onOpenChange={(open) => { if (!open) setDetailView(null); }}>

@@ -95,6 +95,8 @@ class Aula(SQLModel, table=True):
     # Campos para estado "Terminada"
     avaliacao: Optional[int] = None
     obs_termino: Optional[str] = None
+    # Trabalho Interno
+    tarefa_id: Optional[int] = Field(default=None)
 
     turma: Optional[Turma] = Relationship(back_populates="aulas")
     mentor: Optional[Mentor] = Relationship(back_populates="aulas")
@@ -143,6 +145,7 @@ class AulaCreate(SQLModel):
     tipo_atividade: Optional[str] = None
     responsavel_user_id: Optional[str] = None
     musica_id: Optional[int] = None
+    tarefa_id: Optional[int] = None
 
 
 class AulaUpdate(SQLModel):
@@ -194,6 +197,7 @@ class AulaRead(SQLModel):
     musica_id: Optional[int] = None
     avaliacao: Optional[int] = None
     obs_termino: Optional[str] = None
+    tarefa_id: Optional[int] = None
 
 
 class AulaListItem(SQLModel):
@@ -230,3 +234,4 @@ class AulaListItem(SQLModel):
     musica_id: Optional[int] = None
     avaliacao: Optional[int] = None
     obs_termino: Optional[str] = None
+    tarefa_id: Optional[int] = None

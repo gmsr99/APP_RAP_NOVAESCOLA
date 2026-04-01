@@ -191,6 +191,9 @@ export interface AulaAPI {
   responsavel_user_id?: string | null;
   musica_id?: number | null;
   projeto_id?: number | null;
+  // Trabalho Interno
+  tarefa_id?: number | null;
+  tarefa_titulo?: string | null;
 }
 
 export interface Turma {
@@ -244,6 +247,7 @@ export interface AulaCreate {
   objetivos?: string | null;
   sumario?: string | null;
   codigo_sessao?: string | null;
+  tarefa_id?: number | null;
 }
 
 export interface PublicProfileEquipa {

@@ -240,6 +240,7 @@ async def create_aula(aula: AulaCreate, user=Depends(get_current_user_required))
         musica_id=aula.musica_id,
         sumario=aula.sumario,
         codigo_sessao=aula.codigo_sessao,
+        tarefa_id=getattr(aula, 'tarefa_id', None),
     )
     if nova_aula is None:
         raise HTTPException(
@@ -1764,6 +1765,87 @@ async def delete_atalho(atalho_id: int, user=Depends(get_current_user_required))
     sucesso = atalho_service.apagar_atalho(atalho_id)
     if not sucesso:
         raise HTTPException(status_code=404, detail="Atalho não encontrado.")
+    return {"ok": True}
+
+# -----------------------------------------------------------------------------
+# TAREFAS INTERNAS
+# -----------------------------------------------------------------------------
+from services import tarefas_service
+
+COORD_ROLES_TAREFAS = {"coordenador", "direcao", "it_support"}
+
+class TarefaCreate(BaseModel):
+    titulo: str
+    descricao: Optional[str] = None
+    prioridade: str = 'medio'
+    data_limite: Optional[str] = None
+    user_ids: Optional[List[str]] = None
+
+class TarefaUpdate(BaseModel):
+    titulo: str
+    descricao: Optional[str] = None
+    prioridade: str = 'medio'
+    data_limite: Optional[str] = None
+    user_ids: Optional[List[str]] = None
+
+class TarefaEstado(BaseModel):
+    estado: str  # pendente | em_progresso | concluida
+
+@app.get("/api/tarefas", tags=["Tarefas"])
+async def get_tarefas(user=Depends(get_current_user_required)):
+    """Lista tarefas do user autenticado (+ gerais). Coordenadores vêem todas."""
+    user_id = user.get("sub")
+    role = user.get("user_metadata", {}).get("role", "")
+    if role in COORD_ROLES_TAREFAS:
+        return tarefas_service.listar_todas_tarefas()
+    return tarefas_service.listar_tarefas_para_user(user_id)
+
+@app.post("/api/tarefas", tags=["Tarefas"])
+async def post_tarefa(payload: TarefaCreate, user=Depends(get_current_user_required)):
+    """Cria uma tarefa. Apenas coordenadores e superiores."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES_TAREFAS:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    user_id = user.get("sub")
+    res = tarefas_service.criar_tarefa(
+        payload.titulo, user_id, payload.descricao,
+        payload.prioridade, payload.data_limite, payload.user_ids or []
+    )
+    if not res:
+        raise HTTPException(status_code=500, detail="Erro ao criar tarefa")
+    return res
+
+@app.put("/api/tarefas/{id}", tags=["Tarefas"])
+async def put_tarefa(id: int, payload: TarefaUpdate, user=Depends(get_current_user_required)):
+    """Atualiza uma tarefa."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES_TAREFAS:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    ok = tarefas_service.atualizar_tarefa(
+        id, payload.titulo, payload.descricao,
+        payload.prioridade, payload.data_limite, payload.user_ids
+    )
+    if not ok:
+        raise HTTPException(status_code=500, detail="Erro ao atualizar tarefa")
+    return {"ok": True}
+
+@app.delete("/api/tarefas/{id}", tags=["Tarefas"])
+async def delete_tarefa(id: int, user=Depends(get_current_user_required)):
+    """Apaga uma tarefa."""
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES_TAREFAS:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    ok = tarefas_service.apagar_tarefa(id)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Erro ao apagar tarefa")
+    return {"ok": True}
+
+@app.patch("/api/tarefas/{id}/estado", tags=["Tarefas"])
+async def patch_tarefa_estado(id: int, payload: TarefaEstado, user=Depends(get_current_user_required)):
+    """User marca o seu estado numa tarefa (pendente → em_progresso → concluida)."""
+    if payload.estado not in ('pendente', 'em_progresso', 'concluida'):
+        raise HTTPException(status_code=400, detail="Estado inválido")
+    user_id = user.get("sub")
+    ok = tarefas_service.marcar_estado_tarefa(id, user_id, payload.estado)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Atribuição não encontrada")
     return {"ok": True}
 
 # --- Shutdown gracioso do pool de conexões ---

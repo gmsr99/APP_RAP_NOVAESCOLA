@@ -24,6 +24,7 @@ import {
   CalendarCheck,
   CalendarClock,
 } from 'lucide-react';
+import { OutrasTarefasWidget } from './OutrasTarefasWidget';
 import { Link } from 'react-router-dom';
 import { format, isToday, isTomorrow, isThisWeek } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -414,6 +415,9 @@ export function MentorDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Outras Tarefas */}
+      <OutrasTarefasWidget />
 
       {/* Terminar Sessão Modal */}
       <Dialog open={isTerminarOpen} onOpenChange={setIsTerminarOpen}>

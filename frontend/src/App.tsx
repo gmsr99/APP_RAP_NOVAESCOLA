@@ -28,6 +28,8 @@ import NotFound from "./pages/NotFound";
 import Wiki from "./pages/Wiki";
 import Estatisticas from "./pages/Estatisticas";
 import Atalhos from "./pages/Atalhos";
+import Contactos from "./pages/Contactos";
+import Tarefas from "./pages/Tarefas";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PushAutoPrompt } from "@/components/PushAutoPrompt";
 
@@ -103,6 +105,8 @@ function AppContent() {
           <Route path="/wiki" element={<Wiki />} />
           <Route path="/estatisticas" element={<Estatisticas />} />
           <Route path="/atalhos" element={<Atalhos />} />
+          <Route path="/contactos" element={<Contactos />} />
+          <Route path="/tarefas" element={<Tarefas />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

@@ -55,6 +55,7 @@ import {
   CheckCircle2,
   Sparkles,
   XCircle,
+  Wrench,
 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -253,6 +254,14 @@ const Horarios = () => {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [viewSession, setViewSession] = useState<AulaAPI | null>(null);
 
+  // TI detail modal
+  const [isTIDetailOpen, setIsTIDetailOpen] = useState(false);
+  const [viewTISession, setViewTISession] = useState<AulaAPI | null>(null);
+
+  // Deadline task modal (tarefa com data_limite no calendário)
+  const [isDeadlineOpen, setIsDeadlineOpen] = useState(false);
+  const [viewDeadlineTarefa, setViewDeadlineTarefa] = useState<{ id: number; titulo: string; prioridade: string; descricao?: string | null; estado_global?: string | null } | null>(null);
+
   // Confirmação para ações em sessões de outros users
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
@@ -375,6 +384,14 @@ const Horarios = () => {
   const { data: equipa } = useQuery({
     queryKey: ['equipa'],
     queryFn: () => api.get<PublicProfileEquipa[]>('/api/equipa'),
+    enabled: !!apiUrl,
+  });
+
+  // Tarefas internas (para Trabalho Interno)
+  interface TarefaBasic { id: number; titulo: string; prioridade: string; data_limite?: string | null; estado_global?: string | null; descricao?: string | null; }
+  const { data: tarefas = [] } = useQuery<TarefaBasic[]>({
+    queryKey: ['tarefas'],
+    queryFn: () => api.get('/api/tarefas').then((r: any) => r.data ?? r),
     enabled: !!apiUrl,
   });
 
@@ -853,6 +870,17 @@ const Horarios = () => {
     onError: () => toast.error('Erro ao criar sessão autónoma.'),
   });
 
+  const concluirTarefaMutation = useMutation({
+    mutationFn: (tarefaId: number) =>
+      api.patch(`/api/tarefas/${tarefaId}/estado`, { estado: 'concluida' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tarefas'] });
+      setIsTIDetailOpen(false);
+      toast.success('Tarefa marcada como concluída!');
+    },
+    onError: () => toast.error('Erro ao concluir tarefa.'),
+  });
+
   const resetForm = () => {
     setEditingSession(null);
     setModalTab('aula');
@@ -1052,7 +1080,7 @@ const Horarios = () => {
 
   /** Renderiza os eventos posicionados dentro de uma coluna de dia (reutilizado em desktop e mobile). */
   const renderDayEvents = (day: Date, compact = false) => {
-    const daySessions = getSessionsForDay(day);
+    const daySessions = getSessionsForDay(day).filter(s => s.tipo !== 'trabalho_interno');
     const eventsForLayout = daySessions.map(session => ({
       ...session,
       start: new Date(session.data_hora),
@@ -1131,6 +1159,48 @@ const Horarios = () => {
     });
   };
 
+  /** Renderiza a banda de Trabalho Interno + prazos acima da grelha de horário. */
+  const renderDayInternos = (day: Date) => {
+    const tiSessions = getSessionsForDay(day).filter(s => s.tipo === 'trabalho_interno');
+    const dayStr = format(day, 'yyyy-MM-dd');
+    const deadlineTarefas = (tarefas as TarefaBasic[]).filter(t =>
+      t.data_limite === dayStr && t.estado_global !== 'concluida'
+    );
+    if (tiSessions.length === 0 && deadlineTarefas.length === 0) return null;
+    return (
+      <div className="mb-1 flex flex-col gap-1 px-1 pt-1">
+        {tiSessions.map(session => {
+          const tarefaTitulo = session.tarefa_titulo || (tarefas as TarefaBasic[]).find(t => t.id === session.tarefa_id)?.titulo || null;
+          const horaStr = session.data_hora ? format(new Date(session.data_hora), 'HH:mm') : null;
+          return (
+            <div
+              key={`ti-${session.id}`}
+              onClick={() => { setViewTISession(session); setIsTIDetailOpen(true); }}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-purple-500/15 border border-purple-400/40 text-purple-700 dark:text-purple-300 cursor-pointer hover:bg-purple-500/25 transition-colors"
+            >
+              <Wrench className="h-3 w-3 shrink-0" />
+              <span className="text-[11px] font-medium truncate flex-1">
+                {tarefaTitulo ?? 'Trabalho Interno'}
+              </span>
+              {horaStr && <span className="text-[10px] opacity-70 shrink-0">{horaStr}</span>}
+            </div>
+          );
+        })}
+        {deadlineTarefas.map(tarefa => (
+          <div
+            key={`dl-${tarefa.id}`}
+            onClick={() => { setViewDeadlineTarefa(tarefa); setIsDeadlineOpen(true); }}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-500/15 border border-amber-400/40 text-amber-700 dark:text-amber-400 cursor-pointer hover:bg-amber-500/25 transition-colors"
+          >
+            <CalendarIcon className="h-3 w-3 shrink-0" />
+            <span className="text-[11px] font-medium truncate flex-1">{tarefa.titulo}</span>
+            <span className="text-[10px] opacity-70 shrink-0">Prazo</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* ... existing header ... */}
@@ -1164,7 +1234,7 @@ const Horarios = () => {
                   <DialogDescription>
                     {editingSession
                       ? 'Altere os detalhes da sessão existente.'
-                      : 'Agenda uma aula com turma ou um bloco de trabalho interno.'}
+                      : 'Agenda uma aula com turma ou um bloco de trabalho autónomo.'}
                   </DialogDescription>
                 </DialogHeader>
 
@@ -1175,7 +1245,7 @@ const Horarios = () => {
                       <TabsTrigger value="aula">Aula / Evento</TabsTrigger>
                       <TabsTrigger value="autonomo" className="flex items-center gap-1">
                         <Briefcase className="h-3.5 w-3.5" />
-                        Trabalho Autónomo
+                        Autónomo
                       </TabsTrigger>
                     </TabsList>
 
@@ -1746,6 +1816,7 @@ const Horarios = () => {
                         </div>
                       </div>
                     </TabsContent>
+
                   </Tabs>
                 )}
 
@@ -2063,7 +2134,7 @@ const Horarios = () => {
                       disabled={createSessionMutation.isPending || createAutonomousMutation.isPending || updateSessionMutation.isPending || createRecurringSessionMutation.isPending}
                     >
                       <Save className="h-4 w-4 mr-2" />
-                      {editingSession ? 'Atualizar' : modalTab === 'autonomo' ? 'Agendar Trabalho' : 'Criar Sessão'}
+                      {editingSession ? 'Atualizar' : modalTab === 'autonomo' ? 'Agendar Autónomo' : 'Criar Sessão'}
                     </Button>
                   </div>
                 </DialogFooter>
@@ -2296,6 +2367,7 @@ const Horarios = () => {
                   willChange: 'transform',
                 }}
               >
+                {renderDayInternos(selectedDay)}
                 <div className="bg-card rounded-lg relative border border-border h-[600px] overflow-hidden">
                   {/* Grid lines */}
                   <div className="absolute inset-0 pointer-events-none">
@@ -2338,7 +2410,8 @@ const Horarios = () => {
                       <p className="text-xs uppercase">{format(day, 'EEE', { locale: pt })}</p>
                       <p className="text-lg font-bold font-display">{format(day, 'd')}</p>
                     </div>
-                    <div className="bg-card rounded-b-lg relative border border-t-0 border-border h-[800px] overflow-hidden">
+                    {renderDayInternos(day)}
+                    <div className="bg-card rounded-b-lg relative border border-border h-[800px] overflow-hidden">
                       <div className="absolute inset-0 pointer-events-none">
                         {Array.from({ length: 14 }).map((_, i) => (
                           <div key={i} className="border-t border-border/20 w-full" style={{ height: `${100 / 14}%` }} />
@@ -2387,6 +2460,10 @@ const Horarios = () => {
                 const isToday = isSameDay(day, new Date());
                 const dayOfWeek = (adjustedStartDay + index) % 7;
                 const isLastColumn = dayOfWeek === 6;
+                const dayStr = format(day, 'yyyy-MM-dd');
+                const dayDeadlines = (tarefas as TarefaBasic[]).filter(t =>
+                  t.data_limite === dayStr && t.estado_global !== 'concluida'
+                );
 
                 return (
                   <div
@@ -2438,6 +2515,16 @@ const Horarios = () => {
                           +{daySessions.length - 3} mais
                         </p>
                       )}
+                      {dayDeadlines.map(tarefa => (
+                        <div
+                          key={`dl-${tarefa.id}`}
+                          onClick={() => { setViewDeadlineTarefa(tarefa); setIsDeadlineOpen(true); }}
+                          className="text-xs px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80 bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-400/40 flex items-center gap-1"
+                        >
+                          <CalendarIcon className="h-2.5 w-2.5 shrink-0" />
+                          <span className="truncate">{tarefa.titulo}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 );
@@ -2818,6 +2905,109 @@ const Horarios = () => {
               <CheckCircle2 className="h-4 w-4 mr-2" />
               Submeter
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deadline Task Modal */}
+      <Dialog open={isDeadlineOpen} onOpenChange={setIsDeadlineOpen}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-display">
+              <CalendarIcon className="h-4 w-4 text-amber-500" />
+              Prazo de Tarefa
+            </DialogTitle>
+            <DialogDescription>
+              Esta tarefa tem o prazo definido para este dia.
+            </DialogDescription>
+          </DialogHeader>
+          {viewDeadlineTarefa && (
+            <div className="space-y-3 py-1">
+              <p className="font-semibold">{viewDeadlineTarefa.titulo}</p>
+              {viewDeadlineTarefa.descricao && (
+                <p className="text-sm text-muted-foreground">{viewDeadlineTarefa.descricao}</p>
+              )}
+              <span className={cn(
+                'inline-block text-[10px] px-2 py-0.5 rounded-full font-medium',
+                viewDeadlineTarefa.prioridade === 'urgente' ? 'bg-red-500/20 text-red-600' :
+                viewDeadlineTarefa.prioridade === 'alto' ? 'bg-orange-500/20 text-orange-600' :
+                viewDeadlineTarefa.prioridade === 'medio' ? 'bg-yellow-500/20 text-yellow-600' :
+                'bg-muted text-muted-foreground'
+              )}>
+                {viewDeadlineTarefa.prioridade.charAt(0).toUpperCase() + viewDeadlineTarefa.prioridade.slice(1)}
+              </span>
+            </div>
+          )}
+          <DialogFooter>
+            {viewDeadlineTarefa && (
+              <Button
+                onClick={() => { concluirTarefaMutation.mutate(viewDeadlineTarefa.id); setIsDeadlineOpen(false); }}
+                disabled={concluirTarefaMutation.isPending}
+                className="w-full"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Concluir Tarefa
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* TI Detail Modal */}
+      <Dialog open={isTIDetailOpen} onOpenChange={setIsTIDetailOpen}>
+        <DialogContent className="w-[calc(100%-2rem)] max-w-sm rounded-xl bg-card">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-display">
+              <Wrench className="h-4 w-4 text-purple-500" />
+              Trabalho Interno
+            </DialogTitle>
+          </DialogHeader>
+          {viewTISession && (() => {
+            const tarefa = viewTISession.tarefa_id
+              ? (tarefas as any[]).find((t: any) => t.id === viewTISession.tarefa_id)
+              : null;
+            const hora = format(new Date(viewTISession.data_hora), 'HH:mm');
+            const dataFmt = format(new Date(viewTISession.data_hora), 'd MMM yyyy', { locale: pt });
+            return (
+              <div className="space-y-3 py-2">
+                {tarefa && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Tarefa</p>
+                    <p className="font-semibold">{tarefa.titulo}</p>
+                    {tarefa.prioridade && (
+                      <span className={cn(
+                        'text-[10px] px-2 py-0.5 rounded-full font-medium',
+                        tarefa.prioridade === 'urgente' ? 'bg-red-500/20 text-red-600' :
+                        tarefa.prioridade === 'alto' ? 'bg-orange-500/20 text-orange-600' :
+                        tarefa.prioridade === 'medio' ? 'bg-yellow-500/20 text-yellow-600' :
+                        'bg-muted text-muted-foreground'
+                      )}>
+                        {tarefa.prioridade.charAt(0).toUpperCase() + tarefa.prioridade.slice(1)}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Clock className="h-4 w-4 shrink-0" />
+                  <span>{dataFmt} · {hora}{viewTISession.duracao_minutos > 0 ? ` (${viewTISession.duracao_minutos} min)` : ''}</span>
+                </div>
+                {viewTISession.observacoes && (
+                  <p className="text-sm text-muted-foreground">{viewTISession.observacoes}</p>
+                )}
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            {viewTISession?.tarefa_id && (
+              <Button
+                onClick={() => viewTISession?.tarefa_id && concluirTarefaMutation.mutate(viewTISession.tarefa_id)}
+                disabled={concluirTarefaMutation.isPending}
+                className="w-full"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Concluir Tarefa
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

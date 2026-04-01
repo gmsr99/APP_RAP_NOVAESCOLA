@@ -136,8 +136,11 @@ def criar_aula(
     musica_id=None,
     sumario=None,
     codigo_sessao=None,
+    tarefa_id=None,
 ):
-    if not is_autonomous and not turma_id:
+    is_interno = tipo == "trabalho_interno"
+
+    if not is_autonomous and not is_interno and not turma_id:
         logger.error("Erro: turma_id e obrigatorio para aulas regulares!")
         return None
 
@@ -145,10 +148,12 @@ def criar_aula(
         logger.error("Erro: data_hora e obrigatoria!")
         return None
 
-    if not is_autonomous and tipo not in TIPOS_AULA:
+    if not is_autonomous and not is_interno and tipo not in TIPOS_AULA:
         logger.warning("Tipo '%s' nao e padrao. Tipos validos: %s", tipo, TIPOS_AULA)
 
-    if is_autonomous:
+    if is_interno:
+        estado_inicial = "confirmada"
+    elif is_autonomous:
         estado_inicial = "autonomo"
     else:
         estado_inicial = ESTADO_PENDENTE if mentor_id else ESTADO_RASCUNHO
@@ -161,7 +166,7 @@ def criar_aula(
                 turma_id=turma_id,
                 mentor_id=mentor_id,
                 projeto_id=projeto_id,
-                tipo=tipo if not is_autonomous else "trabalho_autonomo",
+                tipo="trabalho_interno" if is_interno else ("trabalho_autonomo" if is_autonomous else tipo),
                 data_hora=data_hora_dt,
                 duracao_minutos=duracao_minutos,
                 estado=estado_inicial,
@@ -177,6 +182,7 @@ def criar_aula(
                 musica_id=musica_id,
                 sumario=sumario,
                 codigo_sessao=codigo_sessao,
+                tarefa_id=tarefa_id,
             )
             session.add(nova_aula)
             session.commit()
@@ -713,6 +719,7 @@ def listar_todas_aulas(limite=100):
                 "musica_id": aula.musica_id,
                 "avaliacao": aula.avaliacao,
                 "obs_termino": aula.obs_termino,
+                "tarefa_id": aula.tarefa_id,
             }
             aulas.append(AulaListItem.model_validate(payload).model_dump())
 

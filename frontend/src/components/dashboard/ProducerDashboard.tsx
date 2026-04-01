@@ -13,6 +13,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { OutrasTarefasWidget } from './OutrasTarefasWidget';
 
 const stageLabels: Record<string, string> = {
   'gravação': 'Gravação',
@@ -235,6 +236,9 @@ export function ProducerDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Outras Tarefas */}
+      <OutrasTarefasWidget />
     </div>
   );
 }

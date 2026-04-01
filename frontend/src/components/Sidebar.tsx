@@ -12,13 +12,15 @@ import {
   Mic2,
   ChevronLeft,
   ChevronRight,
-  GraduationCap,
+
   Users,
   Database,
   BarChart3,
   X,
   MoreHorizontal,
   Link2,
+  Phone,
+  CheckSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -27,6 +29,8 @@ import React, { useState } from 'react';
 const allProfiles = ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'];
 
 const atalhosItem: NavItem = { name: 'Atalhos', href: '/atalhos', icon: Link2, profiles: allProfiles };
+const contactosItem: NavItem = { name: 'Contactos', href: '/contactos', icon: Phone, profiles: allProfiles };
+
 
 type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; profiles: string[]; disabled?: boolean };
 type SeparatorItem = { separator: true };
@@ -36,6 +40,7 @@ const navigation: SidebarItem[] = [
   { name: 'Dashboard', href: '/', icon: LayoutDashboard, profiles: allProfiles },
   { name: 'Horários', href: '/horarios', icon: Calendar, profiles: allProfiles },
   { name: 'Produção', href: '/producao', icon: Music, profiles: allProfiles },
+  { name: 'Tarefas', href: '/tarefas', icon: CheckSquare, profiles: allProfiles },
   { name: 'Estúdio', href: '/estudio', icon: Mic2, profiles: allProfiles },
   { name: 'Registos', href: '/registos', icon: ClipboardList, profiles: allProfiles },
   { name: 'Chat', href: '/chat', icon: MessageSquare, profiles: allProfiles },
@@ -44,7 +49,6 @@ const navigation: SidebarItem[] = [
   { name: 'Equipa', href: '/equipa', icon: Users, profiles: allProfiles },
   { name: 'Estatísticas', href: '/estatisticas', icon: BarChart3, profiles: ['coordenador', 'direcao', 'it_support'] },
   { name: 'Wiki', href: '/wiki', icon: Database, profiles: allProfiles },
-  { name: 'Formação', href: '/formacao', icon: GraduationCap, profiles: allProfiles, disabled: true },
 ];
 
 // Bottom nav items (mobile): first 5 nav items + "Mais"
@@ -129,6 +133,7 @@ export function Sidebar() {
         })}
         <div className="my-2 border-t border-sidebar-border" />
         <NavItemLink item={atalhosItem} collapsed={collapsed} />
+        <NavItemLink item={contactosItem} collapsed={collapsed} />
       </nav>
 
       {/* Collapse Button */}
@@ -185,6 +190,7 @@ export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () =>
           })}
           <div className="my-2 border-t border-sidebar-border" />
           <NavItemLink item={atalhosItem} collapsed={false} onClick={onClose} />
+          <NavItemLink item={contactosItem} collapsed={false} onClick={onClose} />
         </nav>
       </SheetContent>
     </Sheet>
