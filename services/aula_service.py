@@ -1030,21 +1030,32 @@ def listar_feedback_sessoes(projeto_id=None):
 
 
 def listar_aulas_export(
-    projeto_id: int,
+    projeto_ids: list = None,
     tipo_sessao: str = "todas",
     estados: list = None,
+    mentor_id: int = None,
+    data_inicio: str = None,
+    data_fim: str = None,
 ) -> list:
     """
-    Exporta atividades/sessões de um projeto com filtros.
+    Exporta atividades/sessões com filtros flexíveis.
+    projeto_ids: lista de IDs ou None (= todos os projetos)
     tipo_sessao: 'todas' | 'presenciais' | 'autonomas'
-    estados: lista de estados, e.g. ['terminada', 'confirmada']. None = todos.
+    estados: lista de estados. None = todos.
+    mentor_id: filtrar por mentor. None = todos.
+    data_inicio / data_fim: intervalo de datas (YYYY-MM-DD). None = sem limite.
     """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
-        conditions = ["a.projeto_id = %s"]
-        params: list = [projeto_id]
+        conditions = []
+        params: list = []
+
+        if projeto_ids:
+            placeholders = ", ".join(["%s"] * len(projeto_ids))
+            conditions.append(f"a.projeto_id IN ({placeholders})")
+            params.extend(projeto_ids)
 
         if tipo_sessao == "presenciais":
             conditions.append("a.is_autonomous = FALSE")
@@ -1056,7 +1067,19 @@ def listar_aulas_export(
             conditions.append(f"a.estado IN ({placeholders})")
             params.extend(estados)
 
-        where = "WHERE " + " AND ".join(conditions)
+        if mentor_id:
+            conditions.append("a.mentor_id = %s")
+            params.append(mentor_id)
+
+        if data_inicio:
+            conditions.append("a.data_hora >= %s")
+            params.append(data_inicio)
+
+        if data_fim:
+            conditions.append("a.data_hora < (%s::date + INTERVAL '1 day')")
+            params.append(data_fim)
+
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
         cur.execute(f"""
             SELECT

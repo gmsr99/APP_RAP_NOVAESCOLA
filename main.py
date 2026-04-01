@@ -182,20 +182,31 @@ async def get_todas_sessoes_registaveis(user=Depends(get_current_user_required))
 
 @app.get("/api/aulas/export", tags=["Aulas"])
 async def export_aulas(
-    projeto_id: int,
+    projeto_ids: Optional[str] = None,
     tipo_sessao: Optional[str] = "todas",
     estados: Optional[str] = None,
+    mentor_id: Optional[int] = None,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
     user=Depends(get_current_user_required),
 ):
-    """Exporta lista de atividades/sessões de um projeto (direção / it_support)."""
+    """Exporta lista de atividades/sessões com filtros flexíveis (direção / it_support)."""
     from services import profile_service
     user_id = user.get("sub")
     perfis = profile_service.listar_perfis()
     user_profile = next((p for p in perfis if str(p.get("id")) == user_id), None)
     if not user_profile or user_profile.get("role") not in ("direcao", "it_support"):
         raise HTTPException(status_code=403, detail="Sem permissão para exportar atividades.")
+    projeto_ids_list = [int(p.strip()) for p in projeto_ids.split(",") if p.strip()] if projeto_ids else None
     estados_list = [e.strip() for e in estados.split(",")] if estados else None
-    return aula_service.listar_aulas_export(projeto_id, tipo_sessao or "todas", estados_list)
+    return aula_service.listar_aulas_export(
+        projeto_ids=projeto_ids_list,
+        tipo_sessao=tipo_sessao or "todas",
+        estados=estados_list,
+        mentor_id=mentor_id,
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+    )
 
 
 @app.get("/api/aulas/{aula_id}", tags=["Aulas"])

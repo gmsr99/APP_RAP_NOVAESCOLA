@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -21,37 +22,25 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  FileSpreadsheet,
-  Download,
-  Layers,
-  ChevronRight,
-  ChevronLeft,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { FileSpreadsheet, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface Projeto {
-  id: number;
-  nome: string;
-}
+interface Projeto { id: number; nome: string; }
+interface Mentor  { id: number; nome: string; }
 
-interface ExportAtividadesModalProps {
+export interface ExportAtividadesModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Se fornecido (página de Estatísticas), salta a etapa de seleção de projeto. */
-  projetoId?: number | null;
-  projetoNome?: string | null;
 }
 
 // ─── Constantes ──────────────────────────────────────────────────────────────
 
 const TIPO_SESSAO_OPTIONS = [
-  { value: 'todas', label: 'Todas (presenciais + autónomas)' },
+  { value: 'todas',       label: 'Todas (presenciais + autónomas)' },
   { value: 'presenciais', label: 'Apenas presenciais' },
-  { value: 'autonomas', label: 'Apenas autónomas' },
+  { value: 'autonomas',   label: 'Apenas autónomas' },
 ];
 
 const ESTADO_OPTIONS = [
@@ -61,17 +50,16 @@ const ESTADO_OPTIONS = [
   { value: 'recusada',   label: 'Recusadas'   },
   { value: 'cancelada',  label: 'Canceladas'  },
   { value: 'rascunho',   label: 'Rascunhos'   },
-  { value: 'concluida',  label: 'Concluídas'  },
 ];
 
 const TIPO_LABELS: Record<string, string> = {
-  teorica:            'Teórica',
-  pratica_escrita:    'Prática Escrita',
-  pratica_gravacao:   'Prática Gravação',
-  producao_musical:   'Produção Musical',
-  ensaio:             'Ensaio',
-  showcase:           'Showcase',
-  trabalho_autonomo:  'Trabalho Autónomo',
+  teorica:           'Teórica',
+  pratica_escrita:   'Prática Escrita',
+  pratica_gravacao:  'Prática Gravação',
+  producao_musical:  'Produção Musical',
+  ensaio:            'Ensaio',
+  showcase:          'Showcase',
+  trabalho_autonomo: 'Trabalho Autónomo',
 };
 
 const ESTADO_LABELS: Record<string, string> = {
@@ -97,6 +85,7 @@ type ExportRow = {
   colaborador?: string | null;
   turma_nome?: string | null;
   estabelecimento_nome?: string | null;
+  projeto_nome?: string | null;
   tema?: string | null;
   tipo_atividade?: string | null;
   objetivos?: string | null;
@@ -108,51 +97,33 @@ type ExportRow = {
 
 // ─── Geração do XLSX ─────────────────────────────────────────────────────────
 
-function gerarXLSX(rows: ExportRow[], projetoNome: string, tipoLabel: string, estadosLabel: string) {
+function gerarXLSX(rows: ExportRow[], labelProjetos: string, labelTipo: string, labelEstados: string, labelMentor: string, labelDatas: string) {
   const wb = XLSX.utils.book_new();
-
-  // ── Metadados do workbook ──
   wb.Props = {
-    Title: `Atividades - ${projetoNome}`,
+    Title: `Atividades - ${labelProjetos}`,
     Subject: 'Export de Atividades RAP Nova Escola',
     Author: 'RAP Nova Escola',
     CreatedDate: new Date(),
   };
 
-  // ── Dados da folha ──
   const dataGerado = new Date().toLocaleString('pt-PT', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
 
-  // Cabeçalho informativo (4 linhas antes da tabela de dados)
   const headerRows = [
     ['RAP Nova Escola — Exportação de Atividades'],
-    [`Projeto: ${projetoNome}`],
-    [`Filtros: ${tipoLabel} · Estados: ${estadosLabel}`],
+    [`Projetos: ${labelProjetos}`],
+    [`Filtros: ${labelTipo} · Estados: ${labelEstados} · Mentor: ${labelMentor} · Período: ${labelDatas}`],
     [`Gerado em: ${dataGerado}    Total: ${rows.length} registo(s)`],
-    [], // linha vazia separadora
+    [],
   ];
 
-  // Colunas da tabela de dados
   const colHeaders = [
-    'Código',
-    'Data',
-    'Hora Início',
-    'Hora Fim',
-    'Duração (h)',
-    'Tipo',
-    'Estado',
-    'Autónoma?',
-    'Colaborador',
-    'Turma',
-    'Escola',
-    'Tema / Atividade',
-    'Objetivos',
-    'Sumário',
-    'Avaliação',
-    'Observações Termino',
-    'Observações Gerais',
+    'Código', 'Data', 'Hora Início', 'Hora Fim', 'Duração (h)',
+    'Tipo', 'Estado', 'Autónoma?', 'Colaborador', 'Turma',
+    'Escola', 'Projeto', 'Tema / Atividade', 'Objetivos', 'Sumário',
+    'Avaliação', 'Observações Termino', 'Observações Gerais',
   ];
 
   const dataRows = rows.map((r) => [
@@ -161,12 +132,13 @@ function gerarXLSX(rows: ExportRow[], projetoNome: string, tipoLabel: string, es
     r.hora_inicio      ?? '',
     r.hora_fim         ?? '',
     r.duracao_horas    ?? '',
-    TIPO_LABELS[r.tipo] ?? r.tipo ?? '',
-    ESTADO_LABELS[r.estado] ?? r.estado ?? '',
+    TIPO_LABELS[r.tipo ?? ''] ?? r.tipo ?? '',
+    ESTADO_LABELS[r.estado ?? ''] ?? r.estado ?? '',
     r.is_autonomous ? 'Sim' : 'Não',
     r.colaborador      ?? '',
     r.turma_nome       ?? '',
     r.estabelecimento_nome ?? '',
+    r.projeto_nome     ?? '',
     r.tema ?? r.tipo_atividade ?? '',
     r.objetivos        ?? '',
     r.sumario          ?? '',
@@ -175,20 +147,13 @@ function gerarXLSX(rows: ExportRow[], projetoNome: string, tipoLabel: string, es
     r.observacoes      ?? '',
   ]);
 
-  // Linha de rodapé
   const footerRows = [
     [],
     [`Total de registos exportados: ${rows.length}`],
     [`Exportado por: RAP Nova Escola · ${dataGerado}`],
   ];
 
-  const allSheetData = [
-    ...headerRows,
-    colHeaders,
-    ...dataRows,
-    ...footerRows,
-  ];
-
+  const allSheetData = [...headerRows, colHeaders, ...dataRows, ...footerRows];
   const ws = XLSX.utils.aoa_to_sheet(allSheetData);
   const tableHeaderRowIndex = headerRows.length;
   const firstDataRowIndex = tableHeaderRowIndex + 1;
@@ -196,48 +161,26 @@ function gerarXLSX(rows: ExportRow[], projetoNome: string, tipoLabel: string, es
   const footerStartRowIndex = lastDataRowIndex + 2;
   const lastColumnIndex = colHeaders.length - 1;
 
-  // ── Larguras das colunas ──
   ws['!cols'] = [
-    { wch: 14 }, // Código
-    { wch: 12 }, // Data
-    { wch: 10 }, // Hora Início
-    { wch: 10 }, // Hora Fim
-    { wch: 12 }, // Duração
-    { wch: 20 }, // Tipo
-    { wch: 14 }, // Estado
-    { wch: 10 }, // Autónoma
-    { wch: 24 }, // Colaborador
-    { wch: 20 }, // Turma
-    { wch: 28 }, // Escola
-    { wch: 30 }, // Tema
-    { wch: 36 }, // Objetivos
-    { wch: 36 }, // Sumário
-    { wch: 12 }, // Avaliação
-    { wch: 40 }, // Obs Termino
-    { wch: 40 }, // Obs Gerais
+    { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
+    { wch: 20 }, { wch: 14 }, { wch: 10 }, { wch: 24 }, { wch: 20 },
+    { wch: 28 }, { wch: 20 }, { wch: 30 }, { wch: 36 }, { wch: 36 },
+    { wch: 12 }, { wch: 40 }, { wch: 40 },
   ];
 
   ws['!rows'] = [
-    { hpt: 28 },
-    { hpt: 20 },
-    { hpt: 20 },
-    { hpt: 20 },
-    { hpt: 12 },
-    { hpt: 22 },
+    { hpt: 28 }, { hpt: 20 }, { hpt: 20 }, { hpt: 20 }, { hpt: 12 }, { hpt: 22 },
     ...dataRows.map(() => ({ hpt: 30 })),
-    { hpt: 10 },
-    { hpt: 20 },
-    { hpt: 20 },
+    { hpt: 10 }, { hpt: 20 }, { hpt: 20 },
   ];
 
-  // ── Merge do título principal (linha 1, colunas A–Q) ──
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 16 } }, // RAP Nova Escola
-    { s: { r: 1, c: 0 }, e: { r: 1, c: 16 } }, // Projeto
-    { s: { r: 2, c: 0 }, e: { r: 2, c: 16 } }, // Filtros
-    { s: { r: 3, c: 0 }, e: { r: 3, c: 16 } }, // Gerado em
-    { s: { r: footerStartRowIndex, c: 0 }, e: { r: footerStartRowIndex, c: 16 } },
-    { s: { r: footerStartRowIndex + 1, c: 0 }, e: { r: footerStartRowIndex + 1, c: 16 } },
+    { s: { r: 0, c: 0 }, e: { r: 0, c: lastColumnIndex } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: lastColumnIndex } },
+    { s: { r: 2, c: 0 }, e: { r: 2, c: lastColumnIndex } },
+    { s: { r: 3, c: 0 }, e: { r: 3, c: lastColumnIndex } },
+    { s: { r: footerStartRowIndex,     c: 0 }, e: { r: footerStartRowIndex,     c: lastColumnIndex } },
+    { s: { r: footerStartRowIndex + 1, c: 0 }, e: { r: footerStartRowIndex + 1, c: lastColumnIndex } },
   ];
 
   ws['!autofilter'] = {
@@ -248,17 +191,9 @@ function gerarXLSX(rows: ExportRow[], projetoNome: string, tipoLabel: string, es
   };
 
   const palette = {
-    ink: '2B3544',
-    inkSoft: '334155',
-    cyanSoft: 'DDF6FA',
-    cyan: '4DC4D9',
-    paper: 'F5F7FA',
-    white: 'FFFFFF',
-    slate: '667085',
-    line: 'D0D7E2',
-    lineDark: '425166',
+    ink: '2B3544', inkSoft: '334155', cyanSoft: 'DDF6FA', cyan: '4DC4D9',
+    paper: 'F5F7FA', white: 'FFFFFF', slate: '667085', line: 'D0D7E2', lineDark: '425166',
   };
-
   const withColor = (rgb: string) => ({ rgb });
   const borderAll = {
     top: { style: 'thin', color: withColor(palette.line) },
@@ -266,19 +201,12 @@ function gerarXLSX(rows: ExportRow[], projetoNome: string, tipoLabel: string, es
     left: { style: 'thin', color: withColor(palette.line) },
     right: { style: 'thin', color: withColor(palette.line) },
   };
-
-  const setStyle = (cellRef: string, style: any) => {
-    if (!ws[cellRef]) return;
-    ws[cellRef].s = style;
-  };
-
+  const setStyle = (cellRef: string, style: any) => { if (ws[cellRef]) ws[cellRef].s = style; };
   const styleRowRange = (rowIndex: number, styleFactory: (colIndex: number) => any) => {
-    for (let colIndex = 0; colIndex <= lastColumnIndex; colIndex += 1) {
-      const cellRef = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
-      if (!ws[cellRef]) {
-        ws[cellRef] = { t: 's', v: '' };
-      }
-      setStyle(cellRef, styleFactory(colIndex));
+    for (let c = 0; c <= lastColumnIndex; c++) {
+      const ref = XLSX.utils.encode_cell({ r: rowIndex, c });
+      if (!ws[ref]) ws[ref] = { t: 's', v: '' };
+      ws[ref].s = styleFactory(c);
     }
   };
 
@@ -286,25 +214,16 @@ function gerarXLSX(rows: ExportRow[], projetoNome: string, tipoLabel: string, es
     font: { bold: true, sz: 16, color: withColor(palette.white) },
     fill: { fgColor: withColor(palette.ink) },
     alignment: { horizontal: 'center', vertical: 'center' },
-    border: {
-      ...borderAll,
-      bottom: { style: 'medium', color: withColor(palette.cyan) },
-    },
+    border: { ...borderAll, bottom: { style: 'medium', color: withColor(palette.cyan) } },
   });
-
-  for (let rowIndex = 1; rowIndex <= 3; rowIndex += 1) {
-    setStyle(`A${rowIndex + 1}`, {
-      font: {
-        bold: rowIndex === 1,
-        sz: rowIndex === 1 ? 11 : 10,
-        color: withColor(rowIndex === 3 ? palette.slate : palette.ink),
-      },
-      fill: { fgColor: withColor(rowIndex === 3 ? palette.paper : palette.cyanSoft) },
+  for (let i = 1; i <= 3; i++) {
+    setStyle(`A${i + 1}`, {
+      font: { bold: i === 1, sz: i === 1 ? 11 : 10, color: withColor(i === 3 ? palette.slate : palette.ink) },
+      fill: { fgColor: withColor(i === 3 ? palette.paper : palette.cyanSoft) },
       alignment: { horizontal: 'left', vertical: 'center' },
       border: borderAll,
     });
   }
-
   styleRowRange(tableHeaderRowIndex, () => ({
     font: { bold: true, sz: 10, color: withColor(palette.white) },
     fill: { fgColor: withColor(palette.inkSoft) },
@@ -316,33 +235,17 @@ function gerarXLSX(rows: ExportRow[], projetoNome: string, tipoLabel: string, es
       right: { style: 'thin', color: withColor(palette.lineDark) },
     },
   }));
-
-  for (let rowIndex = firstDataRowIndex; rowIndex <= lastDataRowIndex; rowIndex += 1) {
-    styleRowRange(rowIndex, (colIndex) => ({
-      font: {
-        sz: 10,
-        color: withColor(palette.ink),
-        bold: colIndex === 0,
-      },
-      fill: {
-        fgColor: withColor(rowIndex % 2 === 0 ? palette.white : palette.paper),
-      },
-      alignment: {
-        vertical: 'top',
-        horizontal: [1, 2, 3, 4, 7, 14].includes(colIndex) ? 'center' : 'left',
-        wrapText: true,
-      },
+  for (let r = firstDataRowIndex; r <= lastDataRowIndex; r++) {
+    styleRowRange(r, (c) => ({
+      font: { sz: 10, color: withColor(palette.ink), bold: c === 0 },
+      fill: { fgColor: withColor(r % 2 === 0 ? palette.white : palette.paper) },
+      alignment: { vertical: 'top', horizontal: [1,2,3,4,7,14].includes(c) ? 'center' : 'left', wrapText: true },
       border: borderAll,
     }));
   }
-
-  [footerStartRowIndex, footerStartRowIndex + 1].forEach((rowIndex) => {
-    setStyle(XLSX.utils.encode_cell({ r: rowIndex, c: 0 }), {
-      font: {
-        bold: rowIndex === footerStartRowIndex,
-        sz: 10,
-        color: withColor(palette.white),
-      },
+  [footerStartRowIndex, footerStartRowIndex + 1].forEach(r => {
+    setStyle(XLSX.utils.encode_cell({ r, c: 0 }), {
+      font: { bold: r === footerStartRowIndex, sz: 10, color: withColor(palette.white) },
       fill: { fgColor: withColor(palette.ink) },
       alignment: { horizontal: 'left', vertical: 'center' },
       border: borderAll,
@@ -350,293 +253,224 @@ function gerarXLSX(rows: ExportRow[], projetoNome: string, tipoLabel: string, es
   });
 
   XLSX.utils.book_append_sheet(wb, ws, 'Atividades');
-
-  // ── Download ──
-  const safeNome = projetoNome.replace(/[^a-zA-Z0-9_\-]/g, '_');
-  const fileName = `Atividades_${safeNome}_${new Date().toISOString().slice(0, 10)}.xlsx`;
-  XLSX.writeFile(wb, fileName);
+  const safeNome = labelProjetos.replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 40);
+  XLSX.writeFile(wb, `Atividades_${safeNome}_${new Date().toISOString().slice(0, 10)}.xlsx`);
 }
 
 // ─── Componente ──────────────────────────────────────────────────────────────
 
-export function ExportAtividadesModal({
-  open,
-  onOpenChange,
-  projetoId,
-  projetoNome,
-}: ExportAtividadesModalProps) {
+export function ExportAtividadesModal({ open, onOpenChange }: ExportAtividadesModalProps) {
   const { toast } = useToast();
 
-  // Passo do wizard: 1 = escolher projeto (só se projetoId não vier de fora), 2 = filtros
-  const [step, setStep] = useState<1 | 2>(projetoId ? 2 : 1);
-  const [selectedProjetoId, setSelectedProjetoId] = useState<number | null>(projetoId ?? null);
-  const [selectedProjetoNome, setSelectedProjetoNome] = useState<string>(projetoNome ?? '');
-
+  // Projetos selecionados: [] = todos
+  const [projetosSel, setProjetosSel] = useState<number[]>([]);
+  const [mentorSel, setMentorSel] = useState<string>('all');
   const [tipoSessao, setTipoSessao] = useState('todas');
-  const [estadosSelecionados, setEstadosSelecionados] = useState<string[]>([]);
   const [todosEstados, setTodosEstados] = useState(true);
-
+  const [estadosSel, setEstadosSel] = useState<string[]>([]);
+  const [dataInicio, setDataInicio] = useState('');
+  const [dataFim, setDataFim] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Sincroniza quando o prop externo muda (ex: troca de projeto em Estatísticas)
-  const effectiveProjetoId = projetoId ?? selectedProjetoId;
-  const effectiveProjetoNome = projetoNome ?? selectedProjetoNome;
-
-  // Carrega projetos (apenas quando o step 1 é necessário)
-  const { data: projetos = [], isLoading: projetosLoading } = useQuery<Projeto[]>({
+  const { data: projetos = [] } = useQuery<Projeto[]>({
     queryKey: ['projetos'],
     queryFn: async () => (await api.get('/api/projetos')).data,
-    enabled: !projetoId,
+    enabled: open,
   });
 
-  // ─── Handlers ─────────────────────────────────────────────────────────────
+  const { data: mentores = [] } = useQuery<Mentor[]>({
+    queryKey: ['mentores'],
+    queryFn: async () => (await api.get('/api/mentores')).data,
+    enabled: open,
+  });
 
   function handleClose() {
-    // Reset estado interno ao fechar
-    setStep(projetoId ? 2 : 1);
-    setSelectedProjetoId(projetoId ?? null);
-    setSelectedProjetoNome(projetoNome ?? '');
+    setProjetosSel([]);
+    setMentorSel('all');
     setTipoSessao('todas');
-    setEstadosSelecionados([]);
     setTodosEstados(true);
+    setEstadosSel([]);
+    setDataInicio('');
+    setDataFim('');
     onOpenChange(false);
   }
 
-  function handleSelectProjeto(p: Projeto) {
-    setSelectedProjetoId(p.id);
-    setSelectedProjetoNome(p.nome);
-    setStep(2);
+  function toggleProjeto(id: number) {
+    setProjetosSel(prev =>
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    );
   }
 
-  function toggleEstado(estado: string) {
-    setEstadosSelecionados(prev =>
-      prev.includes(estado) ? prev.filter(e => e !== estado) : [...prev, estado]
+  function toggleEstado(e: string) {
+    setEstadosSel(prev =>
+      prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e]
     );
   }
 
   async function handleExport() {
-    if (!effectiveProjetoId) return;
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set('projeto_id', String(effectiveProjetoId));
+      if (projetosSel.length > 0) params.set('projeto_ids', projetosSel.join(','));
       params.set('tipo_sessao', tipoSessao);
-      if (!todosEstados && estadosSelecionados.length > 0) {
-        params.set('estados', estadosSelecionados.join(','));
-      }
+      if (!todosEstados && estadosSel.length > 0) params.set('estados', estadosSel.join(','));
+      if (mentorSel !== 'all') params.set('mentor_id', mentorSel);
+      if (dataInicio) params.set('data_inicio', dataInicio);
+      if (dataFim)    params.set('data_fim',    dataFim);
 
       const res = await api.get(`/api/aulas/export?${params.toString()}`);
-      const data = res.data as any[];
+      const data = res.data as ExportRow[];
 
       if (data.length === 0) {
-        toast({
-          title: 'Sem resultados',
-          description: 'Nenhuma atividade encontrada com os filtros selecionados.',
-        });
+        toast({ title: 'Sem resultados', description: 'Nenhuma atividade encontrada com os filtros selecionados.' });
         setLoading(false);
         return;
       }
 
-      const tipoLabel = TIPO_SESSAO_OPTIONS.find(o => o.value === tipoSessao)?.label ?? tipoSessao;
-      const estadosLabel = todosEstados
-        ? 'Todos'
-        : estadosSelecionados.map(e => ESTADO_LABELS[e] ?? e).join(', ');
+      const labelProjetos = projetosSel.length === 0
+        ? 'Todos os Projetos'
+        : projetosSel.map(id => projetos.find(p => p.id === id)?.nome ?? id).join(', ');
+      const labelTipo = TIPO_SESSAO_OPTIONS.find(o => o.value === tipoSessao)?.label ?? tipoSessao;
+      const labelEstados = todosEstados ? 'Todos' : estadosSel.map(e => ESTADO_LABELS[e] ?? e).join(', ');
+      const labelMentor = mentorSel === 'all' ? 'Todos' : (mentores.find(m => m.id === Number(mentorSel))?.nome ?? mentorSel);
+      const labelDatas = dataInicio || dataFim
+        ? `${dataInicio || '…'} → ${dataFim || '…'}`
+        : 'Sem limite';
 
-      gerarXLSX(data, effectiveProjetoNome, tipoLabel, estadosLabel);
+      gerarXLSX(data, labelProjetos, labelTipo, labelEstados, labelMentor, labelDatas);
 
-      toast({
-        title: 'Export concluído',
-        description: `${data.length} atividade(s) exportadas com sucesso.`,
-      });
+      toast({ title: 'Export concluído', description: `${data.length} atividade(s) exportadas.` });
       handleClose();
     } catch (err: any) {
-      console.error(err);
-      toast({
-        title: 'Erro ao exportar',
-        description: err?.response?.data?.detail ?? 'Ocorreu um erro inesperado.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro ao exportar', description: err?.response?.data?.detail ?? 'Ocorreu um erro inesperado.', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
   }
 
-  // ─── Render ───────────────────────────────────────────────────────────────
+  const canExport = todosEstados || estadosSel.length > 0;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="w-full sm:max-w-lg max-h-[95dvh] overflow-y-auto">
+      <DialogContent className="w-full sm:max-w-lg max-h-[92dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5 text-green-500" />
             Exportar Atividades
           </DialogTitle>
           <DialogDescription>
-            {step === 1
-              ? 'Selecione o projeto cujas atividades pretende exportar.'
-              : `Projeto: ${effectiveProjetoNome}`}
+            Escolhe os filtros e exporta para Excel. Deixa tudo em branco para exportar tudo.
           </DialogDescription>
         </DialogHeader>
 
-        {/* ── STEP 1: Escolha de projeto ── */}
-        {step === 1 && (
-          <div className="space-y-3 py-2">
-            {projetosLoading ? (
-              <p className="text-sm text-muted-foreground text-center py-6">
-                A carregar projetos…
-              </p>
-            ) : projetos.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">
-                Não existem projetos disponíveis.
-              </p>
-            ) : (
-              projetos.map(p => (
-                <button
-                  key={p.id}
-                  onClick={() => handleSelectProjeto(p)}
-                  className={cn(
-                    'w-full flex items-center justify-between gap-3 p-3 rounded-lg border',
-                    'hover:border-primary/50 hover:bg-muted/40 transition-all text-left group'
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                      <Layers className="h-4 w-4 text-primary" />
-                    </div>
-                    <span className="font-medium text-sm">{p.nome}</span>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                </button>
-              ))
+        <div className="space-y-5 py-1">
+
+          {/* ── Projetos ── */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Projetos</Label>
+            <p className="text-xs text-muted-foreground">Sem seleção = todos os projetos</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {projetos.map(p => (
+                <div key={p.id} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`proj-${p.id}`}
+                    checked={projetosSel.includes(p.id)}
+                    onCheckedChange={() => toggleProjeto(p.id)}
+                  />
+                  <label htmlFor={`proj-${p.id}`} className="text-sm cursor-pointer leading-tight">{p.nome}</label>
+                </div>
+              ))}
+            </div>
+            {projetosSel.length > 0 && (
+              <div className="flex flex-wrap gap-1 pt-1">
+                {projetosSel.map(id => (
+                  <Badge key={id} variant="secondary" className="text-xs">
+                    {projetos.find(p => p.id === id)?.nome ?? id}
+                  </Badge>
+                ))}
+              </div>
             )}
           </div>
-        )}
 
-        {/* ── STEP 2: Filtros ── */}
-        {step === 2 && (
-          <div className="space-y-5 py-2">
-            {/* Tipo de sessão */}
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Tipo de sessões</Label>
-              <Select value={tipoSessao} onValueChange={setTipoSessao}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIPO_SESSAO_OPTIONS.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Estados */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Estados</Label>
-
-              {/* Toggle "Todos os estados" */}
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="todos-estados"
-                  checked={todosEstados}
-                  onCheckedChange={(v) => {
-                    setTodosEstados(!!v);
-                    if (v) setEstadosSelecionados([]);
-                  }}
-                />
-                <label htmlFor="todos-estados" className="text-sm cursor-pointer">
-                  Todos os estados
-                </label>
-              </div>
-
-              {/* Lista de estados individuais */}
-              {!todosEstados && (
-                <div className="grid grid-cols-2 gap-2 pl-1">
-                  {ESTADO_OPTIONS.map(opt => (
-                    <div key={opt.value} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`estado-${opt.value}`}
-                        checked={estadosSelecionados.includes(opt.value)}
-                        onCheckedChange={() => toggleEstado(opt.value)}
-                      />
-                      <label
-                        htmlFor={`estado-${opt.value}`}
-                        className="text-sm cursor-pointer"
-                      >
-                        {opt.label}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Aviso se nenhum estado selecionado */}
-              {!todosEstados && estadosSelecionados.length === 0 && (
-                <p className="text-xs text-amber-500">
-                  Selecione pelo menos um estado ou ative "Todos os estados".
-                </p>
-              )}
-
-              {/* Badges dos estados selecionados */}
-              {!todosEstados && estadosSelecionados.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {estadosSelecionados.map(e => (
-                    <Badge key={e} variant="secondary" className="text-xs">
-                      {ESTADO_LABELS[e] ?? e}
-                    </Badge>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Nota informativa */}
-            <p className="text-xs text-muted-foreground rounded-lg bg-muted/50 p-3">
-              O ficheiro Excel exportado incluirá o código de cada atividade, data,
-              horário, tipo, estado, colaborador, turma, escola, tema, objetivos,
-              sumário, avaliação e observações.
-            </p>
+          {/* ── Tipo de sessão ── */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Tipo de sessões</Label>
+            <Select value={tipoSessao} onValueChange={setTipoSessao}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {TIPO_SESSAO_OPTIONS.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
 
-        {/* ── Footer ── */}
-        <DialogFooter className="gap-2 flex-wrap sm:flex-nowrap">
-          {/* Voltar ao step 1 (apenas se projeto não veio de fora) */}
-          {step === 2 && !projetoId && (
-            <Button
-              variant="outline"
-              onClick={() => setStep(1)}
-              className="sm:mr-auto"
-            >
-              <ChevronLeft className="h-4 w-4 mr-1" /> Voltar
-            </Button>
-          )}
+          {/* ── Mentor ── */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Mentor / Colaborador</Label>
+            <Select value={mentorSel} onValueChange={setMentorSel}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {mentores.map(m => (
+                  <SelectItem key={m.id} value={String(m.id)}>{m.nome}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-          <Button variant="ghost" onClick={handleClose}>
-            Cancelar
+          {/* ── Estados ── */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Estados</Label>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="todos-estados"
+                checked={todosEstados}
+                onCheckedChange={(v) => { setTodosEstados(!!v); if (v) setEstadosSel([]); }}
+              />
+              <label htmlFor="todos-estados" className="text-sm cursor-pointer">Todos os estados</label>
+            </div>
+            {!todosEstados && (
+              <div className="grid grid-cols-2 gap-1.5 pl-1">
+                {ESTADO_OPTIONS.map(opt => (
+                  <div key={opt.value} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`estado-${opt.value}`}
+                      checked={estadosSel.includes(opt.value)}
+                      onCheckedChange={() => toggleEstado(opt.value)}
+                    />
+                    <label htmlFor={`estado-${opt.value}`} className="text-sm cursor-pointer">{opt.label}</label>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!todosEstados && estadosSel.length === 0 && (
+              <p className="text-xs text-amber-500">Seleciona pelo menos um estado.</p>
+            )}
+          </div>
+
+          {/* ── Período ── */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Período</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">De</p>
+                <Input type="date" value={dataInicio} onChange={e => setDataInicio(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">Até</p>
+                <Input type="date" value={dataFim} onChange={e => setDataFim(e.target.value)} min={dataInicio} />
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <DialogFooter className="gap-2 pt-2">
+          <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
+          <Button onClick={handleExport} disabled={loading || !canExport} className="gap-2">
+            {loading ? 'A exportar…' : <><Download className="h-4 w-4" />Exportar Excel</>}
           </Button>
-
-          {step === 2 && (
-            <Button
-              onClick={handleExport}
-              disabled={
-                loading ||
-                !effectiveProjetoId ||
-                (!todosEstados && estadosSelecionados.length === 0)
-              }
-              className="gap-2"
-            >
-              {loading ? (
-                <>A exportar…</>
-              ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  Exportar Dados
-                </>
-              )}
-            </Button>
-          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

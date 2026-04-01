@@ -249,8 +249,6 @@ export default function Estatisticas() {
         <ExportAtividadesModal
           open={exportOpen}
           onOpenChange={setExportOpen}
-          projetoId={projetoId}
-          projetoNome={projetos.find(p => p.id === projetoId)?.nome ?? ''}
         />
       )}
 
