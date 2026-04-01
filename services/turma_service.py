@@ -160,6 +160,99 @@ def apagar_estabelecimento(id: int):
         if 'conn' in locals() and conn:
             conn.close()
 
+def listar_contactos_estabelecimento(estabelecimento_id: int):
+    """Lista contactos de um estabelecimento."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, estabelecimento_id, tipo, valor, descricao FROM contactos_estabelecimento WHERE estabelecimento_id = %s ORDER BY tipo, id",
+            (estabelecimento_id,)
+        )
+        return [{'id': r[0], 'estabelecimento_id': r[1], 'tipo': r[2], 'valor': r[3], 'descricao': r[4]} for r in cur.fetchall()]
+    except Exception as e:
+        logger.error(f"Erro ao listar contactos: {e}")
+        return []
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
+def listar_todos_contactos():
+    """Lista todos os contactos de todos os estabelecimentos."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT id, estabelecimento_id, tipo, valor, descricao FROM contactos_estabelecimento ORDER BY estabelecimento_id, tipo, id"
+        )
+        return [{'id': r[0], 'estabelecimento_id': r[1], 'tipo': r[2], 'valor': r[3], 'descricao': r[4]} for r in cur.fetchall()]
+    except Exception as e:
+        logger.error(f"Erro ao listar todos os contactos: {e}")
+        return []
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
+def criar_contacto_estabelecimento(estabelecimento_id: int, tipo: str, valor: str, descricao: str = None):
+    """Cria um contacto para um estabelecimento."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO contactos_estabelecimento (estabelecimento_id, tipo, valor, descricao) VALUES (%s, %s, %s, %s) RETURNING id, estabelecimento_id, tipo, valor, descricao",
+            (estabelecimento_id, tipo, valor, descricao)
+        )
+        r = cur.fetchone()
+        conn.commit()
+        return {'id': r[0], 'estabelecimento_id': r[1], 'tipo': r[2], 'valor': r[3], 'descricao': r[4]}
+    except Exception as e:
+        logger.error(f"Erro ao criar contacto: {e}")
+        if 'conn' in locals() and conn: conn.rollback()
+        return None
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
+def atualizar_contacto_estabelecimento(id: int, tipo: str, valor: str, descricao: str = None):
+    """Atualiza um contacto."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE contactos_estabelecimento SET tipo = %s, valor = %s, descricao = %s WHERE id = %s",
+            (tipo, valor, descricao, id)
+        )
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar contacto: {e}")
+        if 'conn' in locals() and conn: conn.rollback()
+        return False
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
+def apagar_contacto_estabelecimento(id: int):
+    """Apaga um contacto."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM contactos_estabelecimento WHERE id = %s", (id,))
+        conn.commit()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao apagar contacto: {e}")
+        if 'conn' in locals() and conn: conn.rollback()
+        return False
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
 def criar_turma(nome: str, estabelecimento_id: str):
     """Cria uma nova turma num estabelecimento."""
     try:

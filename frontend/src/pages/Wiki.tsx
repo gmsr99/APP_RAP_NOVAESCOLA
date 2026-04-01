@@ -62,6 +62,7 @@ import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Book, Layers, Calendar, Edit2, Plus, Trash2, Save, Users, Building2, X, Music, Clock, HelpCircle, ChevronDown, Link2Off,
+  Phone, Mail, MapPin, Globe,
 } from "lucide-react";
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -127,6 +128,14 @@ interface WikiEstabelecimento {
   turmas: WikiTurma[];
 }
 
+interface ContactoEstabelecimento {
+  id: number;
+  estabelecimento_id: number;
+  tipo: 'telefone' | 'email' | 'maps' | 'website' | 'outro';
+  valor: string;
+  descricao?: string;
+}
+
 const Wiki = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -143,6 +152,12 @@ const Wiki = () => {
   const [isEstabDialogOpen, setIsEstabDialogOpen] = useState(false);
   const [editingEstab, setEditingEstab] = useState<Estabelecimento | null>(null);
   const [estabForm, setEstabForm] = useState({ nome: '', sigla: '', morada: '', latitude: 0, longitude: 0 });
+
+  // State for Contactos
+  const [isContactoDialogOpen, setIsContactoDialogOpen] = useState(false);
+  const [editingContacto, setEditingContacto] = useState<ContactoEstabelecimento | null>(null);
+  const [contactoTargetEstabId, setContactoTargetEstabId] = useState<number | null>(null);
+  const [contactoForm, setContactoForm] = useState({ tipo: 'telefone', valor: '', descricao: '' });
 
   // State for Turmas
   const [isTurmaDialogOpen, setIsTurmaDialogOpen] = useState(false);
@@ -229,6 +244,35 @@ const Wiki = () => {
 
   const selectedProjeto = projetos.find(p => p.id === selectedProjetoId);
 
+  const { data: todosContactos = [] } = useQuery({
+    queryKey: ['contactos-estabelecimentos'],
+    queryFn: async () => {
+      const res = await api.get('/api/estabelecimentos/contactos');
+      return res.data as ContactoEstabelecimento[];
+    }
+  });
+
+  const contactosPorEstab = todosContactos.reduce<Record<number, ContactoEstabelecimento[]>>((acc, c) => {
+    if (!acc[c.estabelecimento_id]) acc[c.estabelecimento_id] = [];
+    acc[c.estabelecimento_id].push(c);
+    return acc;
+  }, {});
+
+  const contactoIcon = (tipo: string) => {
+    if (tipo === 'telefone') return <Phone className="h-3.5 w-3.5 shrink-0 text-green-500" />;
+    if (tipo === 'email') return <Mail className="h-3.5 w-3.5 shrink-0 text-blue-500" />;
+    if (tipo === 'maps') return <MapPin className="h-3.5 w-3.5 shrink-0 text-red-500" />;
+    if (tipo === 'website') return <Globe className="h-3.5 w-3.5 shrink-0 text-purple-500" />;
+    return null;
+  };
+
+  const contactoHref = (c: ContactoEstabelecimento) => {
+    if (c.tipo === 'telefone') return `tel:${c.valor.replace(/\s/g, '')}`;
+    if (c.tipo === 'email') return `mailto:${c.valor}`;
+    if (c.tipo === 'maps' || c.tipo === 'website') return c.valor;
+    return undefined;
+  };
+
   // --- MUTATIONS: PROJETOS ---
   const saveProjetoMutation = useMutation({
     mutationFn: (data: { nome: string; descricao?: string }) => {
@@ -301,6 +345,29 @@ const Wiki = () => {
       queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
       setIsEstabDialogOpen(false);
       toast.success('Estabelecimento removido!');
+    }
+  });
+
+  // --- MUTATIONS: CONTACTOS ---
+  const saveContactoMutation = useMutation({
+    mutationFn: (data: { tipo: string; valor: string; descricao?: string }) => {
+      if (editingContacto) return api.put(`/api/contactos/${editingContacto.id}`, data);
+      return api.post(`/api/estabelecimentos/${contactoTargetEstabId}/contactos`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contactos-estabelecimentos'] });
+      toast.success(editingContacto ? 'Contacto atualizado!' : 'Contacto adicionado!');
+      setIsContactoDialogOpen(false);
+    },
+    onError: () => toast.error('Erro ao guardar contacto.')
+  });
+
+  const deleteContactoMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/api/contactos/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contactos-estabelecimentos'] });
+      setIsContactoDialogOpen(false);
+      toast.success('Contacto removido!');
     }
   });
 
@@ -401,6 +468,20 @@ const Wiki = () => {
     setEditingEstab(estab);
     setEstabForm({ nome: estab.nome, sigla: estab.sigla, morada: estab.morada || '', latitude: estab.latitude || 0, longitude: estab.longitude || 0 });
     setIsEstabDialogOpen(true);
+  };
+
+  const openNewContacto = (estabId: number) => {
+    setEditingContacto(null);
+    setContactoTargetEstabId(estabId);
+    setContactoForm({ tipo: 'telefone', valor: '', descricao: '' });
+    setIsContactoDialogOpen(true);
+  };
+
+  const openEditContacto = (c: ContactoEstabelecimento) => {
+    setEditingContacto(c);
+    setContactoTargetEstabId(c.estabelecimento_id);
+    setContactoForm({ tipo: c.tipo, valor: c.valor, descricao: c.descricao || '' });
+    setIsContactoDialogOpen(true);
   };
 
   const openNewTurma = (estabId?: number) => {
@@ -587,6 +668,73 @@ const Wiki = () => {
         </Collapsible>
       </div>
 
+      {/* CONTACTOS INSTITUIÇÕES */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Phone className="h-5 w-5 text-green-500" />
+            Contactos Instituições
+          </CardTitle>
+          <CardDescription>Contactos de todas as instituições parceiras.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {estabelecimentos.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic text-center py-4">Nenhuma instituição registada.</p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {estabelecimentos.map((estab) => {
+                const contactos = contactosPorEstab[estab.id] || [];
+                return (
+                  <div key={estab.id} className="border rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Building2 className="h-4 w-4 text-primary shrink-0" />
+                        <span className="font-medium text-sm truncate">{estab.nome}</span>
+                        {estab.sigla && <Badge variant="secondary" className="text-xs shrink-0">{estab.sigla}</Badge>}
+                      </div>
+                      {isCoordinator && (
+                        <Button size="sm" variant="ghost" className="h-6 w-6 p-0 shrink-0" onClick={() => openNewContacto(estab.id)}>
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                    {contactos.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">Sem contactos registados.</p>
+                    ) : (
+                      <ul className="space-y-1">
+                        {contactos.map((c) => {
+                          const href = contactoHref(c);
+                          return (
+                            <li key={c.id} className="flex items-start gap-1.5 group">
+                              <span className="mt-0.5">{contactoIcon(c.tipo)}</span>
+                              <div className="min-w-0 flex-1">
+                                {c.descricao && <p className="text-xs text-muted-foreground leading-tight">{c.descricao}</p>}
+                                {href ? (
+                                  <a href={href} target="_blank" rel="noopener noreferrer" className="text-xs hover:underline break-all">
+                                    {c.valor}
+                                  </a>
+                                ) : (
+                                  <span className="text-xs break-all">{c.valor}</span>
+                                )}
+                              </div>
+                              {isCoordinator && (
+                                <Button size="sm" variant="ghost" className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 shrink-0" onClick={() => openEditContacto(c)}>
+                                  <Edit2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Seletor de Projeto */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -754,6 +902,52 @@ const Wiki = () => {
                     )}
                   </div>
                   <AccordionContent>
+                    {/* Contactos do estabelecimento */}
+                    {(() => {
+                      const contactos = contactosPorEstab[estab.id] || [];
+                      if (contactos.length === 0 && !isCoordinator) return null;
+                      return (
+                        <div className="mb-3 border rounded-md p-2.5 bg-muted/20 space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contactos</span>
+                            {isCoordinator && (
+                              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs gap-1" onClick={() => openNewContacto(estab.id)}>
+                                <Plus className="h-3 w-3" /> Adicionar
+                              </Button>
+                            )}
+                          </div>
+                          {contactos.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic">Sem contactos registados.</p>
+                          ) : (
+                            <ul className="space-y-1">
+                              {contactos.map((c) => {
+                                const href = contactoHref(c);
+                                return (
+                                  <li key={c.id} className="flex items-start gap-1.5 group">
+                                    <span className="mt-0.5">{contactoIcon(c.tipo)}</span>
+                                    <div className="min-w-0 flex-1">
+                                      {c.descricao && <p className="text-xs text-muted-foreground leading-tight">{c.descricao}</p>}
+                                      {href ? (
+                                        <a href={href} target="_blank" rel="noopener noreferrer" className="text-xs hover:underline break-all">
+                                          {c.valor}
+                                        </a>
+                                      ) : (
+                                        <span className="text-xs break-all">{c.valor}</span>
+                                      )}
+                                    </div>
+                                    {isCoordinator && (
+                                      <Button size="sm" variant="ghost" className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 shrink-0" onClick={() => openEditContacto(c)}>
+                                        <Edit2 className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <div className="space-y-2 pb-2">
                       {estab.turmas.length === 0 ? (
                         <div className="py-3 flex items-center gap-3">
@@ -1300,6 +1494,72 @@ const Wiki = () => {
               </Button>
             ) : <div />}
             <Button onClick={handleSaveAtividade} disabled={!ativForm.nome}>
+              <Save className="h-4 w-4 mr-2" /> Gravar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG FOR CONTACTOS */}
+      <Dialog open={isContactoDialogOpen} onOpenChange={setIsContactoDialogOpen}>
+        <DialogContent className="w-full max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingContacto ? 'Editar Contacto' : 'Novo Contacto'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid gap-2">
+              <Label>Tipo</Label>
+              <Select value={contactoForm.tipo} onValueChange={(v) => setContactoForm({ ...contactoForm, tipo: v })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="telefone">Telefone</SelectItem>
+                  <SelectItem value="email">Email</SelectItem>
+                  <SelectItem value="maps">Google Maps</SelectItem>
+                  <SelectItem value="website">Website</SelectItem>
+                  <SelectItem value="outro">Outro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label>Valor</Label>
+              <Input
+                value={contactoForm.valor}
+                onChange={(e) => setContactoForm({ ...contactoForm, valor: e.target.value })}
+                placeholder={
+                  contactoForm.tipo === 'telefone' ? '244 829 720' :
+                  contactoForm.tipo === 'email' ? 'contacto@instituicao.pt' :
+                  contactoForm.tipo === 'maps' ? 'https://maps.app.goo.gl/...' :
+                  contactoForm.tipo === 'website' ? 'https://...' : ''
+                }
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>Descrição (opcional)</Label>
+              <Input
+                value={contactoForm.descricao}
+                onChange={(e) => setContactoForm({ ...contactoForm, descricao: e.target.value })}
+                placeholder="Ex: Gonçalo Salema (coordenador projeto)"
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex sm:justify-between w-full">
+            {editingContacto ? (
+              <Button variant="destructive" onClick={() => {
+                askConfirm(
+                  'Apagar contacto?',
+                  'Este contacto será permanentemente removido.',
+                  () => deleteContactoMutation.mutate(editingContacto.id)
+                );
+              }}>
+                <Trash2 className="h-4 w-4 mr-2" /> Apagar
+              </Button>
+            ) : <div />}
+            <Button
+              onClick={() => saveContactoMutation.mutate({ tipo: contactoForm.tipo, valor: contactoForm.valor, descricao: contactoForm.descricao || undefined })}
+              disabled={!contactoForm.valor.trim()}
+            >
               <Save className="h-4 w-4 mr-2" /> Gravar
             </Button>
           </DialogFooter>

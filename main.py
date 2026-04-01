@@ -1284,6 +1284,50 @@ async def delete_estabelecimento(id: int, user=Depends(get_current_user_required
         raise HTTPException(status_code=500, detail="Erro ao apagar.")
     return {"message": "Apagado com sucesso"}
 
+class ContactoCreate(BaseModel):
+    tipo: str  # telefone | email | maps | website | outro
+    valor: str
+    descricao: Optional[str] = None
+
+@app.get("/api/estabelecimentos/contactos", tags=["Wiki"])
+async def get_todos_contactos(user=Depends(get_current_user_required)):
+    """Lista todos os contactos de todos os estabelecimentos."""
+    return turma_service.listar_todos_contactos()
+
+@app.get("/api/estabelecimentos/{id}/contactos", tags=["Wiki"])
+async def get_contactos_estabelecimento(id: int, user=Depends(get_current_user_required)):
+    """Lista contactos de um estabelecimento."""
+    return turma_service.listar_contactos_estabelecimento(id)
+
+@app.post("/api/estabelecimentos/{id}/contactos", tags=["Wiki"])
+async def create_contacto_estabelecimento(id: int, data: ContactoCreate, user=Depends(get_current_user_required)):
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    if data.tipo not in ('telefone', 'email', 'maps', 'website', 'outro'):
+        raise HTTPException(status_code=400, detail="Tipo inválido")
+    res = turma_service.criar_contacto_estabelecimento(id, data.tipo, data.valor, data.descricao)
+    if not res:
+        raise HTTPException(status_code=500, detail="Erro ao criar contacto.")
+    return res
+
+@app.put("/api/contactos/{id}", tags=["Wiki"])
+async def update_contacto(id: int, data: ContactoCreate, user=Depends(get_current_user_required)):
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    sucesso = turma_service.atualizar_contacto_estabelecimento(id, data.tipo, data.valor, data.descricao)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao atualizar contacto.")
+    return {"message": "Contacto atualizado"}
+
+@app.delete("/api/contactos/{id}", tags=["Wiki"])
+async def delete_contacto(id: int, user=Depends(get_current_user_required)):
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    sucesso = turma_service.apagar_contacto_estabelecimento(id)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao apagar contacto.")
+    return {"message": "Contacto apagado"}
+
 # -----------------------------------------------------------------------------
 # Endpoints de Currículo (Wiki)
 # -----------------------------------------------------------------------------

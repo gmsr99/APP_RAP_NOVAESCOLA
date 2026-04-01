@@ -208,6 +208,14 @@ export interface Projeto {
   estado?: string;
 }
 
+export interface ContactoEstabelecimento {
+  id: number;
+  estabelecimento_id: number;
+  tipo: 'telefone' | 'email' | 'maps' | 'website' | 'outro';
+  valor: string;
+  descricao?: string;
+}
+
 export interface Estabelecimento { // Renamed form Instituicao
   id: number;
   nome: string;
