@@ -190,20 +190,18 @@ async def export_aulas(
     data_fim: Optional[str] = None,
     user=Depends(get_current_user_required),
 ):
-    """Exporta lista de atividades/sessões com filtros flexíveis (direção / it_support)."""
-    from services import profile_service
-    user_id = user.get("sub")
-    perfis = profile_service.listar_perfis()
-    user_profile = next((p for p in perfis if str(p.get("id")) == user_id), None)
-    if not user_profile or user_profile.get("role") not in ("direcao", "it_support"):
+    """Exporta lista de atividades/sessões com filtros flexíveis (coordenadores e superiores)."""
+    role = user.get("user_metadata", {}).get("role", "")
+    if role not in COORD_ROLES:
         raise HTTPException(status_code=403, detail="Sem permissão para exportar atividades.")
     projeto_ids_list = [int(p.strip()) for p in projeto_ids.split(",") if p.strip()] if projeto_ids else None
     estados_list = [e.strip() for e in estados.split(",")] if estados else None
+    mentor_id_int = int(mentor_id) if mentor_id else None
     return aula_service.listar_aulas_export(
         projeto_ids=projeto_ids_list,
         tipo_sessao=tipo_sessao or "todas",
         estados=estados_list,
-        mentor_id=mentor_id,
+        mentor_id=mentor_id_int,
         data_inicio=data_inicio,
         data_fim=data_fim,
     )

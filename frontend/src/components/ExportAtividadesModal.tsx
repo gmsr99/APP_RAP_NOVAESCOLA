@@ -23,7 +23,7 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FileSpreadsheet, Download } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -260,7 +260,6 @@ function gerarXLSX(rows: ExportRow[], labelProjetos: string, labelTipo: string, 
 // ─── Componente ──────────────────────────────────────────────────────────────
 
 export function ExportAtividadesModal({ open, onOpenChange }: ExportAtividadesModalProps) {
-  const { toast } = useToast();
 
   // Projetos selecionados: [] = todos
   const [projetosSel, setProjetosSel] = useState<number[]>([]);
@@ -322,7 +321,7 @@ export function ExportAtividadesModal({ open, onOpenChange }: ExportAtividadesMo
       const data = res.data as ExportRow[];
 
       if (data.length === 0) {
-        toast({ title: 'Sem resultados', description: 'Nenhuma atividade encontrada com os filtros selecionados.' });
+        toast.info('Nenhuma atividade encontrada com os filtros selecionados.');
         setLoading(false);
         return;
       }
@@ -339,10 +338,14 @@ export function ExportAtividadesModal({ open, onOpenChange }: ExportAtividadesMo
 
       gerarXLSX(data, labelProjetos, labelTipo, labelEstados, labelMentor, labelDatas);
 
-      toast({ title: 'Export concluído', description: `${data.length} atividade(s) exportadas.` });
+      toast.success(`${data.length} atividade(s) exportadas.`);
       handleClose();
     } catch (err: any) {
-      toast({ title: 'Erro ao exportar', description: err?.response?.data?.detail ?? 'Ocorreu um erro inesperado.', variant: 'destructive' });
+      const detail = err?.response?.data?.detail;
+      const msg = Array.isArray(detail)
+        ? detail.map((e: any) => e.msg ?? String(e)).join('; ')
+        : (typeof detail === 'string' ? detail : 'Ocorreu um erro inesperado.');
+      toast.error(msg);
     } finally {
       setLoading(false);
     }

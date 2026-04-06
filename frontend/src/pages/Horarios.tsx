@@ -407,21 +407,21 @@ const Horarios = () => {
 
   const { data: projetoEstabs } = useQuery({
     queryKey: ['projeto-estabs', selectedProjetoId],
-    queryFn: () => api.get<Estabelecimento[]>(`/api/projetos/${selectedProjetoId}/estabelecimentos`),
+    queryFn: () => api.get<Estabelecimento[]>(`/api/projetos/${selectedProjetoId}/estabelecimentos`).then((r: any) => r.data ?? r),
     enabled: !!selectedProjetoId,
   });
 
   // Estabelecimentos do projeto selecionado no FILTRO (independente do form)
   const { data: filterProjetoEstabs } = useQuery({
     queryKey: ['projeto-estabs-filter', filterProjectId],
-    queryFn: () => api.get<Estabelecimento[]>(`/api/projetos/${filterProjectId}/estabelecimentos`),
+    queryFn: () => api.get<Estabelecimento[]>(`/api/projetos/${filterProjectId}/estabelecimentos`).then((r: any) => r.data ?? r),
     enabled: !!filterProjectId,
   });
 
   // Turmas filtradas pelo estabelecimento selecionado (reactive query)
   const { data: filteredTurmas = [] } = useQuery({
     queryKey: ['turmas', 'by-estab', selectedEstabId],
-    queryFn: () => api.get<Turma[]>(`/api/turmas?estabelecimento_id=${selectedEstabId}`),
+    queryFn: () => api.get<Turma[]>(`/api/turmas?estabelecimento_id=${selectedEstabId}`).then((r: any) => r.data ?? r),
     enabled: !!selectedEstabId,
   });
 
@@ -460,7 +460,7 @@ const Horarios = () => {
   // Disciplinas locais da turma selecionada (com atividades UUID)
   const { data: turmaDisciplinas = [] } = useQuery({
     queryKey: ['wiki-turma-disciplinas', formData.turma_id],
-    queryFn: () => api.get(`/api/wiki/turma/${formData.turma_id}/disciplinas`),
+    queryFn: () => api.get(`/api/wiki/turma/${formData.turma_id}/disciplinas`).then((r: any) => r.data ?? r),
     enabled: !!formData.turma_id,
   });
 
@@ -470,7 +470,7 @@ const Horarios = () => {
     queryFn: () => api.get<{
       estabelecimento_id: number; estabelecimento_nome: string;
       turmas: { turma_id: number; disciplina_id: number | null; sessoes_realizadas: number }[];
-    }[]>(`/api/producao/stats/instituicao?projeto_id=${selectedProjetoId}`),
+    }[]>(`/api/producao/stats/instituicao?projeto_id=${selectedProjetoId}`).then((r: any) => r.data ?? r),
     enabled: !!selectedProjetoId,
   });
 
@@ -493,7 +493,7 @@ const Horarios = () => {
     queryKey: ['codigos-sessao', selectedMentorPerfil, selectedDisciplinaNome],
     queryFn: () => api.get<CodigoSessao[]>(
       `/api/codigos-sessao?perfil=${encodeURIComponent(selectedMentorPerfil || '')}&disciplina=${encodeURIComponent(selectedDisciplinaNome || '')}`
-    ),
+    ).then((r: any) => r.data ?? r),
     enabled: !!formData.atividade_uuid && !!selectedMentorPerfil && !!selectedDisciplinaNome,
   });
 
@@ -521,21 +521,21 @@ const Horarios = () => {
   const autoProjetoId = autonomousForm.projeto_id ? Number(autonomousForm.projeto_id) : null;
   const { data: autoProjetoEstabs } = useQuery({
     queryKey: ['projeto-estabs', autoProjetoId],
-    queryFn: () => api.get<Estabelecimento[]>(`/api/projetos/${autoProjetoId}/estabelecimentos`),
+    queryFn: () => api.get<Estabelecimento[]>(`/api/projetos/${autoProjetoId}/estabelecimentos`).then((r: any) => r.data ?? r),
     enabled: !!autoProjetoId,
   });
 
   // Turmas do estabelecimento autónomo
   const { data: autoFilteredTurmas = [] } = useQuery({
     queryKey: ['turmas', 'by-estab', autoEstabId],
-    queryFn: () => api.get<Turma[]>(`/api/turmas?estabelecimento_id=${autoEstabId}`),
+    queryFn: () => api.get<Turma[]>(`/api/turmas?estabelecimento_id=${autoEstabId}`).then((r: any) => r.data ?? r),
     enabled: !!autoEstabId,
   });
 
   // Disciplinas da turma autónoma
   const { data: autoDisciplinasList = [] } = useQuery({
     queryKey: ['wiki-turma-disciplinas', autoTurmaId],
-    queryFn: () => api.get(`/api/wiki/turma/${autoTurmaId}/disciplinas`),
+    queryFn: () => api.get(`/api/wiki/turma/${autoTurmaId}/disciplinas`).then((r: any) => r.data ?? r),
     enabled: !!autoTurmaId,
   });
 
@@ -558,7 +558,7 @@ const Horarios = () => {
     queryKey: ['proximo-numero-sessao', 'aula', formData.atividade_uuid],
     queryFn: () => api.get<{ proximo: number }>(
       `/api/aulas/proximo-numero?atividade_uuid=${formData.atividade_uuid}`
-    ),
+    ).then((r: any) => r.data ?? r),
     enabled: !!formData.atividade_uuid && !editingSession,
   });
   useEffect(() => {
@@ -572,7 +572,7 @@ const Horarios = () => {
     queryKey: ['proximo-numero-sessao', 'autonomo', autoAtividadeUuid],
     queryFn: () => api.get<{ proximo: number }>(
       `/api/aulas/proximo-numero?atividade_uuid=${autoAtividadeUuid}&is_autonomous=true`
-    ),
+    ).then((r: any) => r.data ?? r),
     enabled: !!autoAtividadeUuid,
   });
   useEffect(() => {
