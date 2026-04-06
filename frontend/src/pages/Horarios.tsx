@@ -338,13 +338,13 @@ const Horarios = () => {
   const apiUrl = import.meta.env.VITE_API_URL;
   const { data: aulasApi, isLoading: aulasLoading, error: aulasError } = useQuery({
     queryKey: ['aulas'],
-    queryFn: () => api.get<AulaAPI[]>('/api/aulas'),
+    queryFn: () => api.get<AulaAPI[]>('/api/aulas').then((r: any) => r.data ?? r),
     enabled: !!apiUrl,
   });
   // Fetch turmas for dropdown
   const { data: turmas } = useQuery({
     queryKey: ['turmas'],
-    queryFn: () => api.get<Turma[]>('/api/turmas'),
+    queryFn: () => api.get<Turma[]>('/api/turmas').then((r: any) => r.data ?? r),
     enabled: !!apiUrl,
   });
 
@@ -352,7 +352,7 @@ const Horarios = () => {
   interface Mentor { id: number; nome: string; latitude: number | null; longitude: number | null; perfil: string | null; }
   const { data: mentoresApi } = useQuery({
     queryKey: ['mentores'],
-    queryFn: () => api.get<Mentor[]>('/api/mentores'),
+    queryFn: () => api.get<Mentor[]>('/api/mentores').then((r: any) => r.data ?? r),
     enabled: !!apiUrl,
   });
 
@@ -360,7 +360,7 @@ const Horarios = () => {
   interface EstabGeo { id: number; nome: string; latitude: number | null; longitude: number | null; }
   const { data: estabelecimentos } = useQuery({
     queryKey: ['estabelecimentos'],
-    queryFn: () => api.get<EstabGeo[]>('/api/estabelecimentos'),
+    queryFn: () => api.get<EstabGeo[]>('/api/estabelecimentos').then((r: any) => r.data ?? r),
     enabled: !!apiUrl,
   });
 
@@ -383,7 +383,7 @@ const Horarios = () => {
   // Fetch Equipa (para dropdown do formulário autónomo)
   const { data: equipa } = useQuery({
     queryKey: ['equipa'],
-    queryFn: () => api.get<PublicProfileEquipa[]>('/api/equipa'),
+    queryFn: () => api.get<PublicProfileEquipa[]>('/api/equipa').then((r: any) => r.data ?? r),
     enabled: !!apiUrl,
   });
 
@@ -401,7 +401,7 @@ const Horarios = () => {
 
   const { data: projetos } = useQuery({
     queryKey: ['projetos'],
-    queryFn: () => api.get<Projeto[]>('/api/projetos'),
+    queryFn: () => api.get<Projeto[]>('/api/projetos').then((r: any) => r.data ?? r),
     enabled: !!apiUrl,
   });
 
