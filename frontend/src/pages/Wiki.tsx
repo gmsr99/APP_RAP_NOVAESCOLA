@@ -91,7 +91,7 @@ interface TurmaAtividade {
   sessoes_previstas: number;
   horas_por_sessao: number;
   musicas_previstas: number;
-  roles: string[];
+  role: string | null;
   is_autonomous: boolean;
   sessoes_realizadas?: number;
   horas_realizadas?: number;
@@ -172,7 +172,7 @@ const Wiki = () => {
   const [disciplinaTargetTurmaId, setDisciplinaTargetTurmaId] = useState<number | null>(null);
   const [discForm, setDiscForm] = useState({ nome: '', descricao: '', musicas_previstas: '0' });
   const [batchAtividades, setBatchAtividades] = useState<Array<{
-    nome: string; codigo: string; sessoes_previstas: string; horas_por_sessao: string; musicas_previstas: string; roles: string[];
+    nome: string; codigo: string; sessoes_previstas: string; horas_por_sessao: string; musicas_previstas: string; role: string;
   }>>([]);
 
   // State for Local Atividade dialog
@@ -180,7 +180,7 @@ const Wiki = () => {
   const [editingAtividade, setEditingAtividade] = useState<TurmaAtividade | null>(null);
   const [atividadeTargetDiscId, setAtividadeTargetDiscId] = useState<number | null>(null);
   const [ativForm, setAtivForm] = useState({
-    nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', roles: [] as string[], is_autonomous: false
+    nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', role: '' as string, is_autonomous: false
   });
 
   // Confirm dialog
@@ -561,7 +561,7 @@ const Wiki = () => {
         sessoes_previstas: parseInt(a.sessoes_previstas) || 0,
         horas_por_sessao: parseFloat(a.horas_por_sessao) || 0,
         musicas_previstas: parseInt(a.musicas_previstas) || 0,
-        roles: a.roles || [],
+        role: a.role || null,
       }));
     }
     saveDisciplinaMutation.mutate(payload);
@@ -570,7 +570,7 @@ const Wiki = () => {
   const openNewAtividade = (discId: number) => {
     setEditingAtividade(null);
     setAtividadeTargetDiscId(discId);
-    setAtivForm({ nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', roles: [], is_autonomous: false });
+    setAtivForm({ nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', role: '', is_autonomous: false });
     setIsAtividadeDialogOpen(true);
   };
 
@@ -583,7 +583,7 @@ const Wiki = () => {
       sessoes_previstas: String(ativ.sessoes_previstas || 0),
       horas_por_sessao: String(ativ.horas_por_sessao || 0),
       musicas_previstas: String(ativ.musicas_previstas || 0),
-      roles: ativ.roles || [],
+      role: ativ.role || '',
       is_autonomous: ativ.is_autonomous ?? false,
     });
     setIsAtividadeDialogOpen(true);
@@ -597,13 +597,13 @@ const Wiki = () => {
       sessoes_previstas: parseInt(ativForm.sessoes_previstas) || 0,
       horas_por_sessao: parseFloat(ativForm.horas_por_sessao) || 0,
       musicas_previstas: parseInt(ativForm.musicas_previstas) || 0,
-      roles: ativForm.roles,
+      role: ativForm.role || null,
       is_autonomous: ativForm.is_autonomous,
     });
   };
 
   const addBatchAtividade = () => {
-    setBatchAtividades(prev => [...prev, { nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', roles: [] }]);
+    setBatchAtividades(prev => [...prev, { nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', role: '' }]);
   };
 
   return (
@@ -999,8 +999,8 @@ const Wiki = () => {
                                                           <TableCell className="text-center">{ativ.musicas_previstas || '—'}</TableCell>
                                                           <TableCell>
                                                             <div className="flex flex-wrap gap-1">
-                                                              {ativ.roles && ativ.roles.length > 0
-                                                                ? ativ.roles.map(r => <Badge key={r} variant="outline" className="text-xs">{r}</Badge>)
+                                                              {ativ.role
+                                                                ? <Badge variant="outline" className="text-xs">{ativ.role}</Badge>
                                                                 : <span className="text-muted-foreground text-xs">todos</span>
                                                               }
                                                               {ativ.is_autonomous && (
@@ -1310,21 +1310,19 @@ const Wiki = () => {
                         </div>
                         <div className="md:col-span-4">
                           <Label className="text-xs">Associar a</Label>
-                          <div className="flex flex-wrap gap-3 mt-1">
-                            {ALL_ROLES.map(role => (
-                              <label key={role} className="flex items-center gap-1.5 text-xs cursor-pointer">
-                                <Checkbox
-                                  checked={a.roles.includes(role)}
-                                  onCheckedChange={(checked) => {
-                                    const up = [...batchAtividades];
-                                    up[i] = { ...up[i], roles: checked ? [...a.roles, role] : a.roles.filter(r => r !== role) };
-                                    setBatchAtividades(up);
-                                  }}
-                                />
-                                {role}
-                              </label>
-                            ))}
-                          </div>
+                          <Select value={a.role || 'none'} onValueChange={v => {
+                            const up = [...batchAtividades];
+                            up[i] = { ...up[i], role: v === 'none' ? '' : v };
+                            setBatchAtividades(up);
+                          }}>
+                            <SelectTrigger className="mt-1">
+                              <SelectValue placeholder="— Sem restrição —" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">— Sem restrição —</SelectItem>
+                              {ALL_ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     </div>
@@ -1387,20 +1385,15 @@ const Wiki = () => {
             </div>
             <div className="md:col-span-2 grid gap-2">
               <Label>Associar a</Label>
-              <div className="flex flex-wrap gap-4">
-                {ALL_ROLES.map(role => (
-                  <label key={role} className="flex items-center gap-2 text-sm cursor-pointer">
-                    <Checkbox
-                      checked={ativForm.roles.includes(role)}
-                      onCheckedChange={(checked) => setAtivForm({
-                        ...ativForm,
-                        roles: checked ? [...ativForm.roles, role] : ativForm.roles.filter(r => r !== role)
-                      })}
-                    />
-                    {role}
-                  </label>
-                ))}
-              </div>
+              <Select value={ativForm.role || 'none'} onValueChange={(v) => setAtivForm({ ...ativForm, role: v === 'none' ? '' : v })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="— Sem restrição —" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— Sem restrição —</SelectItem>
+                  {ALL_ROLES.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="md:col-span-2 flex items-center gap-3 rounded-md border p-3 bg-muted/30">
               <Checkbox

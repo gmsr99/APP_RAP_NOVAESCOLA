@@ -446,15 +446,19 @@ const Horarios = () => {
     observacoes: '',
   });
 
-  // ── Helper: filtra atividades pelos roles explícitos guardados em cada atividade ──
-  function canRoleDoActivity(roles: string[], role: string | null | undefined): boolean {
-    if (!role) return true; // sem role definido: mostra tudo
-    if (!roles || roles.length === 0) return true; // sem restrição: visível para todos
-    return roles.includes(role.toLowerCase());
+  // ── Helper: filtra atividades pelo role da atividade ──
+  // Coordenadores são metamórficos: podem fazer sessões de qualquer atividade.
+  const COORD_ROLES_SET = new Set(['coordenador', 'direcao', 'it_support']);
+
+  function canRoleDoActivity(actRole: string | null | undefined, userRole: string | null | undefined): boolean {
+    if (!actRole) return true; // sem restrição: visível para todos
+    if (!userRole) return true; // sem role definido: mostra tudo
+    if (COORD_ROLES_SET.has(userRole.toLowerCase())) return true; // coordenadores vêem tudo
+    return actRole.toLowerCase() === userRole.toLowerCase();
   }
 
   function filterActivitiesByType(activities: any[], isAutonomous: boolean, role: string | null | undefined): any[] {
-    return activities.filter((a: any) => (!!a.is_autonomous) === isAutonomous && canRoleDoActivity(a.roles || [], role));
+    return activities.filter((a: any) => (!!a.is_autonomous) === isAutonomous && canRoleDoActivity(a.role, role));
   }
 
   // Disciplinas locais da turma selecionada (com atividades UUID)
@@ -487,14 +491,26 @@ const Horarios = () => {
     ? (turmaDisciplinas as any[])?.find((d: any) => d.id === selectedDisciplinaId)?.nome ?? null
     : null;
 
-  // Códigos de sessão (sumário + objetivo) filtrados por perfil do mentor + disciplina
+  // Role da atividade selecionada (para perfil efetivo nos códigos de sessão)
+  const selectedActivityRole: string | null = formData.atividade_uuid
+    ? (turmaDisciplinas as any[])
+        ?.flatMap((d: any) => d.atividades || [])
+        ?.find((a: any) => a.uuid === formData.atividade_uuid)?.role ?? null
+    : null;
+
+  // Perfil efetivo para códigos de sessão: coordenadores assumem o role da atividade (metamórfico)
+  const effectivePerfil: string | null = selectedMentorPerfil && COORD_ROLES_SET.has(selectedMentorPerfil) && selectedActivityRole
+    ? selectedActivityRole
+    : selectedMentorPerfil;
+
+  // Códigos de sessão (sumário + objetivo) filtrados por perfil efetivo + disciplina
   interface CodigoSessao { disciplina: string; codigo: string; sumario: string; objetivo: string; }
   const { data: codigosSessao = [] } = useQuery<CodigoSessao[]>({
-    queryKey: ['codigos-sessao', selectedMentorPerfil, selectedDisciplinaNome],
+    queryKey: ['codigos-sessao', effectivePerfil, selectedDisciplinaNome],
     queryFn: () => api.get<CodigoSessao[]>(
-      `/api/codigos-sessao?perfil=${encodeURIComponent(selectedMentorPerfil || '')}&disciplina=${encodeURIComponent(selectedDisciplinaNome || '')}`
+      `/api/codigos-sessao?perfil=${encodeURIComponent(effectivePerfil || '')}&disciplina=${encodeURIComponent(selectedDisciplinaNome || '')}`
     ).then((r: any) => r.data ?? r),
-    enabled: !!formData.atividade_uuid && !!selectedMentorPerfil && !!selectedDisciplinaNome,
+    enabled: !!formData.atividade_uuid && !!effectivePerfil && !!selectedDisciplinaNome,
   });
 
   // Preview do código selecionado
