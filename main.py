@@ -1163,6 +1163,11 @@ async def get_stats_equipa_horas(projeto_id: Optional[int] = None, user=Depends(
     """Horas por colaborador (aulas vs trabalho autónomo)."""
     return aula_service.listar_horas_equipa(projeto_id)
 
+@app.get("/api/stats/sessoes-turma", tags=["Estatisticas"])
+async def get_sessoes_turma(turma_id: int, projeto_id: Optional[int] = None, user=Depends(get_current_user_required)):
+    """Lista sessões terminadas de uma turma, ordenadas por data."""
+    return aula_service.listar_sessoes_turma(turma_id, projeto_id)
+
 
 @app.get("/api/stats/sessoes-user/{user_id}", tags=["Estatisticas"])
 async def get_stats_sessoes_user(user_id: str, user=Depends(get_current_user_required)):

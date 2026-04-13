@@ -823,6 +823,50 @@ def atualizar_aula(aula_id, dados):
         return False
 
 
+def listar_sessoes_turma(turma_id, projeto_id=None):
+    """Lista sessões terminadas de uma turma ordenadas por data, com número sequencial."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        projeto_filter = "AND (a.projeto_id = %s OR a.projeto_id IS NULL)" if projeto_id else ""
+        params = [turma_id] + ([projeto_id] if projeto_id else [])
+
+        cur.execute(f"""
+            SELECT
+                ROW_NUMBER() OVER (ORDER BY a.data_hora) AS numero,
+                a.data_hora,
+                a.duracao_minutos,
+                COALESCE(m.nome, p.full_name, 'Desconhecido') AS mentor_nome,
+                a.tipo_atividade,
+                a.observacoes
+            FROM aulas a
+            LEFT JOIN mentores m ON m.id = a.mentor_id
+            LEFT JOIN profiles p ON p.id::text = a.responsavel_user_id
+            WHERE a.turma_id = %s
+              AND a.estado = 'terminada'
+              {projeto_filter}
+            ORDER BY a.data_hora
+        """, params)
+
+        rows = cur.fetchall()
+        return [{
+            'numero': int(row[0]),
+            'data_hora': row[1].isoformat() if row[1] else None,
+            'duracao_minutos': row[2],
+            'horas': round(row[2] / 60.0, 1) if row[2] else 0,
+            'mentor_nome': row[3],
+            'tipo_atividade': row[4],
+            'observacoes': row[5],
+        } for row in rows]
+    except Exception as e:
+        logger.error(f"Erro ao listar sessões da turma: {e}")
+        return []
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
 def listar_horas_equipa(projeto_id=None):
     """Agrega horas por colaborador, separando sessões-aula de trabalho autónomo."""
     try:

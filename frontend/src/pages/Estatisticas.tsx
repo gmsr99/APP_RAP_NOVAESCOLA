@@ -8,7 +8,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { BarChart3, Clock, Music, Star, MessageSquare, Building2, Calendar, Layers, FileSpreadsheet, Users } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { BarChart3, Clock, Music, Star, MessageSquare, Building2, Calendar, Layers, FileSpreadsheet, Users, List } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -49,6 +50,22 @@ interface EquipaHoras {
   sessoes_autonomo: number;
 }
 
+interface SessaoTurma {
+  numero: number;
+  data_hora: string | null;
+  duracao_minutos: number | null;
+  horas: number;
+  mentor_nome: string;
+  tipo_atividade: string | null;
+  observacoes: string | null;
+}
+
+interface SessoesModalState {
+  turma_id: number;
+  turma_nome: string;
+  disciplina_nome: string | null;
+}
+
 interface FeedbackItem {
   id: number;
   avaliacao: number;
@@ -76,6 +93,7 @@ export default function Estatisticas() {
   const [disciplinaFilter, setDisciplinaFilter] = useState('all');
   const [instituicaoFilter, setInstituicaoFilter] = useState('all');
   const [exportOpen, setExportOpen] = useState(false);
+  const [sessoesModal, setSessoesModal] = useState<SessoesModalState | null>(null);
 
   // ─── Queries ────────────────────────────────────────────────────────────────
 
@@ -117,6 +135,16 @@ export default function Estatisticas() {
       return (await api.get(url)).data as EquipaHoras[];
     },
     enabled: !!projetoId,
+  });
+
+  const { data: sessoesTurma = [], isFetching: sessoesFetching } = useQuery({
+    queryKey: ['stats-sessoes-turma', sessoesModal?.turma_id, projetoId],
+    queryFn: async () => {
+      const params = new URLSearchParams({ turma_id: String(sessoesModal!.turma_id) });
+      if (projetoId) params.set('projeto_id', String(projetoId));
+      return (await api.get(`/api/stats/sessoes-turma?${params}`)).data as SessaoTurma[];
+    },
+    enabled: !!sessoesModal,
   });
 
   // ─── Computed KPIs ──────────────────────────────────────────────────────────
@@ -392,10 +420,17 @@ export default function Estatisticas() {
                             const pH = t.horas_previstas ? Math.round((t.horas_realizadas / t.horas_previstas) * 100) : 0;
                             const pM = t.musicas_previstas ? Math.round((t.musicas_concluidas / t.musicas_previstas) * 100) : 0;
                             return (
-                              <TableRow key={`${t.turma_id}-${t.disciplina_id ?? 'none'}`}>
+                              <TableRow
+                                key={`${t.turma_id}-${t.disciplina_id ?? 'none'}`}
+                                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                onClick={() => setSessoesModal({ turma_id: t.turma_id, turma_nome: t.turma_nome, disciplina_nome: t.disciplina_nome })}
+                              >
                                 <TableCell className="text-xs font-medium">
-                                  {t.turma_nome}
-                                  {t.disciplina_nome && <span className="text-muted-foreground font-normal"> — {t.disciplina_nome}</span>}
+                                  <span className="flex items-center gap-1.5">
+                                    <List className="h-3 w-3 text-muted-foreground/50 shrink-0" />
+                                    {t.turma_nome}
+                                    {t.disciplina_nome && <span className="text-muted-foreground font-normal"> — {t.disciplina_nome}</span>}
+                                  </span>
                                 </TableCell>
                                 <TableCell className="text-xs text-center">
                                   {t.horas_realizadas}h / {t.horas_previstas != null ? `${t.horas_previstas}h` : '?'}
@@ -630,6 +665,61 @@ export default function Estatisticas() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* ─── Modal: Sessões da Turma ─────────────────────────────────────── */}
+      <Dialog open={!!sessoesModal} onOpenChange={(open) => { if (!open) setSessoesModal(null); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <List className="h-4 w-4" />
+              {sessoesModal?.turma_nome}
+              {sessoesModal?.disciplina_nome && (
+                <span className="text-muted-foreground font-normal"> — {sessoesModal.disciplina_nome}</span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          {sessoesFetching ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">A carregar sessões…</div>
+          ) : sessoesTurma.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">Nenhuma sessão terminada encontrada.</div>
+          ) : (
+            <div className="border rounded-md overflow-hidden max-h-[60vh] overflow-y-auto">
+              <Table>
+                <TableHeader className="sticky top-0 bg-muted/80 backdrop-blur-sm">
+                  <TableRow>
+                    <TableHead className="text-xs w-12 text-center">Nº</TableHead>
+                    <TableHead className="text-xs">Data</TableHead>
+                    <TableHead className="text-xs text-center">Duração</TableHead>
+                    <TableHead className="text-xs">Mentor</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sessoesTurma.map((s) => (
+                    <TableRow key={s.numero}>
+                      <TableCell className="text-xs text-center text-muted-foreground">{s.numero}</TableCell>
+                      <TableCell className="text-xs">
+                        {s.data_hora ? format(new Date(s.data_hora), "d MMM yyyy", { locale: pt }) : '—'}
+                      </TableCell>
+                      <TableCell className="text-xs text-center font-medium">
+                        {s.horas}h
+                      </TableCell>
+                      <TableCell className="text-xs">{s.mentor_nome}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center pt-1 text-xs text-muted-foreground">
+            <span>{sessoesTurma.length} sessão(ões)</span>
+            <span className="font-medium">
+              Total: {sessoesTurma.reduce((s, r) => s + r.horas, 0).toFixed(1)}h
+            </span>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
