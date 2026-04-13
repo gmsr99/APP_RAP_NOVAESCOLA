@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 ESTADO_RASCUNHO = "rascunho"
+ESTADO_AGENDADA = "agendada"
 ESTADO_PENDENTE = "pendente"
 ESTADO_CONFIRMADA = "confirmada"
 ESTADO_RECUSADA = "recusada"
@@ -39,6 +40,7 @@ ESTADO_TERMINADA = "terminada"
 
 ESTADOS_VALIDOS = [
     ESTADO_RASCUNHO,
+    ESTADO_AGENDADA,
     ESTADO_PENDENTE,
     ESTADO_CONFIRMADA,
     ESTADO_RECUSADA,
@@ -47,6 +49,9 @@ ESTADOS_VALIDOS = [
     ESTADO_CANCELADA,
     ESTADO_TERMINADA,
 ]
+
+# Estados que aguardam confirmação do mentor (tratados como equivalentes)
+ESTADOS_PENDENTES = {ESTADO_AGENDADA, ESTADO_PENDENTE}
 
 TIPOS_AULA = [
     "teorica",
@@ -749,6 +754,7 @@ def atualizar_aula(aula_id, dados):
                 if nova_data_hora != aula.data_hora and aula.estado in [
                     ESTADO_CONFIRMADA,
                     ESTADO_RECUSADA,
+                    ESTADO_AGENDADA,
                 ]:
                     aula.estado = ESTADO_PENDENTE
                     nota = (

@@ -115,7 +115,7 @@ export function CoordinatorDashboard() {
   };
 
   const now = new Date();
-  const pendingSessions = sessions.filter((s: any) => s.estado === 'pendente');
+  const pendingSessions = sessions.filter((s: any) => s.estado === 'pendente' || s.estado === 'agendada');
   const todaySessions = sessions.filter((s: any) =>
     format(new Date(s.data_hora), 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd')
   ).sort((a: any, b: any) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime());

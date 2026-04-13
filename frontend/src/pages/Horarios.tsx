@@ -88,6 +88,7 @@ import { useAuth } from '@/contexts/AuthContext'; // Import useAuth for user ID
 
 const statusColors: Record<SessionStatus, string> = {
   rascunho: 'bg-muted text-muted-foreground border-border/50',
+  agendada: 'bg-[#d99426] text-white border-[#d99426]',
   pendente: 'bg-[#d99426] text-white border-[#d99426]',
   confirmada: 'bg-[#3399ce] text-white border-[#3399ce]',
   recusada: 'bg-[#A35339] text-white border-[#A35339]',
@@ -98,7 +99,7 @@ const statusColors: Record<SessionStatus, string> = {
 const autonomousPlannedClass = 'bg-muted/60 text-muted-foreground border-muted-foreground/40 border-dashed opacity-80';
 const autonomousRealizedClass = 'bg-[#4EA380]/20 text-[#2d7a5c] border-[#4EA380] border-solid';
 
-// Removed 'rascunho' to hide from legend
+// Removed 'rascunho' and 'agendada' from legend (agendada renders same as pendente)
 const statusLabels: Record<string, string> = {
   pendente: 'Pendente',
   confirmada: 'Confirmada',
@@ -107,6 +108,7 @@ const statusLabels: Record<string, string> = {
 };
 
 const statusDots: Record<string, string> = {
+  agendada: 'bg-[#d99426]',
   pendente: 'bg-[#d99426]',
   confirmada: 'bg-[#3399ce]',
   recusada: 'bg-[#A35339]',
@@ -2783,8 +2785,8 @@ const Horarios = () => {
 
               return (
                 <>
-                  {/* Botão Confirmar — sessões pendentes (mentor atribuído ou coordenador) */}
-                  {viewSession.estado === 'pendente' && !viewSession.is_autonomous &&
+                  {/* Botão Confirmar — sessões pendentes/agendadas (mentor atribuído ou coordenador) */}
+                  {(viewSession.estado === 'pendente' || viewSession.estado === 'agendada') && !viewSession.is_autonomous &&
                     (isAdmin || isOwnSession) && (
                       <Button
                         onClick={() => handleWithConfirmation(() => confirmMutation.mutate(viewSession.id))}

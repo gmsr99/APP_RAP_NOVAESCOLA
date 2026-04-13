@@ -60,7 +60,7 @@ export function MentorDashboard() {
   });
 
   const mentorSessions = allSessions.filter((s: any) => s.mentor_user_id === user?.id);
-  const pendingSessions = mentorSessions.filter((s: any) => s.estado === 'pendente');
+  const pendingSessions = mentorSessions.filter((s: any) => s.estado === 'pendente' || s.estado === 'agendada');
 
   const toFinishSessions = mentorSessions
     .filter((s: any) => s.estado === 'confirmada' && !s.is_autonomous && new Date(s.data_hora) < new Date())

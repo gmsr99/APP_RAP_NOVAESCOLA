@@ -10,7 +10,7 @@ export interface User {
 }
 
 // Sessions / Classes
-export type SessionStatus = 'rascunho' | 'pendente' | 'confirmada' | 'recusada' | 'terminada';
+export type SessionStatus = 'rascunho' | 'agendada' | 'pendente' | 'confirmada' | 'recusada' | 'terminada';
 
 export interface PublicProfile {
   id: string;

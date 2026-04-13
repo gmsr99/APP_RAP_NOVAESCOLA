@@ -629,9 +629,15 @@ def listar_stats_instituicao(projeto_id=None):
                 WHERE a.turma_id = t.id
                   AND a.estado = 'terminada'
                   AND a.is_autonomous = FALSE
-                  AND (td.id IS NULL OR a.atividade_uuid IN (
-                      SELECT uuid FROM turma_atividades WHERE turma_disciplina_id = td.id
-                  ))
+                  AND (
+                      td.id IS NULL
+                      OR a.atividade_uuid IN (
+                          SELECT uuid FROM turma_atividades WHERE turma_disciplina_id = td.id
+                      )
+                      OR (a.atividade_uuid IS NULL AND td.id = (
+                          SELECT MIN(id) FROM turma_disciplinas WHERE turma_id = t.id
+                      ))
+                  )
                   {'AND (a.projeto_id = %s OR a.projeto_id IS NULL)' if projeto_id else ''}
             ) sess ON true
             LEFT JOIN LATERAL (
