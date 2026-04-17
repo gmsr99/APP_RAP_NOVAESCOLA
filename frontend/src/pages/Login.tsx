@@ -196,6 +196,7 @@ export default function Login() {
                       <SelectItem value="coordenador">Coordenador</SelectItem>
                       <SelectItem value="direcao">Direção</SelectItem>
                       <SelectItem value="it_support">IT Support</SelectItem>
+                      <SelectItem value="videomaker">Videomaker</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

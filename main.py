@@ -627,7 +627,7 @@ async def update_equipa_member(user_id: str, payload: EquipaMembroUpdate, user=D
     target_profile = next((p for p in perfis if p.get("id") == user_id), None)
     if not target_profile:
         raise HTTPException(status_code=404, detail="Utilizador não encontrado.")
-    ROLES_VALIDOS = {"mentor", "produtor", "mentor_produtor", "coordenador", "direcao", "it_support"}
+    ROLES_VALIDOS = {"mentor", "produtor", "mentor_produtor", "coordenador", "direcao", "it_support", "videomaker"}
     if payload.role is not None and payload.role not in ROLES_VALIDOS:
         raise HTTPException(status_code=400, detail="Role inválido.")
     dados = {k: v for k, v in payload.model_dump().items() if v is not None}
@@ -1222,7 +1222,7 @@ async def calculate_distance(lat1: float, lng1: float, lat2: float, lng2: float,
 # MENTOR — LOCALIZAÇÃO
 # -----------------------------------------------------------------------------
 
-MENTOR_ROLES = {'mentor', 'produtor', 'mentor_produtor', 'coordenador'}
+MENTOR_ROLES = {'mentor', 'produtor', 'mentor_produtor', 'coordenador', 'videomaker'}
 
 @app.get("/api/mentores/me", tags=["Core"])
 async def get_my_mentor(user=Depends(get_current_user_required)):

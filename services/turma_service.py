@@ -295,7 +295,7 @@ def listar_mentores():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, latitude, longitude, perfil FROM mentores WHERE ativo = true ORDER BY nome")
+        cur.execute("SELECT id, nome, latitude, longitude, perfil FROM mentores WHERE ativo = true AND perfil != 'videomaker' ORDER BY nome")
         mentores = cur.fetchall()
         return [{'id': m[0], 'nome': m[1], 'latitude': m[2], 'longitude': m[3], 'perfil': m[4]} for m in mentores]
     except Exception as e:

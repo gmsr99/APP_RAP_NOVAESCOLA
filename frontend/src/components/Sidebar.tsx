@@ -26,7 +26,8 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import React, { useState } from 'react';
 
-const allProfiles = ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor'];
+const allProfiles = ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor', 'videomaker'];
+const noVideomaker = allProfiles.filter(p => p !== 'videomaker');
 
 const atalhosItem: NavItem = { name: 'Atalhos', href: '/atalhos', icon: Link2, profiles: allProfiles };
 const contactosItem: NavItem = { name: 'Contactos', href: '/contactos', icon: Phone, profiles: allProfiles };
@@ -42,7 +43,7 @@ const navigation: SidebarItem[] = [
   { name: 'Produção', href: '/producao', icon: Music, profiles: allProfiles },
   { name: 'Tarefas', href: '/tarefas', icon: CheckSquare, profiles: allProfiles },
   { name: 'Estúdio', href: '/estudio', icon: Mic2, profiles: allProfiles },
-  { name: 'Registos', href: '/registos', icon: ClipboardList, profiles: allProfiles },
+  { name: 'Registos', href: '/registos', icon: ClipboardList, profiles: noVideomaker },
   { name: 'Chat', href: '/chat', icon: MessageSquare, profiles: allProfiles },
   { separator: true },
   { name: 'Material', href: '/equipamento', icon: Package, profiles: ['coordenador', 'direcao', 'it_support'] },
