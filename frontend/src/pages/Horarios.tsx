@@ -1912,14 +1912,14 @@ const Horarios = () => {
                               className="text-xs text-muted-foreground underline"
                               onClick={() => {
                                 const allIds = (equipa ?? []).map(p => p.id);
-                                const allSelected = allIds.every(id => outroForm.participantes_ids.includes(id));
+                                const allSelected = allIds.length > 0 && allIds.every(id => outroForm.participantes_ids.includes(id));
                                 setOutroForm({
                                   ...outroForm,
                                   participantes_ids: allSelected ? [] : allIds,
                                 });
                               }}
                             >
-                              {((equipa ?? []).every(p => outroForm.participantes_ids.includes(p.id))) ? 'Desselecionar todos' : 'Selecionar todos'}
+                              {((equipa ?? []).length > 0 && (equipa ?? []).every(p => outroForm.participantes_ids.includes(p.id))) ? 'Desselecionar todos' : 'Selecionar todos'}
                             </button>
                           </div>
                           <div className="border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto">
