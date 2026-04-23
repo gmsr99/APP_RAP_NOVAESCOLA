@@ -722,6 +722,28 @@ def listar_todas_aulas(limite=100):
             )
             rows = session.exec(statement).all()
 
+        # Batch fetch participants for 'outro' aulas
+        outro_aula_ids = [a.id for a, *_ in rows if a.tipo == 'outro']
+        participantes_map: Dict[int, List[str]] = {}
+        if outro_aula_ids:
+            try:
+                conn = get_db_connection()
+                cur = conn.cursor()
+                placeholders = ','.join(['%s'] * len(outro_aula_ids))
+                cur.execute(
+                    f"SELECT aula_id, user_id FROM aula_participantes WHERE aula_id IN ({placeholders})",
+                    outro_aula_ids,
+                )
+                for aula_id, user_id in cur.fetchall():
+                    participantes_map.setdefault(aula_id, []).append(user_id)
+            except Exception as e:
+                logger.warning("Erro ao buscar participantes: %s", e)
+            finally:
+                if 'cur' in locals() and cur:
+                    cur.close()
+                if 'conn' in locals() and conn:
+                    conn.close()
+
         uuid_map = _resolver_atividades_uuid_bulk([a.atividade_uuid for a, *_ in rows])
 
         aulas: List[Dict[str, Any]] = []
@@ -760,6 +782,7 @@ def listar_todas_aulas(limite=100):
                 "avaliacao": aula.avaliacao,
                 "obs_termino": aula.obs_termino,
                 "tarefa_id": aula.tarefa_id,
+                "participantes_ids": participantes_map.get(aula.id, []),
             }
             aulas.append(AulaListItem.model_validate(payload).model_dump())
 
