@@ -57,12 +57,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Book, Layers, Calendar, Edit2, Plus, Trash2, Save, Users, Building2, X, Music, Clock, HelpCircle, ChevronDown, Link2Off,
-  Phone, Mail, MapPin, Globe,
+  Phone, Mail, MapPin, Globe, Settings,
 } from "lucide-react";
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -198,8 +199,12 @@ const Wiki = () => {
   // Info cards visibility
   const [showInfoCards, setShowInfoCards] = useState(false);
 
+  // State for Config modal
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
+  const [configForm, setConfigForm] = useState({ requer_digitalizacao: false });
+
   // --- QUERIES ---
-  interface Projeto { id: number; nome: string; descricao?: string; estado?: string; }
+  interface Projeto { id: number; nome: string; descricao?: string; estado?: string; requer_digitalizacao?: boolean; }
 
   const { data: projetos = [] } = useQuery({
     queryKey: ['projetos'],
@@ -294,6 +299,17 @@ const Wiki = () => {
       setSelectedProjetoId(null);
       toast.success('Projeto apagado!');
     },
+  });
+
+  const saveConfigMutation = useMutation({
+    mutationFn: (data: { requer_digitalizacao: boolean }) =>
+      api.patch(`/api/projetos/${selectedProjetoId}/config`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projetos'] });
+      toast.success('Configurações guardadas.');
+      setIsConfigModalOpen(false);
+    },
+    onError: () => toast.error('Erro ao guardar configurações.'),
   });
 
   const assocEstabMutation = useMutation({
@@ -726,6 +742,18 @@ const Wiki = () => {
                   );
                 }}>
                   <Trash2 className="h-3.5 w-3.5" /> Apagar
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => {
+                    setConfigForm({ requer_digitalizacao: selectedProjeto?.requer_digitalizacao ?? false });
+                    setIsConfigModalOpen(true);
+                  }}
+                >
+                  <Settings className="h-4 w-4" />
+                  Configurações
                 </Button>
               </>
             )}
@@ -1513,6 +1541,38 @@ const Wiki = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={isConfigModalOpen} onOpenChange={setIsConfigModalOpen}>
+        <DialogContent className="sm:max-w-[420px]">
+          <DialogHeader>
+            <DialogTitle>Configurações do Projeto</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <Label className="font-medium">Exigir digitalização de registos</Label>
+                <p className="text-sm text-muted-foreground">
+                  Quando ativo, o mentor é obrigado a submeter a fotografia do registo antes de terminar cada sessão.
+                </p>
+              </div>
+              <Switch
+                checked={configForm.requer_digitalizacao}
+                onCheckedChange={(checked) => setConfigForm({ requer_digitalizacao: checked })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsConfigModalOpen(false)}>Cancelar</Button>
+            <Button
+              onClick={() => saveConfigMutation.mutate(configForm)}
+              disabled={saveConfigMutation.isPending}
+              className="bg-[#6B7280] hover:bg-[#555e68] text-white"
+            >
+              {saveConfigMutation.isPending ? 'A guardar...' : 'Guardar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
