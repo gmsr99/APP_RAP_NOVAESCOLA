@@ -194,6 +194,8 @@ export interface AulaAPI {
   // Trabalho Interno
   tarefa_id?: number | null;
   tarefa_titulo?: string | null;
+  // Outro (Sem Registos)
+  participantes_ids?: string[];
 }
 
 export interface Turma {
@@ -248,6 +250,7 @@ export interface AulaCreate {
   sumario?: string | null;
   codigo_sessao?: string | null;
   tarefa_id?: number | null;
+  participantes_ids?: string[];
 }
 
 export interface PublicProfileEquipa {
