@@ -3151,7 +3151,11 @@ const Horarios = () => {
                     disabled={registoUpload.status === 'uploading'}
                     onChange={async (e) => {
                       const file = e.target.files?.[0];
-                      if (!file || !terminarSessionId || terminarProjetoId == null) return;
+                      if (!file) return;
+                      if (!terminarSessionId || terminarProjetoId == null) {
+                        setRegistoUpload({ status: 'error', error: 'Sessão sem projeto associado. Contacta o suporte.' });
+                        return;
+                      }
                       setRegistoUpload({ status: 'uploading' });
                       const result = await uploadRegistoSessao(file, terminarProjetoId, terminarSessionId);
                       if (result.ok && result.storagePath) {
