@@ -2973,7 +2973,7 @@ const Horarios = () => {
                 </div>
               )}
 
-              {viewSession.observacoes && (
+              {viewSession.tipo !== 'outro' && viewSession.observacoes && (
                 <div className="mt-2">
                   <p className="text-xs text-muted-foreground font-medium uppercase mb-1">Observações</p>
                   <p className="text-sm bg-muted/40 p-2 rounded italic font-serif">
