@@ -8,8 +8,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { BarChart3, Clock, Music, Star, MessageSquare, Building2, Calendar, Layers, FileSpreadsheet, Users, List } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { BarChart3, Clock, Music, Star, MessageSquare, Building2, Calendar, Layers, FileSpreadsheet, FileDown, Users, List } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
@@ -93,6 +96,14 @@ export default function Estatisticas() {
   const [disciplinaFilter, setDisciplinaFilter] = useState('all');
   const [instituicaoFilter, setInstituicaoFilter] = useState('all');
   const [exportOpen, setExportOpen] = useState(false);
+  const [exportRegistosOpen, setExportRegistosOpen] = useState(false);
+  const [registosFilter, setRegistosFilter] = useState({
+    data_inicio: '',
+    data_fim: '',
+    disciplina: '',
+    mentor_id: '',
+  });
+  const [isExportingRegistos, setIsExportingRegistos] = useState(false);
   const [sessoesModal, setSessoesModal] = useState<SessoesModalState | null>(null);
 
   // ─── Queries ────────────────────────────────────────────────────────────────
@@ -268,6 +279,17 @@ export default function Estatisticas() {
               Exportar Dados
             </Button>
           )}
+          {canExport && projetoId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExportRegistosOpen(true)}
+              className="gap-2 text-blue-600 border-blue-600/40 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+            >
+              <FileDown className="h-4 w-4" />
+              Exportar Registos
+            </Button>
+          )}
           <ProjetoSelect projetos={projetos} value={selectedProjetoId} onChange={setSelectedProjetoId} />
         </div>
       </div>
@@ -278,6 +300,101 @@ export default function Estatisticas() {
           open={exportOpen}
           onOpenChange={setExportOpen}
         />
+      )}
+
+      {/* Modal de Export Registos */}
+      {canExport && (
+        <Dialog open={exportRegistosOpen} onOpenChange={setExportRegistosOpen}>
+          <DialogContent className="sm:max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle>Exportar Registos de Sessão</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Data início</Label>
+                  <Input
+                    type="date"
+                    value={registosFilter.data_inicio}
+                    onChange={e => setRegistosFilter(f => ({ ...f, data_inicio: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Data fim</Label>
+                  <Input
+                    type="date"
+                    value={registosFilter.data_fim}
+                    onChange={e => setRegistosFilter(f => ({ ...f, data_fim: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label>Disciplina (opcional)</Label>
+                <Input
+                  placeholder="Ex: Matemática"
+                  value={registosFilter.disciplina}
+                  onChange={e => setRegistosFilter(f => ({ ...f, disciplina: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Mentor (opcional)</Label>
+                <Select
+                  value={registosFilter.mentor_id || 'all'}
+                  onValueChange={v => setRegistosFilter(f => ({ ...f, mentor_id: v === 'all' ? '' : v }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os mentores" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os mentores</SelectItem>
+                    {equipaHoras.map(m => (
+                      <SelectItem key={m.user_id} value={m.user_id}>
+                        {m.nome}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setExportRegistosOpen(false)}>Cancelar</Button>
+              <Button
+                disabled={!projetoId || isExportingRegistos}
+                onClick={async () => {
+                  if (!projetoId) return;
+                  setIsExportingRegistos(true);
+                  try {
+                    const params: Record<string, string | number> = { projeto_id: projetoId };
+                    if (registosFilter.data_inicio) params.data_inicio = registosFilter.data_inicio;
+                    if (registosFilter.data_fim) params.data_fim = registosFilter.data_fim;
+                    if (registosFilter.disciplina) params.disciplina = registosFilter.disciplina;
+                    if (registosFilter.mentor_id) params.mentor_id = registosFilter.mentor_id;
+                    const res = await api.get('/api/aula-registos/export', {
+                      params,
+                      responseType: 'blob',
+                    });
+                    const url = URL.createObjectURL(res.data);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const projetoNome = projetos.find(p => p.id === projetoId)?.nome ?? 'Projeto';
+                    a.download = `Registos_${projetoNome}_${registosFilter.data_inicio || 'todos'}.pdf`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    setExportRegistosOpen(false);
+                  } catch (err: unknown) {
+                    const status = (err as { response?: { status?: number } })?.response?.status;
+                    toast.error(status === 403 ? 'Sem permissão para exportar.' : 'Erro ao gerar PDF.');
+                  } finally {
+                    setIsExportingRegistos(false);
+                  }
+                }}
+                className="bg-[#6B7280] hover:bg-[#555e68] text-white"
+              >
+                {isExportingRegistos ? 'A gerar...' : 'Gerar PDF'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* KPI Cards */}
