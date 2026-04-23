@@ -56,6 +56,7 @@ import {
   Sparkles,
   XCircle,
   Wrench,
+  Users,
 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -435,7 +436,15 @@ const Horarios = () => {
   });
 
   // Estado do formulário de Trabalho Autónomo
-  const [modalTab, setModalTab] = useState<'aula' | 'autonomo'>('aula');
+  const [modalTab, setModalTab] = useState<'aula' | 'autonomo' | 'outro'>('aula');
+  const [outroForm, setOutroForm] = useState({
+    titulo: '',
+    participantes_ids: [] as string[],
+    date: '',
+    hora_inicio: '',
+    hora_fim: '',
+    observacoes: '',
+  });
   const [autonomousForm, setAutonomousForm] = useState({
     responsavel_user_id: '',
     date: '',
@@ -925,6 +934,14 @@ const Horarios = () => {
       semanas: 4,
       observacoes: '',
     });
+    setOutroForm({
+      titulo: '',
+      participantes_ids: [],
+      date: '',
+      hora_inicio: '',
+      hora_fim: '',
+      observacoes: '',
+    });
     setSelectedDisciplinaId(null);
     setAutoDisciplinaId(null);
     setAutoAtividadeUuid(null);
@@ -994,6 +1011,38 @@ const Horarios = () => {
   };
 
   const handleSave = () => {
+    if (modalTab === 'outro') {
+      if (!outroForm.titulo.trim()) {
+        toast.error('O título é obrigatório.');
+        return;
+      }
+      if (outroForm.participantes_ids.length === 0) {
+        toast.error('Seleciona pelo menos um participante.');
+        return;
+      }
+      if (!outroForm.date || !outroForm.hora_inicio || !outroForm.hora_fim) {
+        toast.error('Data, hora de início e hora de fim são obrigatórios.');
+        return;
+      }
+      const [hStart, mStart] = outroForm.hora_inicio.split(':').map(Number);
+      const [hEnd, mEnd] = outroForm.hora_fim.split(':').map(Number);
+      const duracao = (hEnd * 60 + mEnd) - (hStart * 60 + mStart);
+      if (duracao <= 0) {
+        toast.error('A hora de fim tem de ser posterior à hora de início.');
+        return;
+      }
+      const payload: AulaCreate = {
+        data_hora: `${outroForm.date} ${outroForm.hora_inicio}`,
+        duracao_minutos: duracao,
+        tipo: 'outro',
+        tema: outroForm.titulo.trim(),
+        observacoes: outroForm.observacoes || '',
+        participantes_ids: outroForm.participantes_ids,
+      };
+      createSessionMutation.mutate(payload);
+      return;
+    }
+
     if (modalTab === 'autonomo') {
       if (!autonomousForm.responsavel_user_id || !autonomousForm.date || !autonomousForm.hora_inicio || !autonomousForm.hora_fim) {
         toast.error('Preenche todos os campos obrigatórios.');
@@ -1258,12 +1307,16 @@ const Horarios = () => {
 
                 {/* Tabs — apenas em modo de criação */}
                 {!editingSession && (
-                  <Tabs value={modalTab} onValueChange={(v) => setModalTab(v as 'aula' | 'autonomo')} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
+                  <Tabs value={modalTab} onValueChange={(v) => setModalTab(v as 'aula' | 'autonomo' | 'outro')} className="w-full">
+                    <TabsList className="grid w-full grid-cols-3">
                       <TabsTrigger value="aula">Aula / Evento</TabsTrigger>
                       <TabsTrigger value="autonomo" className="flex items-center gap-1">
                         <Briefcase className="h-3.5 w-3.5" />
                         Autónomo
+                      </TabsTrigger>
+                      <TabsTrigger value="outro" className="flex items-center gap-1">
+                        <Users className="h-3.5 w-3.5" />
+                        Outro
                       </TabsTrigger>
                     </TabsList>
 
@@ -1832,6 +1885,110 @@ const Horarios = () => {
                             onChange={(e) => setAutonomousForm({ ...autonomousForm, observacoes: e.target.value })}
                           />
                         </div>
+                      </div>
+                    </TabsContent>
+
+                    {/* ── Tab: Outro (Sem Registos) ── */}
+                    <TabsContent value="outro">
+                      <div className="grid gap-4 py-4">
+
+                        {/* Título */}
+                        <div className="space-y-2">
+                          <Label htmlFor="outro-titulo">Título <span className="text-destructive">*</span></Label>
+                          <Input
+                            id="outro-titulo"
+                            placeholder="Ex: Reunião de equipa"
+                            value={outroForm.titulo}
+                            onChange={(e) => setOutroForm({ ...outroForm, titulo: e.target.value })}
+                          />
+                        </div>
+
+                        {/* Quem */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label>Quem <span className="text-destructive">*</span></Label>
+                            <button
+                              type="button"
+                              className="text-xs text-muted-foreground underline"
+                              onClick={() => {
+                                const allIds = (equipa ?? []).map(p => p.id);
+                                const allSelected = allIds.every(id => outroForm.participantes_ids.includes(id));
+                                setOutroForm({
+                                  ...outroForm,
+                                  participantes_ids: allSelected ? [] : allIds,
+                                });
+                              }}
+                            >
+                              {((equipa ?? []).every(p => outroForm.participantes_ids.includes(p.id))) ? 'Desselecionar todos' : 'Selecionar todos'}
+                            </button>
+                          </div>
+                          <div className="border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto">
+                            {(equipa ?? []).map((p) => (
+                              <div key={p.id} className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`outro-p-${p.id}`}
+                                  checked={outroForm.participantes_ids.includes(p.id)}
+                                  onCheckedChange={(checked) => {
+                                    setOutroForm({
+                                      ...outroForm,
+                                      participantes_ids: checked
+                                        ? [...outroForm.participantes_ids, p.id]
+                                        : outroForm.participantes_ids.filter(id => id !== p.id),
+                                    });
+                                  }}
+                                />
+                                <label htmlFor={`outro-p-${p.id}`} className="text-sm cursor-pointer flex-1">
+                                  {p.full_name}
+                                  <span className="ml-1.5 text-xs text-muted-foreground capitalize">({p.role})</span>
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Data */}
+                        <div className="space-y-2">
+                          <Label htmlFor="outro-date">Data <span className="text-destructive">*</span></Label>
+                          <input
+                            id="outro-date"
+                            type="date"
+                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                            value={outroForm.date}
+                            onChange={(e) => setOutroForm({ ...outroForm, date: e.target.value })}
+                          />
+                        </div>
+
+                        {/* Hora início / fim */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label>Início <span className="text-destructive">*</span></Label>
+                            <TimePicker5Min
+                              id="outro-time-start"
+                              value={outroForm.hora_inicio}
+                              onChange={(v) => setOutroForm({ ...outroForm, hora_inicio: v })}
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Fim <span className="text-destructive">*</span></Label>
+                            <TimePicker5Min
+                              id="outro-time-end"
+                              value={outroForm.hora_fim}
+                              onChange={(v) => setOutroForm({ ...outroForm, hora_fim: v })}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Observações */}
+                        <div className="space-y-2">
+                          <Label htmlFor="outro-obs">Observações</Label>
+                          <Textarea
+                            id="outro-obs"
+                            placeholder="Notas opcionais..."
+                            value={outroForm.observacoes}
+                            onChange={(e) => setOutroForm({ ...outroForm, observacoes: e.target.value })}
+                          />
+                        </div>
+
                       </div>
                     </TabsContent>
 
