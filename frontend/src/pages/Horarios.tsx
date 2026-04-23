@@ -2522,6 +2522,10 @@ const Horarios = () => {
           <div className="w-3 h-3 rounded-sm border-2 border-[#4EA380] bg-[#4EA380]/20" />
           <span className="text-sm text-muted-foreground">Trabalho Realizado</span>
         </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-sm border border-pink-400/50 bg-pink-500/15" />
+          <span className="text-sm text-muted-foreground">Outro</span>
+        </div>
       </div>
 
       {/* ... Calendar Views (using aulasApi) ... */}
@@ -2804,6 +2808,10 @@ const Horarios = () => {
           <div className="w-2.5 h-2.5 rounded-sm border border-[#4EA380] bg-[#4EA380]/20" />
           <span className="text-xs text-muted-foreground">Trabalho Realizado</span>
         </div>
+        <div className="flex items-center gap-1.5">
+          <div className="w-2.5 h-2.5 rounded-sm border border-pink-400/50 bg-pink-500/15" />
+          <span className="text-xs text-muted-foreground">Outro</span>
+        </div>
       </div>
 
       {/* DETAIL VIEW MODAL */}
@@ -2813,7 +2821,9 @@ const Horarios = () => {
             <DialogTitle className="flex items-center justify-between">
               <span>Detalhes da Sessão</span>
               {viewSession && (
-                viewSession.is_autonomous ? (
+                viewSession.tipo === 'outro' ? (
+                  <Badge className="bg-pink-500/15 border-pink-400/50 text-pink-700 dark:text-pink-300">Outro</Badge>
+                ) : viewSession.is_autonomous ? (
                   <Badge className={viewSession.is_realized ? 'bg-green-100 text-green-800 border-green-300' : 'bg-muted text-muted-foreground border-dashed'}>
                     {viewSession.is_realized ? 'Trabalho Realizado' : 'Trabalho Planeado'}
                   </Badge>
@@ -2841,7 +2851,41 @@ const Horarios = () => {
                 </div>
               </div>
 
-              {viewSession.is_autonomous ? (
+              {viewSession.tipo === 'outro' ? (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground text-xs font-medium uppercase">Título</p>
+                    <p className="font-semibold text-base">{viewSession.tema || '—'}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-muted-foreground text-xs font-medium uppercase flex items-center gap-1">
+                      <Users className="w-3 h-3" /> Participantes
+                    </p>
+                    <div className="p-2 bg-secondary/30 rounded-md space-y-1">
+                      {(viewSession.participantes_ids ?? []).length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Nenhum participante</p>
+                      ) : (
+                        (viewSession.participantes_ids ?? []).map(uid => {
+                          const member = equipa?.find(p => p.id === uid);
+                          return (
+                            <div key={uid} className="flex items-center gap-2">
+                              <User className="w-3 h-3 text-muted-foreground" />
+                              <span className="text-sm">{member?.full_name ?? uid}</span>
+                              {member && <span className="text-xs text-muted-foreground capitalize">({member.role})</span>}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                  {viewSession.observacoes && (
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground text-xs font-medium uppercase">Observações</p>
+                      <p className="text-sm">{viewSession.observacoes}</p>
+                    </div>
+                  )}
+                </div>
+              ) : viewSession.is_autonomous ? (
                 <div className="space-y-1">
                   <p className="text-muted-foreground text-xs font-medium uppercase">Trabalho Autónomo</p>
                   <div className="p-2 bg-secondary/30 rounded-md space-y-1">
@@ -2886,25 +2930,27 @@ const Horarios = () => {
                 </>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-2 bg-secondary/30 rounded-md">
-                  <p className="text-xs text-muted-foreground font-medium mb-1 flex items-center gap-1">
-                    <User className="w-3 h-3" />
-                    {viewSession.is_autonomous ? 'Membro da Equipa' : 'Mentor'}
-                  </p>
-                  <p className="text-sm font-semibold">
-                    {viewSession.is_autonomous
-                      ? (equipa?.find(p => p.id === viewSession.responsavel_user_id)?.full_name ?? viewSession.responsavel_user_id ?? 'Não atribuído')
-                      : (viewSession.mentor_nome || 'Não atribuído')}
-                  </p>
+              {viewSession.tipo !== 'outro' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-2 bg-secondary/30 rounded-md">
+                    <p className="text-xs text-muted-foreground font-medium mb-1 flex items-center gap-1">
+                      <User className="w-3 h-3" />
+                      {viewSession.is_autonomous ? 'Membro da Equipa' : 'Mentor'}
+                    </p>
+                    <p className="text-sm font-semibold">
+                      {viewSession.is_autonomous
+                        ? (equipa?.find(p => p.id === viewSession.responsavel_user_id)?.full_name ?? viewSession.responsavel_user_id ?? 'Não atribuído')
+                        : (viewSession.mentor_nome || 'Não atribuído')}
+                    </p>
+                  </div>
+                  <div className="p-2 bg-secondary/30 rounded-md">
+                    <p className="text-xs text-muted-foreground font-medium mb-1 flex items-center gap-1">
+                      <Package className="w-3 h-3" /> Material
+                    </p>
+                    <EquipamentoView aulaId={viewSession.id} />
+                  </div>
                 </div>
-                <div className="p-2 bg-secondary/30 rounded-md">
-                  <p className="text-xs text-muted-foreground font-medium mb-1 flex items-center gap-1">
-                    <Package className="w-3 h-3" /> Material
-                  </p>
-                  <EquipamentoView aulaId={viewSession.id} />
-                </div>
-              </div>
+              )}
 
               {/* Avaliação (sessões terminadas) */}
               {viewSession.estado === 'terminada' && viewSession.avaliacao && (
