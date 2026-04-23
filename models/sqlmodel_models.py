@@ -22,6 +22,7 @@ class Projeto(SQLModel, table=True):
     data_fim: Optional[str] = None
     estado: str = "planejamento"
     observacoes: Optional[str] = None
+    requer_digitalizacao: bool = Field(default=False)
 
     aulas: List["Aula"] = Relationship(back_populates="projeto")
 
@@ -123,6 +124,21 @@ class Musica(SQLModel, table=True):
     finalizado_por_id: Optional[str] = None
 
     turma: Optional[Turma] = Relationship(back_populates="musicas")
+
+
+class AulaRegisto(SQLModel, table=True):
+    __tablename__ = "aula_registos"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    aula_id: int = Field(foreign_key="aulas.id")
+    storage_path: str
+    criado_por: str
+    criado_em: Optional[datetime] = Field(default=None)
+
+
+class AulaRegistoCreate(SQLModel):
+    aula_id: int
+    storage_path: str
 
 
 class AulaCreate(SQLModel):
