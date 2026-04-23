@@ -2523,7 +2523,7 @@ const Horarios = () => {
           <span className="text-sm text-muted-foreground">Trabalho Realizado</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-sm border border-pink-400/50 bg-pink-500/15" />
+          <div className="w-3 h-3 rounded-sm border-2 border-pink-400/50 bg-pink-500/15" />
           <span className="text-sm text-muted-foreground">Outro</span>
         </div>
       </div>
@@ -2809,7 +2809,7 @@ const Horarios = () => {
           <span className="text-xs text-muted-foreground">Trabalho Realizado</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className="w-2.5 h-2.5 rounded-sm border border-pink-400/50 bg-pink-500/15" />
+          <div className="w-2.5 h-2.5 rounded-sm border-2 border-pink-400/50 bg-pink-500/15" />
           <span className="text-xs text-muted-foreground">Outro</span>
         </div>
       </div>
@@ -3044,7 +3044,7 @@ const Horarios = () => {
                         Terminar Sessão
                       </Button>
                     )}
-                  {isAdmin && (
+                  {isAdmin && viewSession?.tipo !== 'outro' && (
                     <Button onClick={() => { setIsDetailOpen(false); handleOpenEdit(viewSession); }} variant="outline" className="w-full sm:w-auto">
                       <Edit2 className="w-4 h-4 mr-2" />
                       Editar Sessão
