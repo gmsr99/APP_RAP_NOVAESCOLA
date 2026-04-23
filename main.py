@@ -614,22 +614,17 @@ async def export_aula_registos(
     projeto_id: int,
     data_inicio: Optional[str] = None,
     data_fim: Optional[str] = None,
-    estabelecimento_id: Optional[int] = None,
-    disciplina: Optional[str] = None,
-    mentor_id: Optional[str] = None,
     user=Depends(get_current_user_required),
 ):
     role = user.get("user_metadata", {}).get("role")
     if role not in ["direcao", "it_support"]:
         raise HTTPException(status_code=403, detail="Acesso negado")
-    pdf_bytes = aula_registo_service.compilar_pdf_registos(
-        projeto_id, data_inicio, data_fim, estabelecimento_id, disciplina, mentor_id
-    )
+    zip_bytes = aula_registo_service.exportar_registos_zip(projeto_id, data_inicio, data_fim)
     from fastapi.responses import Response
     return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": "attachment; filename=registos.pdf"},
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=registos.zip"},
     )
 
 @app.get("/api/aula-registos/{aula_id}", tags=["Registos"])

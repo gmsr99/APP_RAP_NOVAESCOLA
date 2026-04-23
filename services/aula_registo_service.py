@@ -6,11 +6,13 @@ from __future__ import annotations
 import io
 import logging
 import os
+import re
+import unicodedata
+import zipfile
 from datetime import datetime
 from typing import Any, Dict, Optional
 
 import requests
-from pypdf import PdfReader, PdfWriter
 from sqlmodel import Session, text
 from supabase import create_client
 
@@ -108,31 +110,26 @@ def obter_registo_por_aula(aula_id: int) -> Optional[Dict[str, Any]]:
 
 
 # ---------------------------------------------------------------------------
-# 3. compilar_pdf_registos
+# 3. exportar_registos_zip
 # ---------------------------------------------------------------------------
 
-def compilar_pdf_registos(
+def _sanitize_name(s: str) -> str:
+    s = unicodedata.normalize("NFKD", s)
+    s = s.encode("ascii", "ignore").decode("ascii")
+    s = re.sub(r"[^\w]", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return s or "Sem_Nome"
+
+
+def exportar_registos_zip(
     projeto_id: int,
     data_inicio: Optional[str] = None,
     data_fim: Optional[str] = None,
-    estabelecimento_id: Optional[int] = None,
-    disciplina: Optional[str] = None,
-    mentor_id: Optional[str] = None,
 ) -> bytes:
     """
-    Agrega os PDFs digitalizados dos registos que satisfazem os filtros num único
-    ficheiro PDF multi-página e devolve-o como bytes.
-
-    Parâmetros
-    ----------
-    projeto_id       : obrigatório
-    data_inicio      : YYYY-MM-DD  (inclusivo)
-    data_fim         : YYYY-MM-DD  (inclusivo)
-    estabelecimento_id: filtra por estabelecimento da turma
-    disciplina       : nome da disciplina (turma_disciplinas.nome)
-    mentor_id        : UUID do mentor (mentores.user_id)
+    Gera um ZIP com os PDFs dos registos organizados em pastas:
+    Projeto/Estabelecimento/Turma/Disciplina/Mentor/Registo_*.pdf
     """
-    # ------------------------------------------------------------------ query
     conditions = ["a.projeto_id = :projeto_id"]
     params: Dict[str, Any] = {"projeto_id": projeto_id}
 
@@ -144,35 +141,25 @@ def compilar_pdf_registos(
         conditions.append("a.data_hora <= :data_fim")
         params["data_fim"] = data_fim
 
-    if estabelecimento_id:
-        conditions.append("t.estabelecimento_id = :estabelecimento_id")
-        params["estabelecimento_id"] = estabelecimento_id
-
-    if disciplina:
-        conditions.append(
-            "t.id IN ("
-            "  SELECT turma_id FROM turma_atividades ta"
-            "  JOIN turma_disciplinas td ON td.id = ta.turma_disciplina_id"
-            "  WHERE td.nome = :disciplina"
-            ")"
-        )
-        params["disciplina"] = disciplina
-
-    if mentor_id:
-        conditions.append("m.user_id = :mentor_id")
-        params["mentor_id"] = mentor_id
-
     where_clause = " AND ".join(conditions)
 
     sql = text(f"""
         SELECT
             ar.storage_path,
-            ar.aula_id
+            ar.aula_id,
+            p.nome  AS projeto_nome,
+            e.nome  AS estabelecimento_nome,
+            t.nome  AS turma_nome,
+            COALESCE(td.nome, 'Sem Disciplina') AS disciplina_nome,
+            m.nome  AS mentor_nome
         FROM aula_registos ar
         JOIN aulas a              ON ar.aula_id = a.id
+        JOIN projetos p           ON a.projeto_id = p.id
         JOIN turmas t             ON a.turma_id = t.id
         JOIN estabelecimentos e   ON t.estabelecimento_id = e.id
         JOIN mentores m           ON a.mentor_id = m.id
+        LEFT JOIN turma_atividades ta ON ta.uuid = a.atividade_uuid
+        LEFT JOIN turma_disciplinas td ON td.id = ta.turma_disciplina_id
         WHERE {where_clause}
         ORDER BY a.data_hora ASC
     """)
@@ -181,68 +168,42 @@ def compilar_pdf_registos(
         with Session(engine) as session:
             rows = session.exec(sql, params=params).all()
     except Exception as e:
-        logger.error(f"Erro ao consultar aula_registos para compilação PDF: {e}")
+        logger.error(f"Erro ao consultar aula_registos para ZIP: {e}")
         rows = []
 
-    # -------------------------------------------------- download & merge PDFs
-    writer = PdfWriter()
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for row in rows:
+            storage_path = row.storage_path
+            aula_id = row.aula_id
+            proj = _sanitize_name(row.projeto_nome or "Projeto")
+            estab = _sanitize_name(row.estabelecimento_nome or "Estabelecimento")
+            turma = _sanitize_name(row.turma_nome or "Turma")
+            disc = _sanitize_name(row.disciplina_nome or "Sem_Disciplina")
+            mentor = _sanitize_name(row.mentor_nome or "Mentor")
 
-    for row in rows:
-        storage_path = row.storage_path
-        aula_id = row.aula_id
-
-        # Generate signed URL (TTL 60 s)
-        try:
-            response = supabase.storage.from_("registos-sessoes").create_signed_url(
-                storage_path, 60
-            )
-            signed_url = response.get("signedURL") or response.get("signedUrl")
-            if not signed_url:
-                logger.warning(
-                    f"Não foi possível obter URL assinada para aula #{aula_id} "
-                    f"(path: {storage_path}): {response}"
+            try:
+                response = supabase.storage.from_("registos-sessoes").create_signed_url(
+                    storage_path, 60
                 )
+                signed_url = response.get("signedURL") or response.get("signedUrl")
+                if not signed_url:
+                    logger.warning(f"Sem URL assinada para aula #{aula_id}: {response}")
+                    continue
+            except Exception as e:
+                logger.error(f"Erro URL assinada aula #{aula_id}: {e}")
                 continue
-        except Exception as e:
-            logger.error(
-                f"Erro ao gerar URL assinada para aula #{aula_id} "
-                f"(path: {storage_path}): {e}"
-            )
-            continue
 
-        # Download PDF
-        try:
-            dl = requests.get(signed_url, timeout=30, verify=False)  # noqa: S501
-            dl.raise_for_status()
-            pdf_bytes = dl.content
-        except Exception as e:
-            logger.error(
-                f"Erro ao descarregar PDF da aula #{aula_id} "
-                f"(path: {storage_path}): {e}"
-            )
-            continue
+            try:
+                dl = requests.get(signed_url, timeout=30, verify=False)  # noqa: S501
+                dl.raise_for_status()
+                pdf_bytes = dl.content
+            except Exception as e:
+                logger.error(f"Erro download PDF aula #{aula_id}: {e}")
+                continue
 
-        # Append pages to writer
-        try:
-            reader = PdfReader(io.BytesIO(pdf_bytes))
-            for page in reader.pages:
-                writer.add_page(page)
-        except Exception as e:
-            logger.error(
-                f"Erro ao processar PDF da aula #{aula_id} "
-                f"(path: {storage_path}): {e}"
-            )
-            continue
+            file_name = f"Registo_{proj}_{turma}_{disc}_{mentor}.pdf"
+            zip_path = f"{proj}/{estab}/{turma}/{disc}/{mentor}/{file_name}"
+            zf.writestr(zip_path, pdf_bytes)
 
-    # If no pages were added, return a minimal valid PDF (single blank page)
-    if len(writer.pages) == 0:
-        logger.info("Nenhum PDF encontrado para os filtros fornecidos — devolvendo PDF em branco")
-        blank_writer = PdfWriter()
-        blank_writer.add_blank_page(width=595, height=842)  # A4 in points
-        output = io.BytesIO()
-        blank_writer.write(output)
-        return output.getvalue()
-
-    output = io.BytesIO()
-    writer.write(output)
-    return output.getvalue()
+    return zip_buffer.getvalue()

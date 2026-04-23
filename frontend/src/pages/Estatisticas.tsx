@@ -100,8 +100,6 @@ export default function Estatisticas() {
   const [registosFilter, setRegistosFilter] = useState({
     data_inicio: '',
     data_fim: '',
-    disciplina: '',
-    mentor_id: '',
   });
   const [isExportingRegistos, setIsExportingRegistos] = useState(false);
   const [sessoesModal, setSessoesModal] = useState<SessoesModalState | null>(null);
@@ -328,25 +326,6 @@ export default function Estatisticas() {
                   />
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label>Mentor (opcional)</Label>
-                <Select
-                  value={registosFilter.mentor_id || 'all'}
-                  onValueChange={v => setRegistosFilter(f => ({ ...f, mentor_id: v === 'all' ? '' : v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Todos os mentores" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos os mentores</SelectItem>
-                    {equipaHoras.map(m => (
-                      <SelectItem key={m.user_id} value={m.user_id}>
-                        {m.nome}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setExportRegistosOpen(false)}>Cancelar</Button>
@@ -359,8 +338,6 @@ export default function Estatisticas() {
                     const params: Record<string, string | number> = { projeto_id: projetoId };
                     if (registosFilter.data_inicio) params.data_inicio = registosFilter.data_inicio;
                     if (registosFilter.data_fim) params.data_fim = registosFilter.data_fim;
-                    if (registosFilter.disciplina) params.disciplina = registosFilter.disciplina;
-                    if (registosFilter.mentor_id) params.mentor_id = registosFilter.mentor_id;
                     const res = await api.get('/api/aula-registos/export', {
                       params,
                       responseType: 'blob',
@@ -369,20 +346,20 @@ export default function Estatisticas() {
                     const a = document.createElement('a');
                     a.href = url;
                     const projetoNome = projetos.find(p => p.id === projetoId)?.nome ?? 'Projeto';
-                    a.download = `Registos_${projetoNome}_${registosFilter.data_inicio || 'todos'}.pdf`;
+                    a.download = `Registos_${projetoNome}_${registosFilter.data_inicio || 'todos'}.zip`;
                     a.click();
                     URL.revokeObjectURL(url);
                     setExportRegistosOpen(false);
                   } catch (err: unknown) {
                     const status = (err as { response?: { status?: number } })?.response?.status;
-                    toast.error(status === 403 ? 'Sem permissão para exportar.' : 'Erro ao gerar PDF.');
+                    toast.error(status === 403 ? 'Sem permissão para exportar.' : 'Erro ao gerar ZIP.');
                   } finally {
                     setIsExportingRegistos(false);
                   }
                 }}
                 className="bg-[#6B7280] hover:bg-[#555e68] text-white"
               >
-                {isExportingRegistos ? 'A gerar...' : 'Gerar PDF'}
+                {isExportingRegistos ? 'A gerar...' : 'Gerar ZIP'}
               </Button>
             </DialogFooter>
           </DialogContent>
