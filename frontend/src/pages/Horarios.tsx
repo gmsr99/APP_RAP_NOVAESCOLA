@@ -3145,7 +3145,6 @@ const Horarios = () => {
                   <input
                     type="file"
                     accept="image/*"
-                    capture={"environment" as any}
                     className="sr-only"
                     id="registo-upload-input"
                     disabled={registoUpload.status === 'uploading'}
