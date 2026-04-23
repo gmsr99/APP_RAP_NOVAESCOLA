@@ -239,6 +239,7 @@ class AulaListItem(SQLModel):
     mentor_user_id: Optional[str] = None
     estabelecimento_nome: Optional[str] = None
     estabelecimento_sigla: Optional[str] = None
+    projeto_id: Optional[int] = None
     projeto_nome: Optional[str] = None
     atividade_uuid: Optional[str] = None
     atividade_nome: Optional[str] = None
