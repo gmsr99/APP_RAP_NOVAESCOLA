@@ -284,7 +284,7 @@ export default function Estatisticas() {
               variant="outline"
               size="sm"
               onClick={() => setExportRegistosOpen(true)}
-              className="gap-2 text-blue-600 border-blue-600/40 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+              className="gap-2 text-green-600 border-green-600/40 hover:bg-green-50 dark:hover:bg-green-950/30"
             >
               <FileDown className="h-4 w-4" />
               Exportar Registos
@@ -327,14 +327,6 @@ export default function Estatisticas() {
                     onChange={e => setRegistosFilter(f => ({ ...f, data_fim: e.target.value }))}
                   />
                 </div>
-              </div>
-              <div className="space-y-1">
-                <Label>Disciplina (opcional)</Label>
-                <Input
-                  placeholder="Ex: Matemática"
-                  value={registosFilter.disciplina}
-                  onChange={e => setRegistosFilter(f => ({ ...f, disciplina: e.target.value }))}
-                />
               </div>
               <div className="space-y-1">
                 <Label>Mentor (opcional)</Label>
