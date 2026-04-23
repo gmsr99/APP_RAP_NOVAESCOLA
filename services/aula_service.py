@@ -142,10 +142,13 @@ def criar_aula(
     sumario=None,
     codigo_sessao=None,
     tarefa_id=None,
+    participantes_ids=None,
+    criador_user_id=None,
 ):
     is_interno = tipo == "trabalho_interno"
+    is_outro = tipo == "outro"
 
-    if not is_autonomous and not is_interno and not turma_id:
+    if not is_autonomous and not is_interno and not is_outro and not turma_id:
         logger.error("Erro: turma_id e obrigatorio para aulas regulares!")
         return None
 
@@ -156,7 +159,7 @@ def criar_aula(
     if not is_autonomous and not is_interno and tipo not in TIPOS_AULA:
         logger.warning("Tipo '%s' nao e padrao. Tipos validos: %s", tipo, TIPOS_AULA)
 
-    if is_interno:
+    if is_interno or is_outro:
         estado_inicial = "confirmada"
     elif is_autonomous:
         estado_inicial = "autonomo"
@@ -213,6 +216,37 @@ def criar_aula(
                         )
             except Exception as e:
                 logger.warning("Erro ao criar notificacao: %s", e)
+
+        if is_outro and participantes_ids:
+            try:
+                from services import notification_service
+                conn = get_db_connection()
+                cur = conn.cursor()
+                for uid in participantes_ids:
+                    cur.execute(
+                        "INSERT INTO aula_participantes (aula_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                        (nova_aula.id, uid),
+                    )
+                    if uid != criador_user_id:
+                        notification_service.criar_notificacao(
+                            user_id=uid,
+                            tipo="sessao_outro",
+                            titulo=f"Nova sessão: {tema or 'Outro'}",
+                            mensagem=f'Foste adicionado a "{tema or "Outro"}" em {data_hora_dt.strftime("%d/%m %H:%M")}.',
+                            link="/horarios",
+                            metadados={"aula_id": nova_aula.id},
+                        )
+                conn.commit()
+                logger.info("Participantes inseridos para aula #%s", nova_aula.id)
+            except Exception as e:
+                logger.warning("Erro ao inserir participantes: %s", e)
+                if 'conn' in locals() and conn:
+                    conn.rollback()
+            finally:
+                if 'cur' in locals() and cur:
+                    cur.close()
+                if 'conn' in locals() and conn:
+                    conn.close()
 
         return _to_aula_read_dict(nova_aula)
 
