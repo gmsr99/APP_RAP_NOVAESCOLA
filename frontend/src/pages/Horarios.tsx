@@ -57,6 +57,7 @@ import {
   XCircle,
   Wrench,
   Users,
+  Upload,
 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -86,6 +87,7 @@ import { useProfile } from '@/contexts/ProfileContext';
 import { computeEventLayout } from '@/lib/eventLayout';
 import { addMinutes } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext'; // Import useAuth for user ID
+import { uploadRegistoSessao } from '@/utils/registoUpload';
 
 const statusColors: Record<SessionStatus, string> = {
   rascunho: 'bg-muted text-muted-foreground border-border/50',
@@ -335,6 +337,9 @@ const Horarios = () => {
   const [terminarSessionId, setTerminarSessionId] = useState<number | null>(null);
   const [terminarRating, setTerminarRating] = useState(0);
   const [terminarObs, setTerminarObs] = useState('');
+  const [terminarStep, setTerminarStep] = useState<1 | 2>(1);
+  const [terminarProjetoId, setTerminarProjetoId] = useState<number | null>(null);
+  const [registoUpload, setRegistoUpload] = useState<{ status: 'idle' | 'uploading' | 'done' | 'error'; sizeKb?: number; error?: string }>({ status: 'idle' });
 
   const queryClient = useQueryClient();
 
@@ -828,10 +833,13 @@ const Horarios = () => {
     onError: () => toast.error('Erro ao terminar sessão.'),
   });
 
-  const openTerminarModal = (sessionId: number) => {
+  const openTerminarModal = (sessionId: number, projetoId?: number | null) => {
     setTerminarSessionId(sessionId);
+    setTerminarProjetoId(projetoId ?? null);
     setTerminarRating(0);
     setTerminarObs('');
+    setTerminarStep(1);
+    setRegistoUpload({ status: 'idle' });
     setIsTerminarOpen(true);
   };
 
@@ -3039,7 +3047,7 @@ const Horarios = () => {
                   {viewSession.estado === 'confirmada' && !viewSession.is_autonomous && viewSession.tipo !== 'outro' && new Date(viewSession.data_hora) <= new Date() &&
                     (isAdmin || isOwnSession) && (
                       <Button
-                        onClick={() => handleWithConfirmation(() => { setIsDetailOpen(false); openTerminarModal(viewSession.id); })}
+                        onClick={() => handleWithConfirmation(() => { setIsDetailOpen(false); openTerminarModal(viewSession.id, viewSession.projeto_id); })}
                         className={greyClass}
                       >
                         <CheckCircle2 className="w-4 h-4 mr-2" />
@@ -3100,55 +3108,136 @@ const Horarios = () => {
       </AlertDialog>
 
       {/* TERMINAR SESSÃO MODAL */}
-      <Dialog open={isTerminarOpen} onOpenChange={setIsTerminarOpen}>
+      <Dialog open={isTerminarOpen} onOpenChange={(open) => {
+        setIsTerminarOpen(open);
+        if (!open) { setTerminarStep(1); setRegistoUpload({ status: 'idle' }); }
+      }}>
         <DialogContent className="w-full sm:max-w-[420px] max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-[#6B7280]" />
-              Terminar Sessão
+              {terminarStep === 1 ? 'Digitalização do Registo' : 'Terminar Sessão'}
             </DialogTitle>
             <DialogDescription>
-              Avalia a sessão e adiciona observações opcionais.
+              {terminarStep === 1
+                ? 'Fotografa a folha de registo da sessão.'
+                : 'Avalia a sessão e adiciona observações opcionais.'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-5 py-2">
-            <div className="space-y-2">
-              <Label className="font-medium">Avaliação desta Sessão</Label>
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map(n => (
-                  <Star
-                    key={n}
-                    className={cn(
-                      'h-8 w-8 cursor-pointer transition-colors',
-                      n <= terminarRating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30 hover:text-yellow-300'
-                    )}
-                    onClick={() => setTerminarRating(n)}
-                  />
-                ))}
-                {terminarRating > 0 && (
-                  <span className="text-sm text-muted-foreground ml-2">{terminarRating}/5</span>
+
+          {terminarStep === 1 ? (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label className="font-medium">Fotografia do Registo</Label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture={"environment" as any}
+                  className="hidden"
+                  id="registo-upload-input"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file || !terminarSessionId || terminarProjetoId == null) return;
+                    setRegistoUpload({ status: 'uploading' });
+                    const result = await uploadRegistoSessao(file, terminarProjetoId, terminarSessionId);
+                    if (result.ok && result.storagePath) {
+                      setRegistoUpload({ status: 'done', sizeKb: result.sizeKb });
+                      try {
+                        await api.post('/api/aula-registos', {
+                          aula_id: terminarSessionId,
+                          storage_path: result.storagePath,
+                        });
+                      } catch {
+                        setRegistoUpload({ status: 'error', error: 'Erro ao guardar registo no servidor.' });
+                      }
+                    } else {
+                      setRegistoUpload({ status: 'error', error: result.error });
+                    }
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => document.getElementById('registo-upload-input')?.click()}
+                  disabled={registoUpload.status === 'uploading'}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  {registoUpload.status === 'uploading' ? 'A processar...' : 'Tirar foto / Escolher ficheiro'}
+                </Button>
+                {registoUpload.status === 'done' && (
+                  <p className="text-sm text-green-600 flex items-center gap-1">
+                    ✓ Registo enviado ({registoUpload.sizeKb} KB / 1024 KB)
+                  </p>
+                )}
+                {registoUpload.status === 'error' && (
+                  <p className="text-sm text-destructive">{registoUpload.error}</p>
                 )}
               </div>
             </div>
-            <div className="space-y-2">
-              <Label className="font-medium">Observações</Label>
-              <Textarea
-                placeholder="Como correu a sessão? Notas relevantes..."
-                value={terminarObs}
-                onChange={e => setTerminarObs(e.target.value)}
-                className="min-h-[100px]"
-              />
+          ) : (
+            <div className="space-y-5 py-2">
+              <div className="space-y-2">
+                <Label className="font-medium">Avaliação desta Sessão</Label>
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <Star
+                      key={n}
+                      className={cn(
+                        'h-8 w-8 cursor-pointer transition-colors',
+                        n <= terminarRating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30 hover:text-yellow-300'
+                      )}
+                      onClick={() => setTerminarRating(n)}
+                    />
+                  ))}
+                  {terminarRating > 0 && (
+                    <span className="text-sm text-muted-foreground ml-2">{terminarRating}/5</span>
+                  )}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label className="font-medium">Observações</Label>
+                <Textarea
+                  placeholder="Como correu a sessão? Notas relevantes..."
+                  value={terminarObs}
+                  onChange={e => setTerminarObs(e.target.value)}
+                  className="min-h-[100px]"
+                />
+              </div>
             </div>
-          </div>
+          )}
+
           <DialogFooter>
-            <Button
-              onClick={handleSubmitTerminar}
-              disabled={terminarRating < 1 || terminarMutation.isPending}
-              className="bg-[#6B7280] hover:bg-[#555e68] text-white"
-            >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Submeter
-            </Button>
+            {terminarStep === 1 ? (
+              (() => {
+                const requerDigitalizacao = projetos?.find(p => p.id === terminarProjetoId)?.requer_digitalizacao ?? false;
+                const uploadDone = registoUpload.status === 'done';
+                return (
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    {!requerDigitalizacao && (
+                      <Button variant="ghost" onClick={() => setTerminarStep(2)}>
+                        Ignorar
+                      </Button>
+                    )}
+                    <Button
+                      onClick={() => setTerminarStep(2)}
+                      disabled={requerDigitalizacao && !uploadDone}
+                      className="bg-[#6B7280] hover:bg-[#555e68] text-white"
+                    >
+                      Seguinte
+                    </Button>
+                  </div>
+                );
+              })()
+            ) : (
+              <Button
+                onClick={handleSubmitTerminar}
+                disabled={terminarRating < 1 || terminarMutation.isPending}
+                className="bg-[#6B7280] hover:bg-[#555e68] text-white"
+              >
+                <CheckCircle2 className="h-4 w-4 mr-2" />
+                Submeter
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
