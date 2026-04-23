@@ -9,5 +9,4 @@ CREATE TABLE IF NOT EXISTS aula_participantes (
     UNIQUE(aula_id, user_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_aula_participantes_aula_id ON aula_participantes(aula_id);
 CREATE INDEX IF NOT EXISTS idx_aula_participantes_user_id ON aula_participantes(user_id);
