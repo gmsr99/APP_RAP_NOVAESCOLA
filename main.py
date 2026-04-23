@@ -583,6 +583,62 @@ async def remove_projeto_estabelecimento(id: int, estab_id: int, user=Depends(ge
         raise HTTPException(status_code=404, detail="Associação não encontrada")
     return {"message": "Estabelecimento desassociado"}
 
+# --- Registos de Sessão (digitalizações) ---
+from services import aula_registo_service
+
+class AulaRegistoPayload(BaseModel):
+    aula_id: int
+    storage_path: str
+
+class ProjetoConfigPayload(BaseModel):
+    requer_digitalizacao: bool
+
+@app.patch("/api/projetos/{id}/config", tags=["Projetos"])
+async def update_projeto_config(id: int, data: ProjetoConfigPayload, user=Depends(get_current_user_required)):
+    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    sucesso = projeto_service.atualizar_config_projeto(id, data.requer_digitalizacao)
+    if not sucesso:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    return {"message": "Configurações atualizadas"}
+
+@app.post("/api/aula-registos", tags=["Registos"])
+async def create_aula_registo(data: AulaRegistoPayload, user=Depends(get_current_user_required)):
+    res = aula_registo_service.criar_aula_registo(data.aula_id, data.storage_path, user["sub"])
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("erro", "Erro ao guardar registo"))
+    return res
+
+@app.get("/api/aula-registos/export", tags=["Registos"])
+async def export_aula_registos(
+    projeto_id: int,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
+    estabelecimento_id: Optional[int] = None,
+    disciplina: Optional[str] = None,
+    mentor_id: Optional[str] = None,
+    user=Depends(get_current_user_required),
+):
+    role = user.get("user_metadata", {}).get("role")
+    if role not in ["direcao", "it_support"]:
+        raise HTTPException(status_code=403, detail="Acesso negado")
+    pdf_bytes = aula_registo_service.compilar_pdf_registos(
+        projeto_id, data_inicio, data_fim, estabelecimento_id, disciplina, mentor_id
+    )
+    from fastapi.responses import Response
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": "attachment; filename=registos.pdf"},
+    )
+
+@app.get("/api/aula-registos/{aula_id}", tags=["Registos"])
+async def get_aula_registo(aula_id: int, user=Depends(get_current_user_required)):
+    registo = aula_registo_service.obter_registo_por_aula(aula_id)
+    if not registo:
+        raise HTTPException(status_code=404, detail="Registo não encontrado")
+    return registo
+
 # --- Rotas para Turmas/Estabelecimentos ---
 from services import turma_service, profile_service, estudio_service, notification_service, registo_service, aluno_service
 

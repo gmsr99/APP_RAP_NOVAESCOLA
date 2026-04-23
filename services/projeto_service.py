@@ -10,7 +10,7 @@ def listar_projetos():
     conn = get_db_connection()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, descricao, estado FROM projetos ORDER BY nome")
+        cur.execute("SELECT id, nome, descricao, estado, requer_digitalizacao FROM projetos ORDER BY nome")
         cols = [desc[0] for desc in cur.description]
         return [dict(zip(cols, row)) for row in cur.fetchall()]
     except Exception as e:
@@ -132,6 +132,25 @@ def desassociar_estabelecimento(projeto_id, estabelecimento_id):
     except Exception as e:
         conn.rollback()
         logger.error(f"Erro ao desassociar estabelecimento: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def atualizar_config_projeto(projeto_id: int, requer_digitalizacao: bool) -> bool:
+    """Atualiza as configurações de digitalização de um projeto."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE projetos SET requer_digitalizacao = %s WHERE id = %s",
+            (requer_digitalizacao, projeto_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Erro ao atualizar config projeto: {e}")
         return False
     finally:
         conn.close()

@@ -527,6 +527,15 @@ def terminar_aula(aula_id, avaliacao, obs_termino=None):
             if aula.is_autonomous:
                 return {"ok": False, "erro": "Trabalho autónomo não pode ser terminado desta forma."}
 
+            if aula.projeto_id:
+                from models.sqlmodel_models import Projeto
+                projeto = session.get(Projeto, aula.projeto_id)
+                if projeto and projeto.requer_digitalizacao:
+                    from services import aula_registo_service
+                    registo = aula_registo_service.obter_registo_por_aula(aula_id)
+                    if not registo:
+                        return {"ok": False, "erro": "Este projeto requer a digitalização do registo antes de terminar a sessão."}
+
             if aula.data_hora > datetime.utcnow():
                 return {"ok": False, "erro": "A sessão ainda não começou."}
 
