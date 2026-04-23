@@ -211,6 +211,7 @@ export interface Projeto {
   nome: string;
   descricao?: string;
   estado?: string;
+  requer_digitalizacao?: boolean;
 }
 
 export interface ContactoEstabelecimento {
@@ -251,6 +252,14 @@ export interface AulaCreate {
   codigo_sessao?: string | null;
   tarefa_id?: number | null;
   participantes_ids?: string[];
+}
+
+export interface AulaRegisto {
+  id: number;
+  aula_id: number;
+  storage_path: string;
+  criado_por: string;
+  criado_em: string;
 }
 
 export interface PublicProfileEquipa {
