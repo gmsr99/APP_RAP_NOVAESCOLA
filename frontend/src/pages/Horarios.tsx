@@ -99,6 +99,7 @@ const statusColors: Record<SessionStatus, string> = {
 // Estilos para eventos autónomos
 const autonomousPlannedClass = 'bg-muted/60 text-muted-foreground border-muted-foreground/40 border-dashed opacity-80';
 const autonomousRealizedClass = 'bg-[#4EA380]/20 text-[#2d7a5c] border-[#4EA380] border-solid';
+const outroClass = 'bg-pink-200 border-pink-400 text-pink-900';
 
 // Removed 'rascunho' and 'agendada' from legend (agendada renders same as pendente)
 const statusLabels: Record<string, string> = {
@@ -672,7 +673,8 @@ const Horarios = () => {
     if (effectiveMemberId) {
       out = out.filter(a =>
         a.mentor_user_id === effectiveMemberId ||
-        a.responsavel_user_id === effectiveMemberId
+        a.responsavel_user_id === effectiveMemberId ||
+        a.participantes_ids?.includes(effectiveMemberId)
       );
     }
     if (filterProjectId !== null) {
@@ -1166,9 +1168,12 @@ const Horarios = () => {
     return layoutEvents.map((event) => {
       const isAutonomous = event.is_autonomous;
       const isRealized = event.is_realized;
-      const eventClass = isAutonomous
-        ? (isRealized ? autonomousRealizedClass : autonomousPlannedClass)
-        : (statusColors[event.estado as SessionStatus] || 'bg-secondary');
+      const isOutro = event.tipo === 'outro';
+      const eventClass = isOutro
+        ? outroClass
+        : isAutonomous
+          ? (isRealized ? autonomousRealizedClass : autonomousPlannedClass)
+          : (statusColors[event.estado as SessionStatus] || 'bg-secondary');
       const zIdx = isRealized ? 20 : isAutonomous ? 5 : (event.zIndex || 10);
       const iconSize = compact ? 'h-3 w-3' : 'h-2 w-2';
       const subTextSize = compact ? 'text-[11px]' : 'text-[9px]';
@@ -1183,9 +1188,11 @@ const Horarios = () => {
             compact ? 'text-xs' : 'text-[10px]',
             eventClass
           )}
-          title={isAutonomous
-            ? `${format(event.start, 'HH:mm')} — ${event.tipo_atividade ?? 'Trabalho Autónomo'}`
-            : `${format(event.start, 'HH:mm')} - ${event.turma_nome}`
+          title={isOutro
+            ? `${format(event.start, 'HH:mm')} — ${event.tema ?? 'Outro'}`
+            : isAutonomous
+              ? `${format(event.start, 'HH:mm')} — ${event.tipo_atividade ?? 'Trabalho Autónomo'}`
+              : `${format(event.start, 'HH:mm')} - ${event.turma_nome}`
           }
         >
           <div className="font-bold flex justify-between items-center">
@@ -1197,7 +1204,17 @@ const Horarios = () => {
               />
             )}
           </div>
-          {isAutonomous ? (
+          {isOutro ? (
+            <>
+              <div className={cn('truncate font-semibold flex items-center gap-1', compact ? 'text-xs' : 'text-[10px]')}>
+                <Users className={cn(iconSize, 'flex-shrink-0')} />
+                {event.tema ?? 'Outro'}
+              </div>
+              <div className={cn('truncate opacity-90 mt-0.5', subTextSize)}>
+                {(event.participantes_ids?.length ?? 0)} participante{(event.participantes_ids?.length ?? 0) !== 1 ? 's' : ''}
+              </div>
+            </>
+          ) : isAutonomous ? (
             <>
               <div className={cn('truncate font-semibold flex items-center gap-1', compact ? 'text-xs' : 'text-[10px]')}>
                 <Briefcase className={cn(iconSize, 'flex-shrink-0')} />
@@ -2670,9 +2687,11 @@ const Horarios = () => {
                           key={session.id}
                           className={cn(
                             'text-xs px-1.5 py-0.5 rounded truncate cursor-pointer hover:opacity-80',
-                            session.is_autonomous
-                              ? (session.is_realized ? 'bg-[#4EA380]/20 text-[#2d7a5c] border border-[#4EA380]' : 'bg-muted text-muted-foreground border border-dashed border-muted-foreground/40')
-                              : (statusColors[session.estado as SessionStatus] || 'bg-secondary')
+                            session.tipo === 'outro'
+                              ? outroClass
+                              : session.is_autonomous
+                                ? (session.is_realized ? 'bg-[#4EA380]/20 text-[#2d7a5c] border border-[#4EA380]' : 'bg-muted text-muted-foreground border border-dashed border-muted-foreground/40')
+                                : (statusColors[session.estado as SessionStatus] || 'bg-secondary')
                           )}
                           title={`${format(new Date(session.data_hora), 'HH:mm')} - ${session.is_autonomous ? (session.tipo_atividade ?? 'Trabalho Autónomo') : session.turma_nome}`}
                           onClick={() => openDetailView(session)}
