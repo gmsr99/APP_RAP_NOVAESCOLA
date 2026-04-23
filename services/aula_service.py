@@ -156,7 +156,7 @@ def criar_aula(
         logger.error("Erro: data_hora e obrigatoria!")
         return None
 
-    if not is_autonomous and not is_interno and tipo not in TIPOS_AULA:
+    if not is_autonomous and not is_interno and not is_outro and tipo not in TIPOS_AULA:
         logger.warning("Tipo '%s' nao e padrao. Tipos validos: %s", tipo, TIPOS_AULA)
 
     if is_interno or is_outro:
@@ -227,6 +227,9 @@ def criar_aula(
                         "INSERT INTO aula_participantes (aula_id, user_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
                         (nova_aula.id, uid),
                     )
+                conn.commit()
+                logger.info("Participantes inseridos para aula #%s", nova_aula.id)
+                for uid in participantes_ids:
                     if uid != criador_user_id:
                         notification_service.criar_notificacao(
                             user_id=uid,
@@ -236,8 +239,6 @@ def criar_aula(
                             link="/horarios",
                             metadados={"aula_id": nova_aula.id},
                         )
-                conn.commit()
-                logger.info("Participantes inseridos para aula #%s", nova_aula.id)
             except Exception as e:
                 logger.warning("Erro ao inserir participantes: %s", e)
                 if 'conn' in locals() and conn:
