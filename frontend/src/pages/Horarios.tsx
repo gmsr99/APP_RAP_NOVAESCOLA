@@ -339,6 +339,7 @@ const Horarios = () => {
   const [terminarObs, setTerminarObs] = useState('');
   const [terminarStep, setTerminarStep] = useState<1 | 2>(1);
   const [terminarProjetoId, setTerminarProjetoId] = useState<number | null>(null);
+  const [terminarRequerDigitalizacao, setTerminarRequerDigitalizacao] = useState(false);
   const [registoUpload, setRegistoUpload] = useState<{ status: 'idle' | 'uploading' | 'done' | 'error'; sizeKb?: number; error?: string }>({ status: 'idle' });
 
   const queryClient = useQueryClient();
@@ -836,6 +837,10 @@ const Horarios = () => {
   const openTerminarModal = (sessionId: number, projetoId?: number | null) => {
     setTerminarSessionId(sessionId);
     setTerminarProjetoId(projetoId ?? null);
+    const requer = projetoId != null
+      ? (projetos?.find(p => p.id === projetoId)?.requer_digitalizacao ?? false)
+      : false;
+    setTerminarRequerDigitalizacao(requer);
     setTerminarRating(0);
     setTerminarObs('');
     setTerminarStep(1);
@@ -3129,41 +3134,42 @@ const Horarios = () => {
             <div className="space-y-4 py-2">
               <div className="space-y-2">
                 <Label className="font-medium">Fotografia do Registo</Label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture={"environment" as any}
-                  className="hidden"
-                  id="registo-upload-input"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file || !terminarSessionId || terminarProjetoId == null) return;
-                    setRegistoUpload({ status: 'uploading' });
-                    const result = await uploadRegistoSessao(file, terminarProjetoId, terminarSessionId);
-                    if (result.ok && result.storagePath) {
-                      setRegistoUpload({ status: 'done', sizeKb: result.sizeKb });
-                      try {
-                        await api.post('/api/aula-registos', {
-                          aula_id: terminarSessionId,
-                          storage_path: result.storagePath,
-                        });
-                      } catch {
-                        setRegistoUpload({ status: 'error', error: 'Erro ao guardar registo no servidor.' });
+                <label htmlFor="registo-upload-input" className="w-full">
+                  <div className={cn(
+                    'flex items-center justify-center gap-2 w-full px-4 py-2 rounded-md border border-input bg-background text-sm font-medium cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors',
+                    registoUpload.status === 'uploading' && 'opacity-50 pointer-events-none'
+                  )}>
+                    <Upload className="h-4 w-4" />
+                    {registoUpload.status === 'uploading' ? 'A processar...' : 'Tirar foto / Escolher ficheiro'}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture={"environment" as any}
+                    className="sr-only"
+                    id="registo-upload-input"
+                    disabled={registoUpload.status === 'uploading'}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !terminarSessionId || terminarProjetoId == null) return;
+                      setRegistoUpload({ status: 'uploading' });
+                      const result = await uploadRegistoSessao(file, terminarProjetoId, terminarSessionId);
+                      if (result.ok && result.storagePath) {
+                        setRegistoUpload({ status: 'done', sizeKb: result.sizeKb });
+                        try {
+                          await api.post('/api/aula-registos', {
+                            aula_id: terminarSessionId,
+                            storage_path: result.storagePath,
+                          });
+                        } catch {
+                          setRegistoUpload({ status: 'error', error: 'Erro ao guardar registo no servidor.' });
+                        }
+                      } else {
+                        setRegistoUpload({ status: 'error', error: result.error });
                       }
-                    } else {
-                      setRegistoUpload({ status: 'error', error: result.error });
-                    }
-                  }}
-                />
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => document.getElementById('registo-upload-input')?.click()}
-                  disabled={registoUpload.status === 'uploading'}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  {registoUpload.status === 'uploading' ? 'A processar...' : 'Tirar foto / Escolher ficheiro'}
-                </Button>
+                    }}
+                  />
+                </label>
                 {registoUpload.status === 'done' && (
                   <p className="text-sm text-green-600 flex items-center gap-1">
                     ✓ Registo enviado ({registoUpload.sizeKb} KB / 1024 KB)
@@ -3208,26 +3214,20 @@ const Horarios = () => {
 
           <DialogFooter>
             {terminarStep === 1 ? (
-              (() => {
-                const requerDigitalizacao = projetos?.find(p => p.id === terminarProjetoId)?.requer_digitalizacao ?? false;
-                const uploadDone = registoUpload.status === 'done';
-                return (
-                  <div className="flex gap-2 w-full sm:w-auto">
-                    {!requerDigitalizacao && (
-                      <Button variant="ghost" onClick={() => setTerminarStep(2)}>
-                        Ignorar
-                      </Button>
-                    )}
-                    <Button
-                      onClick={() => setTerminarStep(2)}
-                      disabled={requerDigitalizacao && !uploadDone}
-                      className="bg-[#6B7280] hover:bg-[#555e68] text-white"
-                    >
-                      Seguinte
-                    </Button>
-                  </div>
-                );
-              })()
+              <div className="flex gap-2 w-full sm:w-auto">
+                {!terminarRequerDigitalizacao && (
+                  <Button variant="ghost" onClick={() => setTerminarStep(2)}>
+                    Ignorar
+                  </Button>
+                )}
+                <Button
+                  onClick={() => setTerminarStep(2)}
+                  disabled={terminarRequerDigitalizacao && registoUpload.status !== 'done'}
+                  className="bg-[#6B7280] hover:bg-[#555e68] text-white"
+                >
+                  Seguinte
+                </Button>
+              </div>
             ) : (
               <Button
                 onClick={handleSubmitTerminar}
