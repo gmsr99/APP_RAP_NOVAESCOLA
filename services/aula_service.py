@@ -669,6 +669,22 @@ def obter_aula_por_id(aula_id):
             atv_nome, disc_nome = uuid_map.get(uuid_str, (None, None))
         else:
             atv_nome, disc_nome = None, None
+        # Fetch participantes for outro sessions
+        participantes_ids = []
+        if aula.tipo == 'outro':
+            try:
+                conn = get_db_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT user_id FROM aula_participantes WHERE aula_id = %s", (aula.id,))
+                participantes_ids = [row[0] for row in cur.fetchall()]
+            except Exception as e:
+                logger.warning("Erro ao buscar participantes: %s", e)
+            finally:
+                if 'cur' in locals() and cur:
+                    cur.close()
+                if 'conn' in locals() and conn:
+                    conn.close()
+
         payload = {
             "id": aula.id,
             "tipo": aula.tipo,
@@ -700,6 +716,7 @@ def obter_aula_por_id(aula_id):
             "musica_id": aula.musica_id,
             "avaliacao": aula.avaliacao,
             "obs_termino": aula.obs_termino,
+            "participantes_ids": participantes_ids,
         }
         return AulaListItem.model_validate(payload).model_dump()
 

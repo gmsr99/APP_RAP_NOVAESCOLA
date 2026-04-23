@@ -2987,9 +2987,11 @@ const Horarios = () => {
             {(() => {
               if (!viewSession) return null;
               // Determine if the session belongs to someone else
-              const isOwnSession = viewSession.is_autonomous
-                ? viewSession.responsavel_user_id === user?.id
-                : viewSession.mentor_user_id === user?.id;
+              const isOwnSession = viewSession.tipo === 'outro'
+                ? (viewSession.participantes_ids?.includes(user?.id ?? '') ?? false)
+                : viewSession.is_autonomous
+                  ? viewSession.responsavel_user_id === user?.id
+                  : viewSession.mentor_user_id === user?.id;
               const isOtherUser = isAdmin && !isOwnSession;
 
               const handleWithConfirmation = (action: () => void) => {
@@ -3034,7 +3036,7 @@ const Horarios = () => {
                       </Button>
                     )}
                   {/* Botão Terminar — sessões confirmadas presenciais cuja hora já passou (mentor ou coordenador) */}
-                  {viewSession.estado === 'confirmada' && !viewSession.is_autonomous && new Date(viewSession.data_hora) <= new Date() &&
+                  {viewSession.estado === 'confirmada' && !viewSession.is_autonomous && viewSession.tipo !== 'outro' && new Date(viewSession.data_hora) <= new Date() &&
                     (isAdmin || isOwnSession) && (
                       <Button
                         onClick={() => handleWithConfirmation(() => { setIsDetailOpen(false); openTerminarModal(viewSession.id); })}
