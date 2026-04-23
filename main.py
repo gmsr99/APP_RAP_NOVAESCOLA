@@ -250,6 +250,8 @@ async def create_aula(aula: AulaCreate, user=Depends(get_current_user_required))
         sumario=aula.sumario,
         codigo_sessao=aula.codigo_sessao,
         tarefa_id=getattr(aula, 'tarefa_id', None),
+        participantes_ids=aula.participantes_ids or [],
+        criador_user_id=user.get('sub') if user else None,
     )
     if nova_aula is None:
         raise HTTPException(
