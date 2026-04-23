@@ -42,6 +42,10 @@ def criar_aula_registo(
     sql = text("""
         INSERT INTO aula_registos (aula_id, storage_path, criado_por)
         VALUES (:aula_id, :storage_path, :criado_por)
+        ON CONFLICT (aula_id) DO UPDATE
+            SET storage_path = EXCLUDED.storage_path,
+                criado_por   = EXCLUDED.criado_por,
+                criado_em    = CURRENT_TIMESTAMP
         RETURNING id
     """)
     try:
