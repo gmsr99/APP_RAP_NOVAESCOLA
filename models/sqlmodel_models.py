@@ -146,7 +146,7 @@ class AulaCreate(SQLModel):
     responsavel_user_id: Optional[str] = None
     musica_id: Optional[int] = None
     tarefa_id: Optional[int] = None
-    participantes_ids: List[str] = []
+    participantes_ids: List[str] = Field(default_factory=list)
 
 
 class AulaUpdate(SQLModel):
@@ -199,7 +199,7 @@ class AulaRead(SQLModel):
     avaliacao: Optional[int] = None
     obs_termino: Optional[str] = None
     tarefa_id: Optional[int] = None
-    participantes_ids: List[str] = []
+    participantes_ids: List[str] = Field(default_factory=list)
 
 
 class AulaListItem(SQLModel):
@@ -237,4 +237,4 @@ class AulaListItem(SQLModel):
     avaliacao: Optional[int] = None
     obs_termino: Optional[str] = None
     tarefa_id: Optional[int] = None
-    participantes_ids: List[str] = []
+    participantes_ids: List[str] = Field(default_factory=list)

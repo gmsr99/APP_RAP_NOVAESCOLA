@@ -31,3 +31,15 @@ def test_aula_list_item_includes_participantes_ids():
         participantes_ids=["uuid-1"],
     )
     assert item.participantes_ids == ["uuid-1"]
+
+
+def test_aula_read_includes_participantes_ids():
+    read = AulaRead(
+        id=1,
+        tipo="outro",
+        data_hora="2026-04-23T10:00:00",
+        duracao_minutos=60,
+        estado="confirmada",
+        participantes_ids=["uuid-1"],
+    )
+    assert read.participantes_ids == ["uuid-1"]
