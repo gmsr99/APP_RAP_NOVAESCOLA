@@ -99,7 +99,7 @@ const statusColors: Record<SessionStatus, string> = {
 // Estilos para eventos autónomos
 const autonomousPlannedClass = 'bg-muted/60 text-muted-foreground border-muted-foreground/40 border-dashed opacity-80';
 const autonomousRealizedClass = 'bg-[#4EA380]/20 text-[#2d7a5c] border-[#4EA380] border-solid';
-const outroClass = 'bg-pink-200 border-pink-400 text-pink-900';
+const outroClass = 'bg-pink-500/15 border border-pink-400/50 text-pink-700 dark:text-pink-300';
 
 // Removed 'rascunho' and 'agendada' from legend (agendada renders same as pendente)
 const statusLabels: Record<string, string> = {
@@ -1197,7 +1197,7 @@ const Horarios = () => {
         >
           <div className="font-bold flex justify-between items-center">
             <span>{format(event.start, 'HH:mm')} – {format(event.end, 'HH:mm')}</span>
-            {isAdmin && !isAutonomous && (
+            {isAdmin && !isAutonomous && !isOutro && (
               <Edit2
                 className={cn(iconSize, 'opacity-50 hover:opacity-100 cursor-pointer')}
                 onClick={(e) => { e.stopPropagation(); handleOpenEdit(event); }}
@@ -2693,14 +2693,16 @@ const Horarios = () => {
                                 ? (session.is_realized ? 'bg-[#4EA380]/20 text-[#2d7a5c] border border-[#4EA380]' : 'bg-muted text-muted-foreground border border-dashed border-muted-foreground/40')
                                 : (statusColors[session.estado as SessionStatus] || 'bg-secondary')
                           )}
-                          title={`${format(new Date(session.data_hora), 'HH:mm')} - ${session.is_autonomous ? (session.tipo_atividade ?? 'Trabalho Autónomo') : session.turma_nome}`}
+                          title={`${format(new Date(session.data_hora), 'HH:mm')} — ${session.tipo === 'outro' ? (session.tema ?? 'Outro') : session.is_autonomous ? (session.tipo_atividade ?? 'Trabalho Autónomo') : session.turma_nome}`}
                           onClick={() => openDetailView(session)}
                         >
                           <span className="font-medium">{format(new Date(session.data_hora), 'HH:mm')}</span>
                           <span className="ml-1 opacity-80">
-                            {session.is_autonomous
-                              ? (session.tipo_atividade ?? 'Autónomo')
-                              : (session.mentor_nome?.split(' ')[0] ?? '—')}
+                            {session.tipo === 'outro'
+                              ? (session.tema ?? 'Outro')
+                              : session.is_autonomous
+                                ? (session.tipo_atividade ?? 'Autónomo')
+                                : (session.mentor_nome?.split(' ')[0] ?? '—')}
                           </span>
                         </div>
                       ))}
