@@ -403,11 +403,48 @@ async def override_aula_estado(aula_id: int, payload: AulaEstadoOverride, user=D
     aula_info = aula_service.obter_aula_por_id(aula_id)
     if not aula_info:
         raise HTTPException(status_code=404, detail="Sessão não encontrada")
-    if aula_info.get("estado") == "terminada":
+    estado_anterior = aula_info.get("estado")
+    if estado_anterior == "terminada":
         raise HTTPException(status_code=400, detail="Não é possível alterar o estado de uma sessão terminada.")
     sucesso = aula_service.mudar_estado_aula(aula_id, payload.estado)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao alterar estado da sessão.")
+
+    # Notificar mentor se a sessão lhe estava atribuída
+    mentor_user_id = aula_info.get("mentor_user_id")
+    if mentor_user_id and estado_anterior in ("confirmada", "pendente", "agendada"):
+        try:
+            from services import notification_service
+            from datetime import datetime as _dt
+            data_hora_raw = aula_info.get("data_hora", "")
+            try:
+                data_fmt = _dt.fromisoformat(str(data_hora_raw)).strftime("%d/%m/%Y às %H:%M")
+            except Exception:
+                data_fmt = str(data_hora_raw)
+            tema = aula_info.get("tema") or ""
+            sessao_label = f'"{tema}" ' if tema else ""
+            if estado_anterior == "confirmada":
+                mensagem = (
+                    f"A sessão {sessao_label}de {data_fmt} que tinhas confirmado foi desmarcada por um supervisor. "
+                    "Não precisas de comparecer. Para mais informações, fala com a supervisão."
+                )
+            else:
+                mensagem = (
+                    f"A sessão {sessao_label}de {data_fmt} que te estava atribuída foi desmarcada por um supervisor. "
+                    "Para mais informações, fala com a supervisão."
+                )
+            notification_service.criar_notificacao(
+                user_id=mentor_user_id,
+                tipo="session_desmarcada",
+                titulo="Sessão Desmarcada pelo Supervisor",
+                mensagem=mensagem,
+                link="/horarios",
+                metadados={"aula_id": aula_id},
+            )
+        except Exception as e:
+            import logging as _log
+            _log.getLogger(__name__).warning("Erro ao notificar mentor sobre desmarcação: %s", e)
+
     return {"message": f"Sessão revertida para '{payload.estado}'."}
 
 @app.post("/api/aulas/{aula_id}/realize", tags=["Aulas"])
