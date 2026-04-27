@@ -388,6 +388,28 @@ async def reject_aula(aula_id: int, user=Depends(get_current_user_required)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class AulaEstadoOverride(BaseModel):
+    estado: str
+
+@app.patch("/api/aulas/{aula_id}/estado", tags=["Aulas"])
+async def override_aula_estado(aula_id: int, payload: AulaEstadoOverride, user=Depends(get_current_user_required)):
+    """Coordenador/direcao/it_support pode forçar mudança de estado numa sessão."""
+    role = user.get("user_metadata", {}).get("role")
+    if role not in ["coordenador", "direcao", "it_support"]:
+        raise HTTPException(status_code=403, detail="Sem permissão para alterar o estado desta sessão.")
+    estados_permitidos = ["rascunho", "pendente", "agendada", "confirmada", "recusada"]
+    if payload.estado not in estados_permitidos:
+        raise HTTPException(status_code=400, detail=f"Estado '{payload.estado}' não permitido via esta operação.")
+    aula_info = aula_service.obter_aula_por_id(aula_id)
+    if not aula_info:
+        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+    if aula_info.get("estado") == "terminada":
+        raise HTTPException(status_code=400, detail="Não é possível alterar o estado de uma sessão terminada.")
+    sucesso = aula_service.mudar_estado_aula(aula_id, payload.estado)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao alterar estado da sessão.")
+    return {"message": f"Sessão revertida para '{payload.estado}'."}
+
 @app.post("/api/aulas/{aula_id}/realize", tags=["Aulas"])
 async def realize_aula(aula_id: int, user=Depends(get_current_user_required)):
     """Marca trabalho autónomo como realizado (is_realized = True)."""

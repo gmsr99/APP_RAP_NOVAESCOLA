@@ -58,6 +58,7 @@ import {
   Wrench,
   Users,
   Upload,
+  RotateCcw,
 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -796,6 +797,17 @@ const Horarios = () => {
       toast.success(count);
     },
     onError: () => toast.error('Erro ao criar sessões recorrentes.'),
+  });
+
+  const overrideEstadoMutation = useMutation({
+    mutationFn: ({ id, estado }: { id: number; estado: string }) =>
+      api.patch(`/api/aulas/${id}/estado`, { estado }),
+    onSuccess: (_: any, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['aulas'] });
+      const label = vars.estado === 'pendente' ? 'pendente' : 'rascunho';
+      toast.success(`Sessão revertida para ${label}.`);
+    },
+    onError: () => toast.error('Erro ao alterar estado da sessão.'),
   });
 
   const updateSessionMutation = useMutation({
@@ -3099,6 +3111,36 @@ const Horarios = () => {
                       >
                         <CheckCircle2 className="w-4 h-4 mr-2" />
                         Terminar Sessão
+                      </Button>
+                    )}
+                  {/* Reverter para Pendente — coordenador, sessões confirmadas ou recusadas */}
+                  {isAdmin && !viewSession.is_autonomous && viewSession.tipo !== 'outro' &&
+                    (viewSession.estado === 'confirmada' || viewSession.estado === 'recusada') && (
+                      <Button
+                        variant="outline"
+                        className="w-full sm:w-auto text-amber-600 border-amber-400/50 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                        disabled={overrideEstadoMutation.isPending}
+                        onClick={() => handleWithConfirmation(() =>
+                          overrideEstadoMutation.mutate({ id: viewSession.id, estado: 'pendente' })
+                        )}
+                      >
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        Reverter para Pendente
+                      </Button>
+                    )}
+                  {/* Voltar a Rascunho — coordenador, sessões não terminadas */}
+                  {isAdmin && !viewSession.is_autonomous && viewSession.tipo !== 'outro' &&
+                    ['pendente', 'agendada', 'confirmada', 'recusada'].includes(viewSession.estado) && (
+                      <Button
+                        variant="outline"
+                        className="w-full sm:w-auto text-muted-foreground"
+                        disabled={overrideEstadoMutation.isPending}
+                        onClick={() => handleWithConfirmation(() =>
+                          overrideEstadoMutation.mutate({ id: viewSession.id, estado: 'rascunho' })
+                        )}
+                      >
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        Voltar a Rascunho
                       </Button>
                     )}
                   {isAdmin && viewSession?.tipo !== 'outro' && (
