@@ -279,6 +279,7 @@ class AulaRecorrenteCreate(BaseModel):
     tipo: str = "trabalho_autonomo"
     sumario: Optional[str] = None
     codigo_sessao: Optional[str] = None
+    participantes_ids: List[str] = []
 
 
 @app.post("/api/aulas/recorrentes", tags=["Aulas"])
@@ -304,6 +305,7 @@ async def create_aulas_recorrentes(payload: AulaRecorrenteCreate, user=Depends(g
             tipo=payload.tipo,
             sumario=payload.sumario,
             codigo_sessao=payload.codigo_sessao,
+            participantes_ids=payload.participantes_ids or [],
         )
         return {"criadas": len(resultados), "sessoes": resultados}
     except Exception as e:

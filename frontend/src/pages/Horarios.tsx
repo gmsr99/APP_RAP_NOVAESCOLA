@@ -451,6 +451,8 @@ const Horarios = () => {
     hora_inicio: '',
     hora_fim: '',
     observacoes: '',
+    repetir_semanalmente: false,
+    semanas: 4,
   });
   const [autonomousForm, setAutonomousForm] = useState({
     responsavel_user_id: '',
@@ -956,6 +958,8 @@ const Horarios = () => {
       hora_inicio: '',
       hora_fim: '',
       observacoes: '',
+      repetir_semanalmente: false,
+      semanas: 4,
     });
     setSelectedDisciplinaId(null);
     setAutoDisciplinaId(null);
@@ -1054,7 +1058,11 @@ const Horarios = () => {
         observacoes: outroForm.observacoes || '',
         participantes_ids: outroForm.participantes_ids,
       };
-      createSessionMutation.mutate(payload);
+      if (outroForm.repetir_semanalmente && outroForm.semanas > 1) {
+        createRecurringSessionMutation.mutate({ payload, semanas: outroForm.semanas });
+      } else {
+        createSessionMutation.mutate(payload);
+      }
       return;
     }
 
@@ -2017,6 +2025,40 @@ const Horarios = () => {
                             value={outroForm.observacoes}
                             onChange={(e) => setOutroForm({ ...outroForm, observacoes: e.target.value })}
                           />
+                        </div>
+
+                        {/* Repetição semanal */}
+                        <div className="space-y-3 rounded-md border border-dashed border-border p-3">
+                          <div className="flex items-center gap-2">
+                            <Checkbox
+                              id="outro-recorr"
+                              checked={outroForm.repetir_semanalmente}
+                              onCheckedChange={(v) =>
+                                setOutroForm({ ...outroForm, repetir_semanalmente: !!v })
+                              }
+                            />
+                            <Label htmlFor="outro-recorr" className="cursor-pointer font-normal">
+                              Repetir semanalmente
+                            </Label>
+                          </div>
+                          {outroForm.repetir_semanalmente && (
+                            <div className="flex items-center gap-2 pl-6">
+                              <Label htmlFor="outro-semanas" className="text-sm text-muted-foreground whitespace-nowrap">
+                                Nº de semanas:
+                              </Label>
+                              <Input
+                                id="outro-semanas"
+                                type="number"
+                                min={2}
+                                max={52}
+                                className="w-20"
+                                value={outroForm.semanas}
+                                onChange={(e) =>
+                                  setOutroForm({ ...outroForm, semanas: Number(e.target.value) })
+                                }
+                              />
+                            </div>
+                          )}
                         </div>
 
                       </div>

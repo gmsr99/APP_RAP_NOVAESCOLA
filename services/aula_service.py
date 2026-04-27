@@ -273,6 +273,7 @@ def criar_aulas_recorrentes(
     tipo="trabalho_autonomo",
     sumario=None,
     codigo_sessao=None,
+    participantes_ids=None,
 ):
     """Cria N sessões com intervalo semanal."""
     from datetime import timedelta
@@ -309,6 +310,7 @@ def criar_aulas_recorrentes(
             responsavel_user_id=responsavel_user_id,
             sumario=sumario,
             codigo_sessao=codigo_sessao,
+            participantes_ids=participantes_ids,
         )
         if resultado:
             resultados.append(resultado)
