@@ -735,7 +735,7 @@ def obter_aula_por_id(aula_id):
         return None
 
 
-def listar_todas_aulas(limite=100):
+def listar_todas_aulas(limite=2000):
     try:
         with Session(engine) as session:
             # outerjoin em Turma/Estabelecimento para suportar sessões autónomas (sem turma_id)
