@@ -737,7 +737,7 @@ def obter_aula_por_id(aula_id):
         return None
 
 
-def listar_todas_aulas(limite=2000):
+def listar_todas_aulas(limite=2000, allowed_project_ids=None):
     try:
         with Session(engine) as session:
             # outerjoin em Turma/Estabelecimento para suportar sessões autónomas (sem turma_id)
@@ -749,6 +749,8 @@ def listar_todas_aulas(limite=2000):
                 .order_by(Aula.data_hora.desc())
                 .limit(limite)
             )
+            if allowed_project_ids is not None:
+                statement = statement.where(Aula.projeto_id.in_(allowed_project_ids))
             rows = session.exec(statement).all()
 
         # Batch fetch participants for 'outro' aulas

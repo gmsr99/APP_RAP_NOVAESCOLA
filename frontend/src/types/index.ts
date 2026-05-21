@@ -1,12 +1,28 @@
 // User Profiles
-export type UserProfile = 'coordenador' | 'mentor' | 'produtor' | 'mentor_produtor' | 'direcao' | 'it_support' | 'videomaker';
+export type UserProfile = 'coordenador' | 'mentor' | 'produtor' | 'mentor_produtor' | 'direcao' | 'it_support' | 'videomaker' | string;
 
 export interface User {
   id: string;
   name: string;
   email: string;
-  role: UserProfile;
+  role: string;
   avatar?: string;
+}
+
+export interface UserPermissions {
+  is_root: boolean;
+  role: string;
+  allowed_pages: string[];
+  project_scoped: boolean;
+  allowed_project_ids: number[];
+}
+
+export interface RoleDefinition {
+  id: number;
+  name: string;
+  label: string;
+  is_system: boolean;
+  pages: string[];
 }
 
 // Sessions / Classes

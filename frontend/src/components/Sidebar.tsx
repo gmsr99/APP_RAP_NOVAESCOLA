@@ -12,7 +12,6 @@ import {
   Mic2,
   ChevronLeft,
   ChevronRight,
-
   Users,
   Database,
   BarChart3,
@@ -21,35 +20,39 @@ import {
   Link2,
   Phone,
   CheckSquare,
+  Shield,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import React, { useState } from 'react';
 
-const allProfiles = ['coordenador', 'direcao', 'it_support', 'mentor', 'produtor', 'mentor_produtor', 'videomaker'];
-const noVideomaker = allProfiles.filter(p => p !== 'videomaker');
-
-const atalhosItem: NavItem = { name: 'Atalhos', href: '/atalhos', icon: Link2, profiles: allProfiles };
-const contactosItem: NavItem = { name: 'Contactos', href: '/contactos', icon: Phone, profiles: allProfiles };
-
-
-type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; profiles: string[]; disabled?: boolean };
+type NavItem = {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  pageSlug: string;
+  disabled?: boolean;
+};
 type SeparatorItem = { separator: true };
 type SidebarItem = NavItem | SeparatorItem;
 
 const navigation: SidebarItem[] = [
-  { name: 'Dashboard', href: '/', icon: LayoutDashboard, profiles: allProfiles },
-  { name: 'Horários', href: '/horarios', icon: Calendar, profiles: allProfiles },
-  { name: 'Produção', href: '/producao', icon: Music, profiles: allProfiles },
-  { name: 'Tarefas', href: '/tarefas', icon: CheckSquare, profiles: allProfiles },
-  { name: 'Estúdio', href: '/estudio', icon: Mic2, profiles: allProfiles },
-  { name: 'Registos', href: '/registos', icon: ClipboardList, profiles: noVideomaker },
-  { name: 'Chat', href: '/chat', icon: MessageSquare, profiles: allProfiles },
+  { name: 'Dashboard',   href: '/',           icon: LayoutDashboard, pageSlug: 'dashboard' },
+  { name: 'Horários',    href: '/horarios',    icon: Calendar,        pageSlug: 'horarios' },
+  { name: 'Produção',    href: '/producao',    icon: Music,           pageSlug: 'producao' },
+  { name: 'Tarefas',     href: '/tarefas',     icon: CheckSquare,     pageSlug: 'tarefas' },
+  { name: 'Estúdio',     href: '/estudio',     icon: Mic2,            pageSlug: 'estudio' },
+  { name: 'Registos',    href: '/registos',    icon: ClipboardList,   pageSlug: 'registos' },
+  { name: 'Chat',        href: '/chat',        icon: MessageSquare,   pageSlug: 'chat' },
   { separator: true },
-  { name: 'Material', href: '/equipamento', icon: Package, profiles: ['coordenador', 'direcao', 'it_support'] },
-  { name: 'Equipa', href: '/equipa', icon: Users, profiles: allProfiles },
-  { name: 'Estatísticas', href: '/estatisticas', icon: BarChart3, profiles: ['coordenador', 'direcao', 'it_support'] },
-  { name: 'Wiki', href: '/wiki', icon: Database, profiles: allProfiles },
+  { name: 'Material',    href: '/equipamento', icon: Package,         pageSlug: 'equipamento' },
+  { name: 'Equipa',      href: '/equipa',      icon: Users,           pageSlug: 'equipa' },
+  { name: 'Estatísticas',href: '/estatisticas',icon: BarChart3,       pageSlug: 'estatisticas' },
+  { name: 'Wiki',        href: '/wiki',        icon: Database,        pageSlug: 'wiki' },
+  { separator: true },
+  { name: 'Atalhos',     href: '/atalhos',     icon: Link2,           pageSlug: 'atalhos' },
+  { name: 'Contactos',   href: '/contactos',   icon: Phone,           pageSlug: 'contactos' },
+  { name: 'Admin',       href: '/admin',       icon: Shield,          pageSlug: 'admin' },
 ];
 
 // Bottom nav items (mobile): first 5 nav items + "Mais"
@@ -97,11 +100,18 @@ function NavItemLink({ item, collapsed, onClick }: { item: NavItem; collapsed: b
 
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
-  const { profile } = useProfile();
+  const { allowedPages } = useProfile();
 
   const filteredNavigation = navigation.filter(item =>
-    'separator' in item || ('profiles' in item && item.profiles.includes(profile))
+    'separator' in item || ('pageSlug' in item && allowedPages.has(item.pageSlug))
   );
+
+  // Remove trailing separators and consecutive separators
+  const cleanNav = filteredNavigation.filter((item, idx, arr) => {
+    if (!('separator' in item)) return true;
+    const next = arr[idx + 1];
+    return next && !('separator' in next);
+  });
 
   return (
     <aside
@@ -126,15 +136,12 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 p-3 space-y-1">
-        {filteredNavigation.map((item, idx) => {
+        {cleanNav.map((item, idx) => {
           if ('separator' in item) {
             return <div key={`sep-${idx}`} className="my-2 border-t border-sidebar-border" />;
           }
           return <NavItemLink key={item.name} item={item} collapsed={collapsed} />;
         })}
-        <div className="my-2 border-t border-sidebar-border" />
-        <NavItemLink item={atalhosItem} collapsed={collapsed} />
-        <NavItemLink item={contactosItem} collapsed={collapsed} />
       </nav>
 
       {/* Collapse Button */}
@@ -162,11 +169,17 @@ export function Sidebar() {
 // ── Mobile drawer sidebar ──────────────────────────────────────────────────
 
 export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { profile } = useProfile();
+  const { allowedPages } = useProfile();
 
   const filteredNavigation = navigation.filter(item =>
-    'separator' in item || ('profiles' in item && item.profiles.includes(profile))
+    'separator' in item || ('pageSlug' in item && allowedPages.has(item.pageSlug))
   );
+
+  const cleanNav = filteredNavigation.filter((item, idx, arr) => {
+    if (!('separator' in item)) return true;
+    const next = arr[idx + 1];
+    return next && !('separator' in next);
+  });
 
   return (
     <Sheet open={open} onOpenChange={(v) => !v && onClose()}>
@@ -183,15 +196,12 @@ export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () =>
 
         {/* Navigation */}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {filteredNavigation.map((item, idx) => {
+          {cleanNav.map((item, idx) => {
             if ('separator' in item) {
               return <div key={`sep-${idx}`} className="my-2 border-t border-sidebar-border" />;
             }
             return <NavItemLink key={item.name} item={item} collapsed={false} onClick={onClose} />;
           })}
-          <div className="my-2 border-t border-sidebar-border" />
-          <NavItemLink item={atalhosItem} collapsed={false} onClick={onClose} />
-          <NavItemLink item={contactosItem} collapsed={false} onClick={onClose} />
         </nav>
       </SheetContent>
     </Sheet>
@@ -202,14 +212,11 @@ export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () =>
 
 export function BottomNav({ onMoreClick }: { onMoreClick: () => void }) {
   const location = useLocation();
-  const { profile } = useProfile();
+  const { allowedPages } = useProfile();
 
-  const bottomItems = navigation.filter(item =>
-    'href' in item && BOTTOM_NAV_HREFS.includes(item.href) && item.profiles.includes(profile)
-  ) as NavItem[];
-
-  // Sort by the order defined in BOTTOM_NAV_HREFS
-  bottomItems.sort((a, b) => BOTTOM_NAV_HREFS.indexOf(a.href) - BOTTOM_NAV_HREFS.indexOf(b.href));
+  const bottomItems = (navigation.filter(item =>
+    'href' in item && BOTTOM_NAV_HREFS.includes(item.href) && allowedPages.has(item.pageSlug)
+  ) as NavItem[]).sort((a, b) => BOTTOM_NAV_HREFS.indexOf(a.href) - BOTTOM_NAV_HREFS.indexOf(b.href));
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sidebar border-t border-sidebar-border flex items-stretch h-16" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>

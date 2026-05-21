@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -33,19 +35,18 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { api } from '@/services/api';
-import type { PublicProfile } from '@/types';
+import type { PublicProfile, RoleDefinition, Projeto } from '@/types';
 import { Mail, Shield, Trash2, Pencil } from 'lucide-react';
 import { useProfile } from '@/contexts/ProfileContext';
 import { toast } from 'sonner';
 
-const ROLES = [
-    { value: 'mentor', label: 'Mentor' },
-    { value: 'produtor', label: 'Produtor' },
-    { value: 'mentor_produtor', label: 'Mentor / Produtor' },
-    { value: 'coordenador', label: 'Coordenador' },
-    { value: 'direcao', label: 'Direção' },
-    { value: 'it_support', label: 'IT Support' },
-];
+const PAGE_LABELS: Record<string, string> = {
+    dashboard: 'Dashboard', horarios: 'Horários', producao: 'Produção',
+    tarefas: 'Tarefas', estudio: 'Estúdio', chat: 'Chat', equipa: 'Equipa',
+    wiki: 'Wiki', contactos: 'Contactos', atalhos: 'Atalhos', registos: 'Registos',
+    equipamento: 'Material', estatisticas: 'Estatísticas', formacao: 'Formação', admin: 'Admin',
+};
+const ALL_SLUGS = Object.keys(PAGE_LABELS);
 
 const ROLE_BADGE: Record<string, string> = {
     coordenador: 'default',
@@ -55,16 +56,36 @@ const ROLE_BADGE: Record<string, string> = {
 };
 
 const Equipa = () => {
-    const { profile, user } = useProfile();
+    const { profile, user, allowedPages } = useProfile();
     const queryClient = useQueryClient();
+    const isAdmin = allowedPages.has('admin');
 
     const [deleteTarget, setDeleteTarget] = useState<PublicProfile | null>(null);
     const [editTarget, setEditTarget] = useState<PublicProfile | null>(null);
     const [editForm, setEditForm] = useState({ full_name: '', role: '', avatar_url: '' });
 
+    // Advanced permissions state
+    const [advPerms, setAdvPerms] = useState<{
+        is_root: boolean;
+        page_overrides: Record<string, boolean>;
+        project_ids: number[];
+        role_pages: string[];
+    } | null>(null);
+
     const { data: profiles, isLoading, error } = useQuery({
         queryKey: ['equipa'],
         queryFn: () => api.get<PublicProfile[]>('/api/equipa'),
+    });
+
+    const { data: roles = [] } = useQuery<RoleDefinition[]>({
+        queryKey: ['admin-roles'],
+        queryFn: () => api.get('/api/admin/roles'),
+    });
+
+    const { data: projetos = [] } = useQuery<Projeto[]>({
+        queryKey: ['projetos'],
+        queryFn: () => api.get('/api/projetos'),
+        enabled: isAdmin,
     });
 
     const deleteMutation = useMutation({
@@ -83,33 +104,105 @@ const Equipa = () => {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['equipa'] });
             toast.success('Membro atualizado.');
-            setEditTarget(null);
         },
         onError: (err: Error) => toast.error(err.message || 'Erro ao atualizar membro.'),
     });
 
-    const openEdit = (p: PublicProfile) => {
+    const updatePermsMutation = useMutation({
+        mutationFn: ({ userId, data }: { userId: string; data: object }) =>
+            api.put(`/api/admin/users/${userId}/permissions`, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['equipa'] });
+            toast.success('Permissões actualizadas.');
+            setEditTarget(null);
+            setAdvPerms(null);
+        },
+        onError: (err: Error) => toast.error(err.message || 'Erro ao actualizar permissões.'),
+    });
+
+    const openEdit = async (p: PublicProfile) => {
         setEditTarget(p);
         setEditForm({
             full_name: p.full_name || '',
             role: p.role || '',
             avatar_url: p.avatar_url || '',
         });
+        if (isAdmin) {
+            try {
+                const permsData: any = await api.get(`/api/admin/users/${p.id}/permissions`);
+                const found = roles.find(r => r.name === permsData.role);
+                setAdvPerms({
+                    is_root: permsData.is_root,
+                    page_overrides: permsData.page_overrides || {},
+                    project_ids: permsData.project_ids || [],
+                    role_pages: found ? found.pages : [],
+                });
+            } catch {
+                setAdvPerms({ is_root: false, page_overrides: {}, project_ids: [], role_pages: [] });
+            }
+        }
     };
 
-    const handleSubmitEdit = () => {
+    const handleSubmitEdit = async () => {
         if (!editTarget || !editForm.full_name.trim() || !editForm.role) {
             toast.error('Nome e cargo são obrigatórios.');
             return;
         }
-        const data: Record<string, string> = {
+        const basicData: Record<string, string> = {
             full_name: editForm.full_name.trim(),
             role: editForm.role,
         };
-        if (editForm.avatar_url.trim()) {
-            data.avatar_url = editForm.avatar_url.trim();
+        if (editForm.avatar_url.trim()) basicData.avatar_url = editForm.avatar_url.trim();
+
+        // Always update basic info
+        await updateMutation.mutateAsync({ userId: editTarget.id, data: basicData });
+
+        // If admin, also save permissions
+        if (isAdmin && advPerms) {
+            updatePermsMutation.mutate({
+                userId: editTarget.id,
+                data: {
+                    role: editForm.role,
+                    page_overrides: advPerms.page_overrides,
+                    project_ids: advPerms.project_ids,
+                    is_root: advPerms.is_root,
+                },
+            });
+        } else {
+            setEditTarget(null);
+            setAdvPerms(null);
         }
-        updateMutation.mutate({ userId: editTarget.id, data });
+    };
+
+    const getPageAccess = (slug: string): boolean => {
+        if (!advPerms) return false;
+        if (advPerms.page_overrides[slug] !== undefined) return advPerms.page_overrides[slug];
+        return advPerms.role_pages.includes(slug);
+    };
+
+    const togglePage = (slug: string) => {
+        if (!advPerms) return;
+        const current = getPageAccess(slug);
+        setAdvPerms(prev => prev ? { ...prev, page_overrides: { ...prev.page_overrides, [slug]: !current } } : prev);
+    };
+
+    const toggleProject = (id: number) => {
+        if (!advPerms) return;
+        setAdvPerms(prev => {
+            if (!prev) return prev;
+            const ids = prev.project_ids.includes(id)
+                ? prev.project_ids.filter(p => p !== id)
+                : [...prev.project_ids, id];
+            return { ...prev, project_ids: ids };
+        });
+    };
+
+    const handleRoleChange = (val: string) => {
+        setEditForm(f => ({ ...f, role: val }));
+        if (advPerms) {
+            const found = roles.find(r => r.name === val);
+            setAdvPerms(prev => prev ? { ...prev, role_pages: found ? found.pages : [], page_overrides: {} } : prev);
+        }
     };
 
     const isDirecao = profile === 'direcao' || profile === 'it_support';
@@ -203,7 +296,7 @@ const Equipa = () => {
                                     variant={(ROLE_BADGE[p.role] as any) || 'outline'}
                                     className="capitalize"
                                 >
-                                    {ROLES.find(r => r.value === p.role)?.label || p.role}
+                                    {roles.find(r => r.name === p.role)?.label || p.role}
                                 </Badge>
                             </div>
                         </CardContent>
@@ -257,28 +350,81 @@ const Equipa = () => {
 
                         <div className="space-y-1.5">
                             <Label>Cargo <span className="text-destructive">*</span></Label>
-                            <Select
-                                value={editForm.role}
-                                onValueChange={(val) => setEditForm({ ...editForm, role: val })}
-                            >
+                            <Select value={editForm.role} onValueChange={handleRoleChange}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Selecionar cargo" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {ROLES.map(r => (
-                                        <SelectItem key={r.value} value={r.value}>
-                                            {r.label}
-                                        </SelectItem>
+                                    {(roles.length > 0 ? roles : [
+                                        { name: 'mentor', label: 'Mentor' },
+                                        { name: 'produtor', label: 'Produtor' },
+                                        { name: 'mentor_produtor', label: 'Mentor / Produtor' },
+                                        { name: 'coordenador', label: 'Coordenador' },
+                                        { name: 'direcao', label: 'Direção' },
+                                        { name: 'it_support', label: 'IT Support' },
+                                    ]).map(r => (
+                                        <SelectItem key={r.name} value={r.name}>{r.label}</SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
                         </div>
+
+                        {/* Advanced permissions (admin only) */}
+                        {isAdmin && advPerms && (
+                            <>
+                                <div className="space-y-2 pt-2 border-t">
+                                    <Label className="text-sm font-semibold">Acesso a páginas</Label>
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                        {ALL_SLUGS.map(slug => (
+                                            <label key={slug} className="flex items-center gap-2 cursor-pointer select-none">
+                                                <Checkbox
+                                                    checked={getPageAccess(slug)}
+                                                    onCheckedChange={() => togglePage(slug)}
+                                                    disabled={advPerms.is_root}
+                                                />
+                                                <span className="text-sm">{PAGE_LABELS[slug]}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {projetos.length > 0 && (
+                                    <div className="space-y-2 pt-2 border-t">
+                                        <Label className="text-sm font-semibold">Acesso a projetos</Label>
+                                        <p className="text-xs text-muted-foreground">Vazio = acesso a todos.</p>
+                                        <div className="grid grid-cols-2 gap-1.5">
+                                            {projetos.map(p => (
+                                                <label key={p.id} className="flex items-center gap-2 cursor-pointer select-none">
+                                                    <Checkbox
+                                                        checked={advPerms.project_ids.includes(p.id)}
+                                                        onCheckedChange={() => toggleProject(p.id)}
+                                                        disabled={advPerms.is_root}
+                                                    />
+                                                    <span className="text-sm">{p.nome}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex items-center justify-between pt-2 border-t">
+                                    <div>
+                                        <p className="text-sm font-semibold">Acesso root</p>
+                                        <p className="text-xs text-muted-foreground">Contorna todas as permissões.</p>
+                                    </div>
+                                    <Switch
+                                        checked={advPerms.is_root}
+                                        onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_root: v } : prev)}
+                                    />
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setEditTarget(null)}>Cancelar</Button>
-                        <Button onClick={handleSubmitEdit} disabled={updateMutation.isPending}>
-                            {updateMutation.isPending ? 'A guardar...' : 'Guardar'}
+                        <Button variant="outline" onClick={() => { setEditTarget(null); setAdvPerms(null); }}>Cancelar</Button>
+                        <Button onClick={handleSubmitEdit} disabled={updateMutation.isPending || updatePermsMutation.isPending}>
+                            {updateMutation.isPending || updatePermsMutation.isPending ? 'A guardar...' : 'Guardar'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

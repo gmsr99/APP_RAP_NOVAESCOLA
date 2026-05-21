@@ -5,12 +5,21 @@ from database.connection import get_db_connection
 logger = logging.getLogger(__name__)
 
 
-def listar_projetos():
-    """Lista todos os projetos."""
+def listar_projetos(allowed_ids=None):
+    """Lista projetos. Se allowed_ids for uma lista, filtra por esses IDs."""
     conn = get_db_connection()
     try:
         cur = conn.cursor()
-        cur.execute("SELECT id, nome, descricao, estado, requer_digitalizacao FROM projetos ORDER BY nome")
+        if allowed_ids is not None:
+            if not allowed_ids:
+                return []
+            placeholders = ",".join(["%s"] * len(allowed_ids))
+            cur.execute(
+                f"SELECT id, nome, descricao, estado, requer_digitalizacao FROM projetos WHERE id IN ({placeholders}) ORDER BY nome",
+                allowed_ids,
+            )
+        else:
+            cur.execute("SELECT id, nome, descricao, estado, requer_digitalizacao FROM projetos ORDER BY nome")
         cols = [desc[0] for desc in cur.description]
         return [dict(zip(cols, row)) for row in cur.fetchall()]
     except Exception as e:

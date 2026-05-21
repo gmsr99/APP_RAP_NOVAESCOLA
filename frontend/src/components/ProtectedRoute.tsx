@@ -1,12 +1,20 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from '@/contexts/ProfileContext';
 
 /**
  * Quando o Supabase está configurado, exige sessão e redireciona para /login.
- * Quando o Supabase não está configurado, deixa passar (modo mock).
+ * Se requiredPage for fornecido, redireciona para / quando o utilizador não tem acesso.
  */
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
+export function ProtectedRoute({
+  children,
+  requiredPage,
+}: {
+  children: React.ReactNode;
+  requiredPage?: string;
+}) {
   const { user, loading } = useAuth();
+  const { allowedPages } = useProfile();
   const location = useLocation();
   const supabaseConfigured = !!(
     import.meta.env.VITE_SUPABASE_URL &&
@@ -27,6 +35,10 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (requiredPage && !allowedPages.has(requiredPage)) {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

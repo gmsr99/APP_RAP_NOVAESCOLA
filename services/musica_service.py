@@ -51,7 +51,7 @@ def _notificar_users(user_ids: list, tipo: str, titulo: str, mensagem: str, link
     except Exception as e:
         logger.warning("Erro ao notificar users: %s", e)
 
-def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None):
+def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None, allowed_project_ids=None):
     """
     Lista todas as músicas, com suporte a filtros.
 
@@ -59,7 +59,8 @@ def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None):
         arquivadas (bool): Se True, lista apenas as arquivadas.
         user_id (str): ID do utilizador atual (opcional).
         role (str): Role do utilizador atual (opcional).
-        projeto_id (int): Filtrar por projeto (opcional).
+        projeto_id (int): Filtrar por projeto específico (opcional).
+        allowed_project_ids (list): Filtrar por lista de projetos permitidos (project scoping).
     """
     try:
         conn = get_db_connection()
@@ -75,6 +76,12 @@ def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None):
                 ))
             )""")
             params.extend([projeto_id, projeto_id])
+        elif allowed_project_ids is not None:
+            if not allowed_project_ids:
+                return []
+            placeholders = ",".join(["%s"] * len(allowed_project_ids))
+            conditions.append(f"m.projeto_id IN ({placeholders})")
+            params.extend(allowed_project_ids)
 
         query = f"""
             SELECT

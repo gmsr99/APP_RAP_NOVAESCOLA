@@ -1,8 +1,14 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
 import { UserProfile, User } from '@/types';
 import { currentUser } from '@/data/mockData';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+
+const ALL_PAGE_SLUGS = new Set([
+  'dashboard', 'horarios', 'producao', 'tarefas', 'estudio', 'chat',
+  'equipa', 'wiki', 'contactos', 'atalhos', 'registos', 'equipamento',
+  'estatisticas', 'formacao', 'admin',
+]);
 
 interface ProfileContextType {
   profile: UserProfile;
@@ -10,12 +16,14 @@ interface ProfileContextType {
   setProfile: (profile: UserProfile) => void;
   /** true quando o user vem da sessão Supabase (autenticado) */
   isAuthenticated: boolean;
+  /** Conjunto de page slugs acessíveis pelo utilizador */
+  allowedPages: Set<string>;
 }
 
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
 
 export function ProfileProvider({ children }: { children: ReactNode }) {
-  const { user: authUser } = useAuth();
+  const { user: authUser, permissions } = useAuth();
   const [manualProfile, setManualProfile] = useState<UserProfile | null>(null);
   const [dbRole, setDbRole] = useState<UserProfile | null>(null);
 
@@ -29,37 +37,43 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
     // Fetch authoritative role from DB
     if (authUser?.id) {
-      console.log('ProfileContext: Fetching role for', authUser.id);
       supabase
         .from('profiles')
         .select('role')
         .eq('id', authUser.id)
         .single()
-        .then(({ data, error }) => {
-          console.log('ProfileContext: Fetch result', { data, error });
-          if (error) {
-            console.error('ProfileContext: Error fetching role', error);
-          }
-          if (data?.role) {
-            console.log('ProfileContext: Setting dbRole to', data.role);
-            setDbRole(data.role as UserProfile);
-          }
+        .then(({ data }) => {
+          if (data?.role) setDbRole(data.role as UserProfile);
         });
     }
   }, [authUser?.id]);
 
+  // Derive allowed pages from the fetched permissions (authoritative).
+  // Falls back to role-based defaults while permissions are still loading.
+  const allowedPages = useMemo((): Set<string> => {
+    if (permissions) {
+      if (permissions.is_root) return ALL_PAGE_SLUGS;
+      return new Set(permissions.allowed_pages);
+    }
+    // Fallback: derive from role while permissions load
+    const r = profile;
+    const base = new Set(['dashboard','horarios','producao','tarefas','estudio','chat','equipa','wiki','contactos','atalhos','formacao']);
+    if (r !== 'videomaker') base.add('registos');
+    if (['coordenador','direcao','it_support'].includes(r)) { base.add('equipamento'); base.add('estatisticas'); }
+    if (['direcao','it_support'].includes(r)) base.add('admin');
+    return base;
+  }, [permissions, profile]);
+
   // Se estiver autenticado, usar o user da sessão; senão, fallback para mock por perfil
-  // CRITICAL: Override role with DB role (authoritative source) when available
   const user: User = authUser
     ? { ...authUser, role: dbRole ?? authUser.role }
     : currentUser[profile];
   const isAuthenticated = !!authUser;
 
-  // Wrapper for setProfile to update manual state
   const setProfile = (p: UserProfile) => setManualProfile(p);
 
   return (
-    <ProfileContext.Provider value={{ profile, user, setProfile, isAuthenticated }}>
+    <ProfileContext.Provider value={{ profile, user, setProfile, isAuthenticated, allowedPages }}>
       {children}
     </ProfileContext.Provider>
   );

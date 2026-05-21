@@ -29,6 +29,7 @@ load_dotenv()
 
 # Importações dos nossos módulos de serviço
 from services import aula_service
+from services import permission_service as _perm_svc
 from auth import get_current_user_optional, get_current_user_required
 
 # -----------------------------------------------------------------------------
@@ -139,7 +140,8 @@ async def get_todas_aulas(user=Depends(get_current_user_required)):
     Chama o serviço correspondente e retorna os dados.
     """
     try:
-        aulas = aula_service.listar_todas_aulas()
+        project_filter = _perm_svc.get_project_filter(user.get("sub"))
+        aulas = aula_service.listar_todas_aulas(allowed_project_ids=project_filter)
         return aulas
     except Exception as e:
         return {"error": str(e)}
@@ -175,9 +177,7 @@ async def get_sessoes_registaveis(user=Depends(get_current_user_required)):
 @app.get("/api/aulas/registaveis/todas", tags=["Registos"])
 async def get_todas_sessoes_registaveis(user=Depends(get_current_user_required)):
     """Todas as sessões terminadas/realizadas sem registo (coordenadores/direção)."""
-    role = user.get("user_metadata", {}).get("role", "")
-    if role not in ["coordenador", "direcao", "it_support"]:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     return registo_service.listar_todas_sessoes_registaveis()
 
 @app.get("/api/aulas/export", tags=["Aulas"])
@@ -191,9 +191,7 @@ async def export_aulas(
     user=Depends(get_current_user_required),
 ):
     """Exporta lista de atividades/sessões com filtros flexíveis (coordenadores e superiores)."""
-    role = user.get("user_metadata", {}).get("role", "")
-    if role not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Sem permissão para exportar atividades.")
+    _require_root_or_role(user, COORD_ROLES)
     projeto_ids_list = [int(p.strip()) for p in projeto_ids.split(",") if p.strip()] if projeto_ids else None
     estados_list = [e.strip() for e in estados.split(",")] if estados else None
     mentor_id_int = int(mentor_id) if mentor_id else None
@@ -224,6 +222,17 @@ async def get_aula_by_id(aula_id: int, user=Depends(get_current_user_required)):
 from models.sqlmodel_models import AulaCreate, AulaUpdate
 
 COORD_ROLES = {"coordenador", "direcao", "it_support"}
+
+
+def _require_root_or_role(user: dict, allowed_roles: set):
+    """Levanta 403 se o utilizador não for root nem tiver um dos roles permitidos."""
+    user_id = user.get("sub")
+    perms = _perm_svc.get_user_permissions(user_id)
+    if perms["is_root"]:
+        return
+    if perms["role"] not in allowed_roles:
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+
 
 @app.post("/api/aulas", tags=["Aulas"])
 async def create_aula(aula: AulaCreate, user=Depends(get_current_user_required)):
@@ -344,9 +353,9 @@ def _check_session_permission(user: dict, aula_info: dict):
     """Verifica se o user tem permissão para alterar o estado da sessão.
     Coordenadores podem alterar todas. Outros users só as atribuídas a eles."""
     user_id = user.get("sub")
-    role = (user.get("user_metadata") or {}).get("role", "")
-    # Coordenadores, direção e IT têm acesso total
-    if role in ("coordenador", "direcao", "it_support"):
+    perms = _perm_svc.get_user_permissions(user_id)
+    # Root, coordenadores, direção e IT têm acesso total
+    if perms["is_root"] or perms["role"] in COORD_ROLES:
         return True
     # Sessão regular: apenas o mentor atribuído pode agir
     if not aula_info.get("is_autonomous"):
@@ -394,9 +403,7 @@ class AulaEstadoOverride(BaseModel):
 @app.patch("/api/aulas/{aula_id}/estado", tags=["Aulas"])
 async def override_aula_estado(aula_id: int, payload: AulaEstadoOverride, user=Depends(get_current_user_required)):
     """Coordenador/direcao/it_support pode forçar mudança de estado numa sessão."""
-    role = user.get("user_metadata", {}).get("role")
-    if role not in ["coordenador", "direcao", "it_support"]:
-        raise HTTPException(status_code=403, detail="Sem permissão para alterar o estado desta sessão.")
+    _require_root_or_role(user, COORD_ROLES)
     estados_permitidos = ["rascunho", "pendente", "agendada", "confirmada", "recusada"]
     if payload.estado not in estados_permitidos:
         raise HTTPException(status_code=400, detail=f"Estado '{payload.estado}' não permitido via esta operação.")
@@ -586,14 +593,14 @@ class ProjetoEstabAssoc(BaseModel):
 
 @app.get("/api/projetos", tags=["Projetos"])
 async def get_projetos(user=Depends(get_current_user_required)):
-    """Lista todos os projetos."""
-    return projeto_service.listar_projetos()
+    """Lista todos os projetos (filtrado por project scoping se aplicável)."""
+    project_filter = _perm_svc.get_project_filter(user.get("sub"))
+    return projeto_service.listar_projetos(allowed_ids=project_filter)
 
 @app.post("/api/projetos", tags=["Projetos"])
 async def create_projeto(data: ProjetoCreate, user=Depends(get_current_user_required)):
     """Cria um novo projeto."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     res = projeto_service.criar_projeto(data.nome, data.descricao)
     if not res:
         raise HTTPException(status_code=400, detail="Falha ao criar projeto")
@@ -602,8 +609,7 @@ async def create_projeto(data: ProjetoCreate, user=Depends(get_current_user_requ
 @app.put("/api/projetos/{id}", tags=["Projetos"])
 async def update_projeto(id: int, data: ProjetoCreate, user=Depends(get_current_user_required)):
     """Atualiza um projeto."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = projeto_service.atualizar_projeto(id, data.nome, data.descricao)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar projeto")
@@ -612,8 +618,7 @@ async def update_projeto(id: int, data: ProjetoCreate, user=Depends(get_current_
 @app.delete("/api/projetos/{id}", tags=["Projetos"])
 async def delete_projeto(id: int, user=Depends(get_current_user_required)):
     """Apaga um projeto."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = projeto_service.apagar_projeto(id)
     if not sucesso:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
@@ -627,8 +632,7 @@ async def get_projeto_estabelecimentos(id: int, user=Depends(get_current_user_re
 @app.post("/api/projetos/{id}/estabelecimentos", tags=["Projetos"])
 async def add_projeto_estabelecimento(id: int, data: ProjetoEstabAssoc, user=Depends(get_current_user_required)):
     """Associa um estabelecimento a um projeto."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = projeto_service.associar_estabelecimento(id, data.estabelecimento_id)
     if not sucesso:
         raise HTTPException(status_code=400, detail="Falha ao associar estabelecimento")
@@ -637,8 +641,7 @@ async def add_projeto_estabelecimento(id: int, data: ProjetoEstabAssoc, user=Dep
 @app.delete("/api/projetos/{id}/estabelecimentos/{estab_id}", tags=["Projetos"])
 async def remove_projeto_estabelecimento(id: int, estab_id: int, user=Depends(get_current_user_required)):
     """Remove associação entre projeto e estabelecimento."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = projeto_service.desassociar_estabelecimento(id, estab_id)
     if not sucesso:
         raise HTTPException(status_code=404, detail="Associação não encontrada")
@@ -656,8 +659,7 @@ class ProjetoConfigPayload(BaseModel):
 
 @app.patch("/api/projetos/{id}/config", tags=["Projetos"])
 async def update_projeto_config(id: int, data: ProjetoConfigPayload, user=Depends(get_current_user_required)):
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = projeto_service.atualizar_config_projeto(id, data.requer_digitalizacao)
     if not sucesso:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
@@ -677,9 +679,7 @@ async def export_aula_registos(
     data_fim: Optional[str] = None,
     user=Depends(get_current_user_required),
 ):
-    role = user.get("user_metadata", {}).get("role")
-    if role not in ["direcao", "it_support"]:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, {"direcao", "it_support"})
     zip_bytes = aula_registo_service.exportar_registos_zip(projeto_id, data_inicio, data_fim)
     from fastapi.responses import Response
     return Response(
@@ -706,11 +706,9 @@ async def get_equipa(user=Depends(get_current_user_required)):
 @app.delete("/api/equipa/{user_id}", tags=["Core"])
 async def delete_equipa_member(user_id: str, user=Depends(get_current_user_required)):
     """Apaga permanentemente um membro da equipa (apenas direção)."""
+    _require_root_or_role(user, {"direcao", "it_support"})
     caller_id = user.get("sub")
     perfis = profile_service.listar_perfis()
-    caller_profile = next((p for p in perfis if p.get("id") == caller_id), None)
-    if not caller_profile or caller_profile.get("role") not in ("direcao", "it_support"):
-        raise HTTPException(status_code=403, detail="Apenas a direção pode apagar membros.")
     if user_id == caller_id:
         raise HTTPException(status_code=400, detail="Não podes apagar a tua própria conta.")
     target_profile = next((p for p in perfis if p.get("id") == user_id), None)
@@ -731,18 +729,17 @@ class EquipaMembroUpdate(BaseModel):
 @app.patch("/api/equipa/{user_id}", tags=["Core"])
 async def update_equipa_member(user_id: str, payload: EquipaMembroUpdate, user=Depends(get_current_user_required)):
     """Atualiza role, nome e avatar de um membro (apenas direção/it_support)."""
+    _require_root_or_role(user, {"direcao", "it_support"})
     caller_id = user.get("sub")
     perfis = profile_service.listar_perfis()
-    caller_profile = next((p for p in perfis if p.get("id") == caller_id), None)
-    if not caller_profile or caller_profile.get("role") not in ("direcao", "it_support"):
-        raise HTTPException(status_code=403, detail="Apenas a direção pode editar membros.")
     if user_id == caller_id:
         raise HTTPException(status_code=400, detail="Usa a página de perfil para editar os teus dados.")
     target_profile = next((p for p in perfis if p.get("id") == user_id), None)
     if not target_profile:
         raise HTTPException(status_code=404, detail="Utilizador não encontrado.")
-    ROLES_VALIDOS = {"mentor", "produtor", "mentor_produtor", "coordenador", "direcao", "it_support", "videomaker"}
-    if payload.role is not None and payload.role not in ROLES_VALIDOS:
+    from services import permission_service
+    roles_validos = {r["name"] for r in permission_service.listar_roles()}
+    if payload.role is not None and payload.role not in roles_validos:
         raise HTTPException(status_code=400, detail="Role inválido.")
     dados = {k: v for k, v in payload.model_dump().items() if v is not None}
     sucesso = profile_service.atualizar_membro(user_id, dados)
@@ -936,8 +933,7 @@ class TurmaCreate(BaseModel):
 @app.post("/api/turmas", tags=["Core"])
 async def create_turma(turma: TurmaCreate, user=Depends(get_current_user_required)):
     """Cria uma nova turma."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     res = turma_service.criar_turma(turma.nome, turma.estabelecimento_id)
     if res:
         return res
@@ -951,8 +947,7 @@ async def get_turmas(estabelecimento_id: Optional[int] = None, user=Depends(get_
 @app.put("/api/turmas/{id}", tags=["Core"])
 async def update_turma(id: int, turma: TurmaCreate, user=Depends(get_current_user_required)):
     """Atualiza uma turma."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = turma_service.atualizar_turma(id, turma.nome, turma.estabelecimento_id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar turma")
@@ -961,8 +956,7 @@ async def update_turma(id: int, turma: TurmaCreate, user=Depends(get_current_use
 @app.delete("/api/turmas/{id}", tags=["Core"])
 async def delete_turma(id: int, user=Depends(get_current_user_required)):
     """Apaga uma turma."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = turma_service.apagar_turma(id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar turma")
@@ -1055,7 +1049,8 @@ async def get_musicas(arquivadas: bool = False, projeto_id: Optional[int] = None
     """Lista todas as músicas (ativas ou arquivadas), com filtro opcional por projeto."""
     user_id = user.get("sub") if user else None
     role = (user.get("user_metadata") or {}).get("role") if user else None
-    return musica_service.listar_musicas(arquivadas, user_id, role, projeto_id)
+    project_filter = _perm_svc.get_project_filter(user_id) if user_id else None
+    return musica_service.listar_musicas(arquivadas, user_id, role, projeto_id, allowed_project_ids=project_filter)
 
 class MusicaCreate(BaseModel):
     titulo: str
@@ -1135,12 +1130,7 @@ async def export_registos(
     user=Depends(get_current_user_required),
 ):
     """Exporta registos filtrados (para direção/coordenadores)."""
-    from services import profile_service
-    user_id = user.get("sub")
-    perfis = profile_service.listar_perfis()
-    user_profile = next((p for p in perfis if str(p.get("id")) == user_id), None)
-    if not user_profile or user_profile.get("role") not in ("coordenador", "direcao", "it_support"):
-        raise HTTPException(status_code=403, detail="Sem permissão para exportar registos.")
+    _require_root_or_role(user, COORD_ROLES)
     user_id_list = [uid.strip() for uid in user_ids.split(",")] if user_ids else None
     estab_id_list = [int(eid.strip()) for eid in estabelecimento_ids.split(",")] if estabelecimento_ids else None
     return registo_service.listar_registos_export(data_inicio, data_fim, user_id_list, estab_id_list)
@@ -1240,9 +1230,7 @@ async def update_musica_detalhes(musica_id: int, payload: MusicaDetalhesUpdate, 
 @app.delete("/api/musicas/{musica_id}", tags=["Producao"])
 async def delete_musica(musica_id: int, user=Depends(get_current_user_required)):
     """Apaga permanentemente uma música. Restrito a coordenador, direção e IT support."""
-    role = (user.get("user_metadata") or {}).get("role", "")
-    if role not in {"coordenador", "direcao", "it_support"}:
-        raise HTTPException(status_code=403, detail="Sem permissão para apagar músicas.")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = musica_service.apagar_musica(musica_id)
     if not sucesso:
         raise HTTPException(status_code=404, detail="Música não encontrada.")
@@ -1251,9 +1239,7 @@ async def delete_musica(musica_id: int, user=Depends(get_current_user_required))
 @app.post("/api/producao/verificar-deadlines", tags=["Producao"])
 async def verificar_deadlines_musicas(user=Depends(get_current_user_required)):
     """Verifica músicas em atraso e notifica os responsáveis. Chamar diariamente (cron)."""
-    role = (user.get("user_metadata") or {}).get("role", "")
-    if role not in {"coordenador", "direcao", "it_support"}:
-        raise HTTPException(status_code=403, detail="Sem permissão.")
+    _require_root_or_role(user, COORD_ROLES)
     count = musica_service.verificar_e_notificar_deadlines()
     return {"notificacoes_enviadas": count}
 
@@ -1388,8 +1374,7 @@ async def get_estabelecimentos(user=Depends(get_current_user_required)):
 
 @app.post("/api/estabelecimentos", tags=["Wiki"])
 async def create_estabelecimento(inst: EstabelecimentoWikiCreate, user=Depends(get_current_user_required)):
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     res = turma_service.criar_estabelecimento(inst.nome, inst.sigla, inst.morada, inst.latitude, inst.longitude)
     if not res:
         raise HTTPException(status_code=400, detail="Erro ao criar. Possível duplicado.")
@@ -1397,8 +1382,7 @@ async def create_estabelecimento(inst: EstabelecimentoWikiCreate, user=Depends(g
 
 @app.put("/api/estabelecimentos/{id}", tags=["Wiki"])
 async def update_estabelecimento(id: int, inst: EstabelecimentoWikiCreate, user=Depends(get_current_user_required)):
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = turma_service.atualizar_estabelecimento(id, inst.nome, inst.sigla, inst.morada, inst.latitude, inst.longitude)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar.")
@@ -1406,8 +1390,7 @@ async def update_estabelecimento(id: int, inst: EstabelecimentoWikiCreate, user=
 
 @app.delete("/api/estabelecimentos/{id}", tags=["Wiki"])
 async def delete_estabelecimento(id: int, user=Depends(get_current_user_required)):
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = turma_service.apagar_estabelecimento(id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar.")
@@ -1430,8 +1413,7 @@ async def get_contactos_estabelecimento(id: int, user=Depends(get_current_user_r
 
 @app.post("/api/estabelecimentos/{id}/contactos", tags=["Wiki"])
 async def create_contacto_estabelecimento(id: int, data: ContactoCreate, user=Depends(get_current_user_required)):
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     if data.tipo not in ('telefone', 'email', 'maps', 'website', 'outro'):
         raise HTTPException(status_code=400, detail="Tipo inválido")
     res = turma_service.criar_contacto_estabelecimento(id, data.tipo, data.valor, data.descricao)
@@ -1441,8 +1423,7 @@ async def create_contacto_estabelecimento(id: int, data: ContactoCreate, user=De
 
 @app.put("/api/contactos/{id}", tags=["Wiki"])
 async def update_contacto(id: int, data: ContactoCreate, user=Depends(get_current_user_required)):
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = turma_service.atualizar_contacto_estabelecimento(id, data.tipo, data.valor, data.descricao)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar contacto.")
@@ -1450,8 +1431,7 @@ async def update_contacto(id: int, data: ContactoCreate, user=Depends(get_curren
 
 @app.delete("/api/contactos/{id}", tags=["Wiki"])
 async def delete_contacto(id: int, user=Depends(get_current_user_required)):
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = turma_service.apagar_contacto_estabelecimento(id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar contacto.")
@@ -1491,8 +1471,7 @@ class TurmaDisciplinaCreate(BaseModel):
 @app.post("/api/wiki/turma/{turma_id}/disciplinas", tags=["Wiki"])
 async def create_wiki_disciplina(turma_id: int, payload: TurmaDisciplinaCreate, user=Depends(get_current_user_required)):
     """Cria disciplina local com atividades em batch."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     result = wiki_service.criar_disciplina_turma(
         turma_id, payload.nome, payload.descricao,
         payload.musicas_previstas, payload.atividades
@@ -1509,8 +1488,7 @@ class TurmaDisciplinaUpdate(BaseModel):
 @app.put("/api/wiki/disciplinas/{td_id}", tags=["Wiki"])
 async def update_wiki_disciplina(td_id: int, payload: TurmaDisciplinaUpdate, user=Depends(get_current_user_required)):
     """Atualiza uma disciplina local."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = wiki_service.atualizar_disciplina_turma(td_id, payload.nome, payload.descricao, payload.musicas_previstas)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar disciplina")
@@ -1519,8 +1497,7 @@ async def update_wiki_disciplina(td_id: int, payload: TurmaDisciplinaUpdate, use
 @app.delete("/api/wiki/disciplinas/{td_id}", tags=["Wiki"])
 async def delete_wiki_disciplina(td_id: int, user=Depends(get_current_user_required)):
     """Remove disciplina local (cascade apaga atividades)."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = wiki_service.apagar_disciplina_turma(td_id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar disciplina")
@@ -1539,8 +1516,7 @@ class TurmaAtividadeCreate(BaseModel):
 @app.post("/api/wiki/atividades", tags=["Wiki"])
 async def create_wiki_atividade(payload: TurmaAtividadeCreate, user=Depends(get_current_user_required)):
     """Cria uma atividade local."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     result = wiki_service.criar_atividade(
         payload.turma_disciplina_id, payload.nome, payload.codigo,
         payload.sessoes_previstas, payload.horas_por_sessao,
@@ -1562,8 +1538,7 @@ class TurmaAtividadeUpdate(BaseModel):
 @app.put("/api/wiki/atividades/{uuid}", tags=["Wiki"])
 async def update_wiki_atividade(uuid: str, payload: TurmaAtividadeUpdate, user=Depends(get_current_user_required)):
     """Atualiza uma atividade local por UUID."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = wiki_service.atualizar_atividade(uuid, payload.dict())
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar atividade")
@@ -1572,8 +1547,7 @@ async def update_wiki_atividade(uuid: str, payload: TurmaAtividadeUpdate, user=D
 @app.delete("/api/wiki/atividades/{uuid}", tags=["Wiki"])
 async def delete_wiki_atividade(uuid: str, user=Depends(get_current_user_required)):
     """Remove uma atividade local por UUID."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES)
     sucesso = wiki_service.apagar_atividade(uuid)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar atividade")
@@ -1628,12 +1602,7 @@ async def ai_agent_horarios(payload: AIAgentMessage, user=Depends(get_current_us
     Processa uma mensagem de linguagem natural via Agente AI (Gemini).
     Apenas acessível a coordenadores, direção e IT support.
     """
-    # Validar permissões
-    user_id = user.get("sub")
-    perfis = profile_service.listar_perfis()
-    user_profile = next((p for p in perfis if str(p.get("id")) == user_id), None)
-    if not user_profile or user_profile.get("role") not in ("coordenador", "direcao", "it_support"):
-        raise HTTPException(status_code=403, detail="Sem permissão para usar o agente AI.")
+    _require_root_or_role(user, COORD_ROLES)
 
     # Processar mensagem
     resultado = ai_agent_service.processar_mensagem(
@@ -1817,11 +1786,7 @@ async def start_scheduler():
 @app.post("/api/chatbot/sync", tags=["Chatbot"])
 async def chatbot_sync(user=Depends(get_current_user_required)):
     """Força uma sincronização imediata da pasta Drive → KNOWLEDGE_BASE. Apenas admins."""
-    user_id = user.get("sub")
-    perfis = profile_service.listar_perfis()
-    user_profile = next((p for p in perfis if str(p.get("id")) == user_id), None)
-    if not user_profile or user_profile.get("role") not in SYNC_ROLES:
-        raise HTTPException(status_code=403, detail="Sem permissão para sincronizar a knowledge base.")
+    _require_root_or_role(user, SYNC_ROLES)
 
     try:
         stats = drive_sync_service.sync_knowledge_base()
@@ -1862,10 +1827,7 @@ async def get_atalhos(user=Depends(get_current_user_required)):
 @app.post("/api/atalhos", tags=["Atalhos"])
 async def post_atalho(payload: AtalhoCreate, user=Depends(get_current_user_required)):
     """Cria um novo atalho. Apenas direcao e it_support."""
-    user_id = user.get("sub")
-    role = atalho_service.get_user_role(user_id)
-    if role not in ATALHO_EDITOR_ROLES:
-        raise HTTPException(status_code=403, detail="Sem permissão para criar atalhos.")
+    _require_root_or_role(user, ATALHO_EDITOR_ROLES)
     resultado = atalho_service.criar_atalho(payload.dict())
     if not resultado:
         raise HTTPException(status_code=500, detail="Erro ao criar atalho.")
@@ -1874,10 +1836,7 @@ async def post_atalho(payload: AtalhoCreate, user=Depends(get_current_user_requi
 @app.put("/api/atalhos/{atalho_id}", tags=["Atalhos"])
 async def put_atalho(atalho_id: int, payload: AtalhoUpdate, user=Depends(get_current_user_required)):
     """Atualiza um atalho existente. Apenas direcao e it_support."""
-    user_id = user.get("sub")
-    role = atalho_service.get_user_role(user_id)
-    if role not in ATALHO_EDITOR_ROLES:
-        raise HTTPException(status_code=403, detail="Sem permissão para editar atalhos.")
+    _require_root_or_role(user, ATALHO_EDITOR_ROLES)
     resultado = atalho_service.atualizar_atalho(atalho_id, payload.dict())
     if not resultado:
         raise HTTPException(status_code=404, detail="Atalho não encontrado.")
@@ -1886,10 +1845,7 @@ async def put_atalho(atalho_id: int, payload: AtalhoUpdate, user=Depends(get_cur
 @app.delete("/api/atalhos/{atalho_id}", tags=["Atalhos"])
 async def delete_atalho(atalho_id: int, user=Depends(get_current_user_required)):
     """Apaga um atalho. Apenas direcao e it_support."""
-    user_id = user.get("sub")
-    role = atalho_service.get_user_role(user_id)
-    if role not in ATALHO_EDITOR_ROLES:
-        raise HTTPException(status_code=403, detail="Sem permissão para apagar atalhos.")
+    _require_root_or_role(user, ATALHO_EDITOR_ROLES)
     sucesso = atalho_service.apagar_atalho(atalho_id)
     if not sucesso:
         raise HTTPException(status_code=404, detail="Atalho não encontrado.")
@@ -1923,16 +1879,15 @@ class TarefaEstado(BaseModel):
 async def get_tarefas(user=Depends(get_current_user_required)):
     """Lista tarefas do user autenticado (+ gerais). Coordenadores vêem todas."""
     user_id = user.get("sub")
-    role = user.get("user_metadata", {}).get("role", "")
-    if role in COORD_ROLES_TAREFAS:
+    perms = _perm_svc.get_user_permissions(user_id)
+    if perms["is_root"] or perms["role"] in COORD_ROLES_TAREFAS:
         return tarefas_service.listar_todas_tarefas()
     return tarefas_service.listar_tarefas_para_user(user_id)
 
 @app.post("/api/tarefas", tags=["Tarefas"])
 async def post_tarefa(payload: TarefaCreate, user=Depends(get_current_user_required)):
     """Cria uma tarefa. Apenas coordenadores e superiores."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES_TAREFAS:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES_TAREFAS)
     user_id = user.get("sub")
     res = tarefas_service.criar_tarefa(
         payload.titulo, user_id, payload.descricao,
@@ -1945,8 +1900,7 @@ async def post_tarefa(payload: TarefaCreate, user=Depends(get_current_user_requi
 @app.put("/api/tarefas/{id}", tags=["Tarefas"])
 async def put_tarefa(id: int, payload: TarefaUpdate, user=Depends(get_current_user_required)):
     """Atualiza uma tarefa."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES_TAREFAS:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES_TAREFAS)
     ok = tarefas_service.atualizar_tarefa(
         id, payload.titulo, payload.descricao,
         payload.prioridade, payload.data_limite, payload.user_ids
@@ -1958,8 +1912,7 @@ async def put_tarefa(id: int, payload: TarefaUpdate, user=Depends(get_current_us
 @app.delete("/api/tarefas/{id}", tags=["Tarefas"])
 async def delete_tarefa(id: int, user=Depends(get_current_user_required)):
     """Apaga uma tarefa."""
-    if user.get("user_metadata", {}).get("role") not in COORD_ROLES_TAREFAS:
-        raise HTTPException(status_code=403, detail="Acesso negado")
+    _require_root_or_role(user, COORD_ROLES_TAREFAS)
     ok = tarefas_service.apagar_tarefa(id)
     if not ok:
         raise HTTPException(status_code=500, detail="Erro ao apagar tarefa")
@@ -1984,6 +1937,138 @@ async def shutdown_event():
     close_pool()
     if _scheduler.running:
         _scheduler.shutdown(wait=False)
+
+# -----------------------------------------------------------------------------
+# ENDPOINTS DE ADMINISTRAÇÃO — roles, permissões e criação de contas
+# -----------------------------------------------------------------------------
+
+def _require_admin(user: dict):
+    """Levanta 403 se o utilizador não for root nem direcao/it_support."""
+    user_id = user.get("sub")
+    perms = _perm_svc.get_user_permissions(user_id)
+    if perms["is_root"]:
+        return
+    if perms["role"] not in ("direcao", "it_support"):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
+
+
+@app.get("/api/me/permissions", tags=["Admin"])
+async def get_my_permissions(user=Depends(get_current_user_required)):
+    """Devolve as permissões completas do utilizador autenticado."""
+    user_id = user.get("sub")
+    perms = _perm_svc.get_user_permissions(user_id)
+    return {
+        "is_root": perms["is_root"],
+        "role": perms["role"],
+        "allowed_pages": list(perms["allowed_pages"]),
+        "project_scoped": perms["project_scoped"],
+        "allowed_project_ids": perms["allowed_project_ids"],
+    }
+
+
+@app.get("/api/admin/roles", tags=["Admin"])
+async def admin_listar_roles(user=Depends(get_current_user_required)):
+    """Lista todos os roles (sistema + custom). Qualquer utilizador autenticado pode ler."""
+    return _perm_svc.listar_roles()
+
+
+class RoleCreatePayload(BaseModel):
+    name: str
+    label: str
+    pages: List[str] = []
+
+
+@app.post("/api/admin/roles", tags=["Admin"])
+async def admin_criar_role(payload: RoleCreatePayload, user=Depends(get_current_user_required)):
+    """Cria um role custom com as páginas indicadas."""
+    _require_admin(user)
+    try:
+        return _perm_svc.criar_role(payload.name, payload.label, payload.pages)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class RolePagesUpdatePayload(BaseModel):
+    pages: List[str]
+
+
+@app.put("/api/admin/roles/{role_id}", tags=["Admin"])
+async def admin_atualizar_role_pages(role_id: int, payload: RolePagesUpdatePayload, user=Depends(get_current_user_required)):
+    """Atualiza as páginas acessíveis para um role."""
+    _require_admin(user)
+    try:
+        _perm_svc.atualizar_role_pages(role_id, payload.pages)
+        return {"ok": True}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+class AdminCreateUserPayload(BaseModel):
+    email: str
+    password: str
+    full_name: str
+    role: str
+    page_overrides: dict = {}
+    project_ids: List[int] = []
+    is_root: bool = False
+
+
+@app.post("/api/admin/users", tags=["Admin"])
+async def admin_criar_utilizador(payload: AdminCreateUserPayload, user=Depends(get_current_user_required)):
+    """Cria uma nova conta (email pré-confirmado, password definida na hora)."""
+    _require_admin(user)
+    try:
+        return _perm_svc.criar_utilizador(
+            email=payload.email,
+            password=payload.password,
+            full_name=payload.full_name,
+            role_name=payload.role,
+            page_overrides=payload.page_overrides,
+            project_ids=payload.project_ids,
+            is_root=payload.is_root,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/admin/users/{user_id}/permissions", tags=["Admin"])
+async def admin_obter_permissoes(user_id: str, user=Depends(get_current_user_required)):
+    """Devolve o detalhe de permissões de um utilizador (para o painel admin)."""
+    _require_admin(user)
+    result = _perm_svc.obter_permissoes_utilizador_detalhe(user_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Utilizador não encontrado.")
+    return result
+
+
+class AdminUpdatePermissionsPayload(BaseModel):
+    role: str
+    page_overrides: dict = {}
+    project_ids: List[int] = []
+    is_root: bool = False
+
+
+@app.put("/api/admin/users/{user_id}/permissions", tags=["Admin"])
+async def admin_atualizar_permissoes(user_id: str, payload: AdminUpdatePermissionsPayload, user=Depends(get_current_user_required)):
+    """Atualiza role, overrides de página, projetos e flag root de um utilizador."""
+    _require_admin(user)
+    caller_id = user.get("sub")
+    if user_id == caller_id:
+        raise HTTPException(status_code=400, detail="Não podes alterar as tuas próprias permissões aqui.")
+    try:
+        _perm_svc.atualizar_permissoes_utilizador(
+            user_id=user_id,
+            role_name=payload.role,
+            page_overrides=payload.page_overrides,
+            project_ids=payload.project_ids,
+            is_root=payload.is_root,
+        )
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 # 3. PONTO DE ENTRADA PARA ARRANCAR O SERVIDOR
 # -----------------------------------------------------------------------------

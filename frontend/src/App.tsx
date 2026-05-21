@@ -30,6 +30,7 @@ import Estatisticas from "./pages/Estatisticas";
 import Atalhos from "./pages/Atalhos";
 import Contactos from "./pages/Contactos";
 import Tarefas from "./pages/Tarefas";
+import Admin from "./pages/Admin";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PushAutoPrompt } from "@/components/PushAutoPrompt";
 
@@ -97,13 +98,20 @@ function AppContent() {
           <Route path="/estudio" element={<Estudio />} />
           <Route path="/registos" element={<Registos />} />
           <Route path="/equipa" element={<Equipa />} />
-          <Route path="/equipamento" element={<Equipamento />} />
+          <Route path="/equipamento" element={
+            <ProtectedRoute requiredPage="equipamento"><Equipamento /></ProtectedRoute>
+          } />
+          <Route path="/estatisticas" element={
+            <ProtectedRoute requiredPage="estatisticas"><Estatisticas /></ProtectedRoute>
+          } />
+          <Route path="/admin" element={
+            <ProtectedRoute requiredPage="admin"><Admin /></ProtectedRoute>
+          } />
           <Route path="/formacao" element={<Formacao />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/chatbot" element={<Chatbot />} />
           <Route path="/myspace" element={<MySpace />} />
           <Route path="/wiki" element={<Wiki />} />
-          <Route path="/estatisticas" element={<Estatisticas />} />
           <Route path="/atalhos" element={<Atalhos />} />
           <Route path="/contactos" element={<Contactos />} />
           <Route path="/tarefas" element={<Tarefas />} />
