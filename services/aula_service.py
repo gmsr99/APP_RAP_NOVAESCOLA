@@ -511,7 +511,7 @@ def mudar_estado_aula(aula_id, novo_estado):
         return False
 
 
-def terminar_aula(aula_id, avaliacao, obs_termino=None):
+def terminar_aula(aula_id, avaliacao, obs_termino=None, feedback_audio_path=None):
     """Marca uma sessão presencial confirmada como terminada, com avaliação."""
     if not 1 <= avaliacao <= 5:
         logger.error("Avaliacao deve estar entre 1 e 5.")
@@ -544,6 +544,8 @@ def terminar_aula(aula_id, avaliacao, obs_termino=None):
             aula.estado = ESTADO_TERMINADA
             aula.avaliacao = avaliacao
             aula.obs_termino = obs_termino
+            if feedback_audio_path is not None:
+                aula.feedback_audio_path = feedback_audio_path
             aula.atualizado_em = datetime.utcnow()
 
             session.add(aula)

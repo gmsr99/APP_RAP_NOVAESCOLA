@@ -2,16 +2,6 @@ import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import {
   MapPin,
   Clock,
@@ -19,11 +9,11 @@ import {
   X,
   ArrowRight,
   ClipboardList,
-  Star,
   CheckCircle2,
   CalendarCheck,
   CalendarClock,
 } from 'lucide-react';
+import { TerminarSessaoDialog } from '@/components/TerminarSessaoDialog';
 import { OutrasTarefasWidget } from './OutrasTarefasWidget';
 import { Link } from 'react-router-dom';
 import { format, isToday, isTomorrow, isThisWeek } from 'date-fns';
@@ -48,8 +38,7 @@ export function MentorDashboard() {
 
   const [isTerminarOpen, setIsTerminarOpen] = useState(false);
   const [terminarSessionId, setTerminarSessionId] = useState<number | null>(null);
-  const [terminarRating, setTerminarRating] = useState(0);
-  const [terminarObs, setTerminarObs] = useState('');
+  const [terminarProjetoId, setTerminarProjetoId] = useState<number | null>(null);
 
   const { data: allSessions = [] } = useQuery({
     queryKey: ['aulas'],
@@ -116,50 +105,11 @@ export function MentorDashboard() {
     },
   });
 
-  const terminarMutation = useMutation({
-    mutationFn: async ({ id, avaliacao, obs_termino }: { id: number; avaliacao: number; obs_termino?: string }) => {
-      await api.post(`/api/aulas/${id}/terminar`, { avaliacao, obs_termino });
-    },
-    onMutate: async ({ id }) => {
-      await queryClient.cancelQueries({ queryKey: ['aulas'] });
-      const previousAulas = queryClient.getQueryData(['aulas']);
-      queryClient.setQueryData(['aulas'], (old: any[]) =>
-        old.map((session) => session.id === id ? { ...session, estado: 'terminada' } : session)
-      );
-      toast.success('Sessão terminada!');
-      return { previousAulas };
-    },
-    onError: (_err: any, _vars: any, context: any) => {
-      queryClient.setQueryData(['aulas'], context.previousAulas);
-      toast.error('Erro ao terminar sessão');
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['aulas'] });
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      setIsTerminarOpen(false);
-      setTerminarRating(0);
-      setTerminarObs('');
-      setTerminarSessionId(null);
-    },
-  });
-
   const openTerminarModal = (sessionId: number) => {
+    const session = allSessions.find((s: any) => s.id === sessionId);
     setTerminarSessionId(sessionId);
-    setTerminarRating(0);
-    setTerminarObs('');
+    setTerminarProjetoId(session?.projeto_id ?? null);
     setIsTerminarOpen(true);
-  };
-
-  const handleSubmitTerminar = () => {
-    if (!terminarSessionId || terminarRating < 1) {
-      toast.error('Seleciona uma avaliação (1 a 5 estrelas).');
-      return;
-    }
-    terminarMutation.mutate({
-      id: terminarSessionId,
-      avaliacao: terminarRating,
-      obs_termino: terminarObs || undefined,
-    });
   };
 
   const getDateLabel = (dateStr: string) => {
@@ -420,58 +370,16 @@ export function MentorDashboard() {
       <OutrasTarefasWidget />
 
       {/* Terminar Sessão Modal */}
-      <Dialog open={isTerminarOpen} onOpenChange={setIsTerminarOpen}>
-        <DialogContent className="w-full sm:max-w-[420px] max-h-[95dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-[#06bede]" />
-              Terminar Sessão
-            </DialogTitle>
-            <DialogDescription>
-              Avalia a sessão e adiciona observações opcionais.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-5 py-2">
-            <div className="space-y-2">
-              <Label className="font-medium">Avaliação desta Sessão</Label>
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map(n => (
-                  <Star
-                    key={n}
-                    className={cn(
-                      'h-8 w-8 cursor-pointer transition-colors',
-                      n <= terminarRating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30 hover:text-yellow-300'
-                    )}
-                    onClick={() => setTerminarRating(n)}
-                  />
-                ))}
-                {terminarRating > 0 && (
-                  <span className="text-sm text-muted-foreground ml-2">{terminarRating}/5</span>
-                )}
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label className="font-medium">Observações</Label>
-              <Textarea
-                placeholder="Como correu a sessão? Notas relevantes..."
-                value={terminarObs}
-                onChange={e => setTerminarObs(e.target.value)}
-                className="min-h-[100px]"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              onClick={handleSubmitTerminar}
-              disabled={terminarRating < 1 || terminarMutation.isPending}
-              className="bg-[#06bede] hover:bg-[#059ab5] text-white"
-            >
-              <CheckCircle2 className="h-4 w-4 mr-2" />
-              Submeter
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TerminarSessaoDialog
+        open={isTerminarOpen}
+        onOpenChange={setIsTerminarOpen}
+        aulaId={terminarSessionId}
+        projetoId={terminarProjetoId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['aulas'] });
+          queryClient.invalidateQueries({ queryKey: ['notifications'] });
+        }}
+      />
     </div>
   );
 }

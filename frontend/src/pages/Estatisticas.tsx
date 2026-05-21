@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { BarChart3, Clock, Music, Star, MessageSquare, Building2, Calendar, Layers, FileSpreadsheet, FileDown, Users, List } from 'lucide-react';
+import { BarChart3, Clock, Music, Star, MessageSquare, Building2, Calendar, Layers, FileSpreadsheet, FileDown, Images, Mic, Users, List } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -90,6 +90,7 @@ interface FeedbackItem {
 export default function Estatisticas() {
   const { profile } = useProfile();
   const canExport = profile === 'direcao' || profile === 'it_support';
+  const canExportMedia = canExport || profile === 'coordenador';
 
   const [selectedProjetoId, setSelectedProjetoId] = useState<string>('');
   const [mentorFilter, setMentorFilter] = useState('all');
@@ -97,11 +98,14 @@ export default function Estatisticas() {
   const [instituicaoFilter, setInstituicaoFilter] = useState('all');
   const [exportOpen, setExportOpen] = useState(false);
   const [exportRegistosOpen, setExportRegistosOpen] = useState(false);
-  const [registosFilter, setRegistosFilter] = useState({
-    data_inicio: '',
-    data_fim: '',
-  });
+  const [exportEvidenciasOpen, setExportEvidenciasOpen] = useState(false);
+  const [exportFeedbackOpen, setExportFeedbackOpen] = useState(false);
+  const [registosFilter, setRegistosFilter] = useState({ data_inicio: '', data_fim: '' });
+  const [evidenciasFilter, setEvidenciasFilter] = useState({ data_inicio: '', data_fim: '' });
+  const [feedbackFilter, setFeedbackFilter] = useState({ data_inicio: '', data_fim: '' });
   const [isExportingRegistos, setIsExportingRegistos] = useState(false);
+  const [isExportingEvidencias, setIsExportingEvidencias] = useState(false);
+  const [isExportingFeedback, setIsExportingFeedback] = useState(false);
   const [sessoesModal, setSessoesModal] = useState<SessoesModalState | null>(null);
 
   // ─── Queries ────────────────────────────────────────────────────────────────
@@ -288,6 +292,28 @@ export default function Estatisticas() {
               Exportar Registos
             </Button>
           )}
+          {canExportMedia && projetoId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExportEvidenciasOpen(true)}
+              className="gap-2 text-blue-600 border-blue-600/40 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+            >
+              <Images className="h-4 w-4" />
+              Exportar Evidências
+            </Button>
+          )}
+          {canExportMedia && projetoId && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setExportFeedbackOpen(true)}
+              className="gap-2 text-purple-600 border-purple-600/40 hover:bg-purple-50 dark:hover:bg-purple-950/30"
+            >
+              <Mic className="h-4 w-4" />
+              Exportar Feedback
+            </Button>
+          )}
           <ProjetoSelect projetos={projetos} value={selectedProjetoId} onChange={setSelectedProjetoId} />
         </div>
       </div>
@@ -360,6 +386,132 @@ export default function Estatisticas() {
                 className="bg-[#6B7280] hover:bg-[#555e68] text-white"
               >
                 {isExportingRegistos ? 'A gerar...' : 'Gerar ZIP'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Modal de Export Evidências */}
+      {canExportMedia && (
+        <Dialog open={exportEvidenciasOpen} onOpenChange={setExportEvidenciasOpen}>
+          <DialogContent className="sm:max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle>Exportar Evidências da Sessão</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Data início</Label>
+                  <Input
+                    type="date"
+                    value={evidenciasFilter.data_inicio}
+                    onChange={e => setEvidenciasFilter(f => ({ ...f, data_inicio: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Data fim</Label>
+                  <Input
+                    type="date"
+                    value={evidenciasFilter.data_fim}
+                    onChange={e => setEvidenciasFilter(f => ({ ...f, data_fim: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setExportEvidenciasOpen(false)}>Cancelar</Button>
+              <Button
+                disabled={!projetoId || isExportingEvidencias}
+                onClick={async () => {
+                  if (!projetoId) return;
+                  setIsExportingEvidencias(true);
+                  try {
+                    const params: Record<string, string | number> = { projeto_id: projetoId };
+                    if (evidenciasFilter.data_inicio) params.data_inicio = evidenciasFilter.data_inicio;
+                    if (evidenciasFilter.data_fim) params.data_fim = evidenciasFilter.data_fim;
+                    const res = await api.get('/api/aula-evidencias/export', { params, responseType: 'blob' });
+                    const url = URL.createObjectURL(res.data);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const projetoNome = projetos.find(p => p.id === projetoId)?.nome ?? 'Projeto';
+                    a.download = `Evidencias_${projetoNome}_${evidenciasFilter.data_inicio || 'todos'}.zip`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    setExportEvidenciasOpen(false);
+                  } catch (err: unknown) {
+                    const status = (err as { response?: { status?: number } })?.response?.status;
+                    toast.error(status === 403 ? 'Sem permissão para exportar.' : 'Erro ao gerar ZIP.');
+                  } finally {
+                    setIsExportingEvidencias(false);
+                  }
+                }}
+                className="bg-[#6B7280] hover:bg-[#555e68] text-white"
+              >
+                {isExportingEvidencias ? 'A gerar...' : 'Gerar ZIP'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Modal de Export Feedback */}
+      {canExportMedia && (
+        <Dialog open={exportFeedbackOpen} onOpenChange={setExportFeedbackOpen}>
+          <DialogContent className="sm:max-w-[480px]">
+            <DialogHeader>
+              <DialogTitle>Exportar Feedback de Áudio</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Data início</Label>
+                  <Input
+                    type="date"
+                    value={feedbackFilter.data_inicio}
+                    onChange={e => setFeedbackFilter(f => ({ ...f, data_inicio: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Data fim</Label>
+                  <Input
+                    type="date"
+                    value={feedbackFilter.data_fim}
+                    onChange={e => setFeedbackFilter(f => ({ ...f, data_fim: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setExportFeedbackOpen(false)}>Cancelar</Button>
+              <Button
+                disabled={!projetoId || isExportingFeedback}
+                onClick={async () => {
+                  if (!projetoId) return;
+                  setIsExportingFeedback(true);
+                  try {
+                    const params: Record<string, string | number> = { projeto_id: projetoId };
+                    if (feedbackFilter.data_inicio) params.data_inicio = feedbackFilter.data_inicio;
+                    if (feedbackFilter.data_fim) params.data_fim = feedbackFilter.data_fim;
+                    const res = await api.get('/api/aula-feedback/export', { params, responseType: 'blob' });
+                    const url = URL.createObjectURL(res.data);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    const projetoNome = projetos.find(p => p.id === projetoId)?.nome ?? 'Projeto';
+                    a.download = `Feedback_${projetoNome}_${feedbackFilter.data_inicio || 'todos'}.zip`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                    setExportFeedbackOpen(false);
+                  } catch (err: unknown) {
+                    const status = (err as { response?: { status?: number } })?.response?.status;
+                    toast.error(status === 403 ? 'Sem permissão para exportar.' : 'Erro ao gerar ZIP.');
+                  } finally {
+                    setIsExportingFeedback(false);
+                  }
+                }}
+                className="bg-[#6B7280] hover:bg-[#555e68] text-white"
+              >
+                {isExportingFeedback ? 'A gerar...' : 'Gerar ZIP'}
               </Button>
             </DialogFooter>
           </DialogContent>

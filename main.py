@@ -470,16 +470,19 @@ async def realize_aula(aula_id: int, user=Depends(get_current_user_required)):
 class TerminarPayload(BaseModel):
     avaliacao: int = Field(ge=1, le=5)
     obs_termino: Optional[str] = None
+    feedback_audio_path: Optional[str] = None
 
 @app.post("/api/aulas/{aula_id}/terminar", tags=["Aulas"])
 async def terminar_aula(aula_id: int, payload: TerminarPayload, user=Depends(get_current_user_required)):
-    """Marca sessão como terminada com avaliação (1-5) e observações."""
+    """Marca sessão como terminada com avaliação (1-5), observações e/ou áudio de feedback."""
     aula_info = aula_service.obter_aula_por_id(aula_id)
     if not aula_info:
         raise HTTPException(status_code=404, detail="Sessão não encontrada")
     if not _check_session_permission(user, aula_info):
         raise HTTPException(status_code=403, detail="Sem permissão para alterar esta sessão.")
-    resultado = aula_service.terminar_aula(aula_id, payload.avaliacao, payload.obs_termino)
+    resultado = aula_service.terminar_aula(
+        aula_id, payload.avaliacao, payload.obs_termino, payload.feedback_audio_path
+    )
     if resultado.get("ok"):
         return {"message": "Sessão terminada com sucesso"}
     raise HTTPException(status_code=400, detail=resultado.get("erro", "Erro ao terminar sessão"))
@@ -694,6 +697,55 @@ async def get_aula_registo(aula_id: int, user=Depends(get_current_user_required)
     if not registo:
         raise HTTPException(status_code=404, detail="Registo não encontrado")
     return registo
+
+# --- Evidências fotográficas de sessão ---
+from services import aula_evidencia_service
+
+class AulaEvidenciaPayload(BaseModel):
+    aula_id: int
+    storage_path: str
+
+@app.post("/api/aula-evidencias", tags=["Registos"])
+async def create_aula_evidencia(data: AulaEvidenciaPayload, user=Depends(get_current_user_required)):
+    """Guarda path de uma foto de evidência de sessão."""
+    res = aula_evidencia_service.criar_evidencia(data.aula_id, data.storage_path, user["sub"])
+    if not res.get("ok"):
+        raise HTTPException(status_code=400, detail=res.get("erro", "Erro ao guardar evidência"))
+    return res
+
+@app.get("/api/aula-evidencias/export", tags=["Registos"])
+async def export_aula_evidencias(
+    projeto_id: int,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
+    user=Depends(get_current_user_required),
+):
+    """Exporta fotos de evidência num ZIP organizado por pastas."""
+    _require_root_or_role(user, COORD_ROLES)
+    zip_bytes = aula_evidencia_service.exportar_evidencias_zip(projeto_id, data_inicio, data_fim)
+    from fastapi.responses import Response
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=evidencias.zip"},
+    )
+
+@app.get("/api/aula-feedback/export", tags=["Registos"])
+async def export_aula_feedback(
+    projeto_id: int,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
+    user=Depends(get_current_user_required),
+):
+    """Exporta áudios de feedback num ZIP organizado por pastas."""
+    _require_root_or_role(user, COORD_ROLES)
+    zip_bytes = aula_evidencia_service.exportar_feedback_zip(projeto_id, data_inicio, data_fim)
+    from fastapi.responses import Response
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=feedback.zip"},
+    )
 
 # --- Rotas para Turmas/Estabelecimentos ---
 from services import turma_service, profile_service, estudio_service, notification_service, registo_service, aluno_service

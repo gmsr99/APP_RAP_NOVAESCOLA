@@ -88,7 +88,7 @@ import { useProfile } from '@/contexts/ProfileContext';
 import { computeEventLayout } from '@/lib/eventLayout';
 import { addMinutes } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext'; // Import useAuth for user ID
-import { uploadRegistoSessao } from '@/utils/registoUpload';
+import { TerminarSessaoDialog } from '@/components/TerminarSessaoDialog';
 
 const statusColors: Record<SessionStatus, string> = {
   rascunho: 'bg-muted text-muted-foreground border-border/50',
@@ -336,12 +336,8 @@ const Horarios = () => {
   // Estado "Terminar sessão"
   const [isTerminarOpen, setIsTerminarOpen] = useState(false);
   const [terminarSessionId, setTerminarSessionId] = useState<number | null>(null);
-  const [terminarRating, setTerminarRating] = useState(0);
-  const [terminarObs, setTerminarObs] = useState('');
-  const [terminarStep, setTerminarStep] = useState<1 | 2>(1);
   const [terminarProjetoId, setTerminarProjetoId] = useState<number | null>(null);
   const [terminarRequerDigitalizacao, setTerminarRequerDigitalizacao] = useState(false);
-  const [registoUpload, setRegistoUpload] = useState<{ status: 'idle' | 'uploading' | 'done' | 'error'; sizeKb?: number; error?: string }>({ status: 'idle' });
 
   const queryClient = useQueryClient();
 
@@ -834,20 +830,6 @@ const Horarios = () => {
     onError: () => toast.error('Erro ao remover sessão.'),
   });
 
-  const terminarMutation = useMutation({
-    mutationFn: ({ id, avaliacao, obs_termino }: { id: number; avaliacao: number; obs_termino?: string }) =>
-      api.post(`/api/aulas/${id}/terminar`, { avaliacao, obs_termino }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['aulas'] });
-      setIsTerminarOpen(false);
-      setTerminarRating(0);
-      setTerminarObs('');
-      setTerminarSessionId(null);
-      toast.success('Sessão terminada com sucesso!');
-    },
-    onError: () => toast.error('Erro ao terminar sessão.'),
-  });
-
   const openTerminarModal = (sessionId: number, projetoId?: number | null) => {
     setTerminarSessionId(sessionId);
     setTerminarProjetoId(projetoId ?? null);
@@ -855,23 +837,7 @@ const Horarios = () => {
       ? (projetos?.find(p => p.id === projetoId)?.requer_digitalizacao ?? false)
       : false;
     setTerminarRequerDigitalizacao(requer);
-    setTerminarRating(0);
-    setTerminarObs('');
-    setTerminarStep(1);
-    setRegistoUpload({ status: 'idle' });
     setIsTerminarOpen(true);
-  };
-
-  const handleSubmitTerminar = () => {
-    if (!terminarSessionId || terminarRating < 1) {
-      toast.error('Seleciona uma avaliação (1 a 5 estrelas).');
-      return;
-    }
-    terminarMutation.mutate({
-      id: terminarSessionId,
-      avaliacao: terminarRating,
-      obs_termino: terminarObs || undefined,
-    });
   };
 
   const confirmMutation = useMutation({
@@ -3197,137 +3163,14 @@ const Horarios = () => {
       </AlertDialog>
 
       {/* TERMINAR SESSÃO MODAL */}
-      <Dialog open={isTerminarOpen} onOpenChange={(open) => {
-        setIsTerminarOpen(open);
-        if (!open) { setTerminarStep(1); setRegistoUpload({ status: 'idle' }); }
-      }}>
-        <DialogContent className="w-full sm:max-w-[420px] max-h-[95dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-[#6B7280]" />
-              {terminarStep === 1 ? 'Digitalização do Registo' : 'Terminar Sessão'}
-            </DialogTitle>
-            <DialogDescription>
-              {terminarStep === 1
-                ? 'Fotografa a folha de registo da sessão.'
-                : 'Avalia a sessão e adiciona observações opcionais.'}
-            </DialogDescription>
-          </DialogHeader>
-
-          {terminarStep === 1 ? (
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label className="font-medium">Fotografia do Registo</Label>
-                <label htmlFor="registo-upload-input" className="w-full">
-                  <div className={cn(
-                    'flex items-center justify-center gap-2 w-full px-4 py-2 rounded-md border border-input bg-background text-sm font-medium cursor-pointer hover:bg-accent hover:text-accent-foreground transition-colors',
-                    registoUpload.status === 'uploading' && 'opacity-50 pointer-events-none'
-                  )}>
-                    <Upload className="h-4 w-4" />
-                    {registoUpload.status === 'uploading' ? 'A processar...' : 'Tirar foto / Escolher ficheiro'}
-                  </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="sr-only"
-                    id="registo-upload-input"
-                    disabled={registoUpload.status === 'uploading'}
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      if (!terminarSessionId || terminarProjetoId == null) {
-                        setRegistoUpload({ status: 'error', error: 'Sessão sem projeto associado. Contacta o suporte.' });
-                        return;
-                      }
-                      setRegistoUpload({ status: 'uploading' });
-                      const result = await uploadRegistoSessao(file, terminarProjetoId, terminarSessionId);
-                      if (result.ok && result.storagePath) {
-                        setRegistoUpload({ status: 'done', sizeKb: result.sizeKb });
-                        try {
-                          await api.post('/api/aula-registos', {
-                            aula_id: terminarSessionId,
-                            storage_path: result.storagePath,
-                          });
-                        } catch {
-                          setRegistoUpload({ status: 'error', error: 'Erro ao guardar registo no servidor.' });
-                        }
-                      } else {
-                        setRegistoUpload({ status: 'error', error: result.error });
-                      }
-                    }}
-                  />
-                </label>
-                {registoUpload.status === 'done' && (
-                  <p className="text-sm text-green-600 flex items-center gap-1">
-                    ✓ Registo enviado ({registoUpload.sizeKb} KB / 1024 KB)
-                  </p>
-                )}
-                {registoUpload.status === 'error' && (
-                  <p className="text-sm text-destructive">{registoUpload.error}</p>
-                )}
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-5 py-2">
-              <div className="space-y-2">
-                <Label className="font-medium">Avaliação desta Sessão</Label>
-                <div className="flex items-center gap-1">
-                  {[1, 2, 3, 4, 5].map(n => (
-                    <Star
-                      key={n}
-                      className={cn(
-                        'h-8 w-8 cursor-pointer transition-colors',
-                        n <= terminarRating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30 hover:text-yellow-300'
-                      )}
-                      onClick={() => setTerminarRating(n)}
-                    />
-                  ))}
-                  {terminarRating > 0 && (
-                    <span className="text-sm text-muted-foreground ml-2">{terminarRating}/5</span>
-                  )}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label className="font-medium">Observações</Label>
-                <Textarea
-                  placeholder="Como correu a sessão? Notas relevantes..."
-                  value={terminarObs}
-                  onChange={e => setTerminarObs(e.target.value)}
-                  className="min-h-[100px]"
-                />
-              </div>
-            </div>
-          )}
-
-          <DialogFooter>
-            {terminarStep === 1 ? (
-              <div className="flex gap-2 w-full sm:w-auto">
-                {!terminarRequerDigitalizacao && (
-                  <Button variant="ghost" onClick={() => setTerminarStep(2)}>
-                    Ignorar
-                  </Button>
-                )}
-                <Button
-                  onClick={() => setTerminarStep(2)}
-                  disabled={terminarRequerDigitalizacao && registoUpload.status !== 'done'}
-                  className="bg-[#6B7280] hover:bg-[#555e68] text-white"
-                >
-                  Seguinte
-                </Button>
-              </div>
-            ) : (
-              <Button
-                onClick={handleSubmitTerminar}
-                disabled={terminarRating < 1 || terminarMutation.isPending}
-                className="bg-[#6B7280] hover:bg-[#555e68] text-white"
-              >
-                <CheckCircle2 className="h-4 w-4 mr-2" />
-                Submeter
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TerminarSessaoDialog
+        open={isTerminarOpen}
+        onOpenChange={setIsTerminarOpen}
+        aulaId={terminarSessionId}
+        projetoId={terminarProjetoId}
+        requerDigitalizacao={terminarRequerDigitalizacao}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['aulas'] })}
+      />
 
       {/* Deadline Task Modal */}
       <Dialog open={isDeadlineOpen} onOpenChange={setIsDeadlineOpen}>
