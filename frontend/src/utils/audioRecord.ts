@@ -1,11 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import type { UploadResult } from './registoUpload';
-
-// lamejs has no official @types package
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-declare const require: any;
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const lamejs = require('lamejs') as {
+import lamejsModule from 'lamejs';
+const lamejs = lamejsModule as unknown as {
   Mp3Encoder: new (channels: number, sampleRate: number, kbps: number) => {
     encodeBuffer(left: Int16Array): Int8Array;
     flush(): Int8Array;
