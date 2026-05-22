@@ -45,6 +45,7 @@ def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
             a.objetivos,
             a.sumario,
             a.codigo_sessao,
+            a.projeto_id,
             t.nome         AS turma_nome,
             t.id           AS turma_id,
             e.nome         AS estabelecimento_nome,
@@ -118,6 +119,7 @@ def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
                 "objetivos": row.objetivos,
                 "sumario": row.sumario,
                 "codigo_sessao": row.codigo_sessao,
+                "projeto_id": row.projeto_id,
             })
         return result
 
@@ -150,6 +152,7 @@ def listar_todas_sessoes_registaveis() -> List[Dict[str, Any]]:
             a.objetivos,
             a.sumario,
             a.codigo_sessao,
+            a.projeto_id,
             t.nome         AS turma_nome,
             t.id           AS turma_id,
             e.nome         AS estabelecimento_nome,
@@ -212,6 +215,7 @@ def listar_todas_sessoes_registaveis() -> List[Dict[str, Any]]:
                 "objetivos": row.objetivos,
                 "sumario": row.sumario,
                 "codigo_sessao": row.codigo_sessao,
+                "projeto_id": row.projeto_id,
             })
         return result
 
@@ -252,6 +256,7 @@ def listar_registos(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
             a.tipo_atividade,
             a.local,
             a.observacoes   AS aula_observacoes,
+            a.projeto_id,
             t.nome          AS turma_nome,
             e.nome          AS estabelecimento_nome,
             e.sigla         AS estabelecimento_sigla,
@@ -293,6 +298,7 @@ def listar_registos(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
                 "horario": row.horario,
                 "tecnicos": row.tecnicos,
                 "kms_percorridos": float(row.kms_percorridos) if row.kms_percorridos is not None else None,
+                "projeto_id": row.projeto_id,
                 "turma_nome": row.turma_nome,
                 "estabelecimento_nome": row.estabelecimento_nome,
                 "estabelecimento_sigla": row.estabelecimento_sigla,

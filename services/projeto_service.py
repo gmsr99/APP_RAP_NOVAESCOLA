@@ -15,11 +15,11 @@ def listar_projetos(allowed_ids=None):
                 return []
             placeholders = ",".join(["%s"] * len(allowed_ids))
             cur.execute(
-                f"SELECT id, nome, descricao, estado, requer_digitalizacao FROM projetos WHERE id IN ({placeholders}) ORDER BY nome",
+                f"SELECT id, nome, descricao, estado, requer_digitalizacao, tem_pre_registos FROM projetos WHERE id IN ({placeholders}) ORDER BY nome",
                 allowed_ids,
             )
         else:
-            cur.execute("SELECT id, nome, descricao, estado, requer_digitalizacao FROM projetos ORDER BY nome")
+            cur.execute("SELECT id, nome, descricao, estado, requer_digitalizacao, tem_pre_registos FROM projetos ORDER BY nome")
         cols = [desc[0] for desc in cur.description]
         return [dict(zip(cols, row)) for row in cur.fetchall()]
     except Exception as e:
@@ -146,15 +146,21 @@ def desassociar_estabelecimento(projeto_id, estabelecimento_id):
         conn.close()
 
 
-def atualizar_config_projeto(projeto_id: int, requer_digitalizacao: bool) -> bool:
-    """Atualiza as configurações de digitalização de um projeto."""
+def atualizar_config_projeto(projeto_id: int, requer_digitalizacao: bool, tem_pre_registos: bool | None = None) -> bool:
+    """Atualiza as configurações de um projeto."""
     conn = get_db_connection()
     try:
         cur = conn.cursor()
-        cur.execute(
-            "UPDATE projetos SET requer_digitalizacao = %s WHERE id = %s",
-            (requer_digitalizacao, projeto_id),
-        )
+        if tem_pre_registos is not None:
+            cur.execute(
+                "UPDATE projetos SET requer_digitalizacao = %s, tem_pre_registos = %s WHERE id = %s",
+                (requer_digitalizacao, tem_pre_registos, projeto_id),
+            )
+        else:
+            cur.execute(
+                "UPDATE projetos SET requer_digitalizacao = %s WHERE id = %s",
+                (requer_digitalizacao, projeto_id),
+            )
         conn.commit()
         return cur.rowcount > 0
     except Exception as e:

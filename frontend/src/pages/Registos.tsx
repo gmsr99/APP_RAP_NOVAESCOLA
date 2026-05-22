@@ -86,6 +86,7 @@ interface SessaoRegistavel {
   objetivos: string | null;
   sumario: string | null;
   codigo_sessao: string | null;
+  projeto_id: number | null;
 }
 
 interface Registo {
@@ -114,6 +115,13 @@ interface Registo {
   estabelecimento_sigla: string | null;
   mentor_nome: string | null;
   kms_percorridos: number | null;
+  projeto_id: number | null;
+}
+
+interface ProjetoPreRegistos {
+  id: number;
+  nome: string;
+  tem_pre_registos: boolean;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -331,8 +339,19 @@ const Registos = () => {
 
   const [selectedSession, setSelectedSession] = useState<SessaoRegistavel | null>(null);
   const [editingRegisto, setEditingRegisto] = useState<Registo | null>(null);
+  const [selectedProjetoId, setSelectedProjetoId] = useState<number | null>(null);
 
   // ─── Queries ────────────────────────────────────────────────────────────
+
+  const { data: todosProjetos = [] } = useQuery({
+    queryKey: ['projetos'],
+    queryFn: async () => {
+      const res = await api.get('/api/projetos');
+      return res.data as ProjetoPreRegistos[];
+    },
+  });
+
+  const preRegistosProjetos = todosProjetos.filter(p => p.tem_pre_registos);
 
   const { data: sessoes = [], isLoading: sessoesLoading, isError: sessoesError } = useQuery({
     queryKey: ['sessoes-registaveis'],
@@ -739,13 +758,48 @@ const Registos = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="hidden sm:block">
-        <h1 className="text-2xl sm:text-3xl font-display font-bold">Registos de Sessão</h1>
+        <h1 className="text-2xl sm:text-3xl font-display font-bold">Pré-Registos</h1>
         <p className="text-muted-foreground mt-1">
-          Regista o que aconteceu em cada sessão e exporta o documento PDF.
+          Descarrega as folhas de registo pré-preenchidas para assinar na sessão.
         </p>
       </div>
 
-      {/* ─── Tabs + Quick Register Card ─────────────────────────────── */}
+      {/* ─── Project Selector ──────────────────────────────────────── */}
+      {preRegistosProjetos.length === 0 ? (
+        <Card>
+          <CardContent className="py-10 text-center">
+            <ClipboardList className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+            <p className="font-medium">Nenhum projeto tem Pré-Registos ativo.</p>
+            <p className="text-sm text-muted-foreground mt-1">Ativa esta funcionalidade na Wiki.</p>
+          </CardContent>
+        </Card>
+      ) : (
+      <>
+      <div className="flex items-center gap-3">
+        <Label className="shrink-0 text-sm font-medium">Projeto</Label>
+        <Select
+          value={selectedProjetoId ? String(selectedProjetoId) : ''}
+          onValueChange={v => { setSelectedProjetoId(v ? Number(v) : null); setSelectedSessionId(''); setSelectedSession(null); }}
+        >
+          <SelectTrigger className="w-56">
+            <SelectValue placeholder="Selecionar projeto..." />
+          </SelectTrigger>
+          <SelectContent className="bg-popover">
+            {preRegistosProjetos.map(p => (
+              <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {!selectedProjetoId ? (
+        <Card>
+          <CardContent className="py-10 text-center">
+            <ClipboardList className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+            <p className="font-medium text-muted-foreground">Seleciona um projeto para continuar.</p>
+          </CardContent>
+        </Card>
+      ) : (
       <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSelectedSessionId(''); setSelectedSession(null); }}>
         {/* Tab switcher always at the top (only visible for coord) */}
         {isCoord && (
@@ -757,7 +811,8 @@ const Registos = () => {
 
         {/* Quick Register Card — adapta o pool de sessões conforme a tab ativa */}
         {(() => {
-          const pool = activeTab === 'todos' ? todasSessoesRegistaveis : sessoes;
+          const rawPool = activeTab === 'todos' ? todasSessoesRegistaveis : sessoes;
+          const pool = selectedProjetoId ? rawPool.filter(s => s.projeto_id === selectedProjetoId) : rawPool;
           const showMentorInLabel = activeTab === 'todos';
           return (
             <Card className="border-primary/30 bg-primary/5 mb-4">
@@ -854,7 +909,7 @@ const Registos = () => {
         {/* Tab 1 — Os meus Registos */}
         <TabsContent value="meus">
           <RegistoList
-            registos={registos}
+            registos={selectedProjetoId ? registos.filter(r => r.projeto_id === selectedProjetoId) : registos}
             onReExport={handleReExportPdf}
             onEdit={handleOpenEdit}
             onDelete={id => deleteRegistoMutation.mutate(id)}
@@ -874,13 +929,16 @@ const Registos = () => {
               </div>
             )}
             <TodosRegistosAccordion
-              registos={todosRegistos}
+              registos={selectedProjetoId ? todosRegistos.filter(r => r.projeto_id === selectedProjetoId) : todosRegistos}
               onReExport={handleReExportPdf}
               onEdit={handleOpenEdit}
             />
           </TabsContent>
         )}
       </Tabs>
+      )}
+      </>
+      )}
 
       {/* ─── Modal: Export XLS ──────────────────────────────────────────── */}
       <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>

@@ -42,7 +42,7 @@ const navigation: SidebarItem[] = [
   { name: 'Produção',    href: '/producao',    icon: Music,           pageSlug: 'producao' },
   { name: 'Tarefas',     href: '/tarefas',     icon: CheckSquare,     pageSlug: 'tarefas' },
   { name: 'Estúdio',     href: '/estudio',     icon: Mic2,            pageSlug: 'estudio' },
-  { name: 'Registos',    href: '/registos',    icon: ClipboardList,   pageSlug: 'registos' },
+  { name: 'Pré-Registos',href: '/registos',    icon: ClipboardList,   pageSlug: 'registos' },
   { name: 'Chat',        href: '/chat',        icon: MessageSquare,   pageSlug: 'chat' },
   { separator: true },
   { name: 'Material',    href: '/equipamento', icon: Package,         pageSlug: 'equipamento' },

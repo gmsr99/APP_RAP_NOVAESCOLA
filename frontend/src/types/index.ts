@@ -228,6 +228,7 @@ export interface Projeto {
   descricao?: string;
   estado?: string;
   requer_digitalizacao?: boolean;
+  tem_pre_registos?: boolean;
 }
 
 export interface ContactoEstabelecimento {

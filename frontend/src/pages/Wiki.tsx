@@ -201,10 +201,10 @@ const Wiki = () => {
 
   // State for Config modal
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-  const [configForm, setConfigForm] = useState({ requer_digitalizacao: false });
+  const [configForm, setConfigForm] = useState({ requer_digitalizacao: false, tem_pre_registos: false });
 
   // --- QUERIES ---
-  interface Projeto { id: number; nome: string; descricao?: string; estado?: string; requer_digitalizacao?: boolean; }
+  interface Projeto { id: number; nome: string; descricao?: string; estado?: string; requer_digitalizacao?: boolean; tem_pre_registos?: boolean; }
 
   const { data: projetos = [] } = useQuery({
     queryKey: ['projetos'],
@@ -302,7 +302,7 @@ const Wiki = () => {
   });
 
   const saveConfigMutation = useMutation({
-    mutationFn: (data: { requer_digitalizacao: boolean }) =>
+    mutationFn: (data: { requer_digitalizacao: boolean; tem_pre_registos: boolean }) =>
       api.patch(`/api/projetos/${selectedProjetoId}/config`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projetos'] });
@@ -748,7 +748,10 @@ const Wiki = () => {
                   size="sm"
                   className="gap-1.5"
                   onClick={() => {
-                    setConfigForm({ requer_digitalizacao: selectedProjeto?.requer_digitalizacao ?? false });
+                    setConfigForm({
+                      requer_digitalizacao: selectedProjeto?.requer_digitalizacao ?? false,
+                      tem_pre_registos: selectedProjeto?.tem_pre_registos ?? false,
+                    });
                     setIsConfigModalOpen(true);
                   }}
                 >
@@ -1557,7 +1560,19 @@ const Wiki = () => {
               </div>
               <Switch
                 checked={configForm.requer_digitalizacao}
-                onCheckedChange={(checked) => setConfigForm({ requer_digitalizacao: checked })}
+                onCheckedChange={(checked) => setConfigForm(f => ({ ...f, requer_digitalizacao: checked }))}
+              />
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                <Label className="font-medium">Pré-Registos</Label>
+                <p className="text-sm text-muted-foreground">
+                  Quando ativo, este projeto aparece na página Pré-Registos e os mentores podem descarregar as folhas de registo pré-preenchidas.
+                </p>
+              </div>
+              <Switch
+                checked={configForm.tem_pre_registos}
+                onCheckedChange={(checked) => setConfigForm(f => ({ ...f, tem_pre_registos: checked }))}
               />
             </div>
           </div>

@@ -659,11 +659,12 @@ class AulaRegistoPayload(BaseModel):
 
 class ProjetoConfigPayload(BaseModel):
     requer_digitalizacao: bool
+    tem_pre_registos: Optional[bool] = None
 
 @app.patch("/api/projetos/{id}/config", tags=["Projetos"])
 async def update_projeto_config(id: int, data: ProjetoConfigPayload, user=Depends(get_current_user_required)):
     _require_root_or_role(user, COORD_ROLES)
-    sucesso = projeto_service.atualizar_config_projeto(id, data.requer_digitalizacao)
+    sucesso = projeto_service.atualizar_config_projeto(id, data.requer_digitalizacao, data.tem_pre_registos)
     if not sucesso:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
     return {"message": "Configurações atualizadas"}
