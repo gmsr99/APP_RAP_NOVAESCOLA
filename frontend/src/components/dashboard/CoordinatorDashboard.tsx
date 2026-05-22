@@ -194,61 +194,61 @@ export function CoordinatorDashboard() {
 
       {/* Stats Grid */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => setDetailView('sessoes')}>
+        <Card className="cursor-pointer bg-card/50 backdrop-blur-sm border-white/5 hover:-translate-y-1 hover:shadow-xl hover:shadow-primary/10 hover:border-primary/30 transition-all duration-300" onClick={() => setDetailView('sessoes')}>
           <CardContent className="p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-xs font-medium text-muted-foreground">Total Sessões</p>
-                <p className="text-2xl sm:text-3xl font-bold font-display mt-1">{sessions.length}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{pendingSessions.length} por confirmar</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Sessões</p>
+                <p className="text-3xl sm:text-4xl font-bold font-display mt-2">{sessions.length}</p>
+                <p className="text-xs text-primary font-medium mt-1">{pendingSessions.length} por confirmar</p>
               </div>
-              <div className="p-2 rounded-lg bg-primary/10 shrink-0">
-                <Calendar className="h-5 w-5 text-primary" />
+              <div className="p-3 rounded-xl bg-primary/10 shadow-inner shrink-0">
+                <Calendar className="h-6 w-6 text-primary" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => setDetailView('locais')}>
+        <Card className="cursor-pointer bg-card/50 backdrop-blur-sm border-white/5 hover:-translate-y-1 hover:shadow-xl hover:shadow-orange-500/10 hover:border-orange-500/30 transition-all duration-300" onClick={() => setDetailView('locais')}>
           <CardContent className="p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-xs font-medium text-muted-foreground">Locais ativos</p>
-                <p className="text-2xl sm:text-3xl font-bold font-display mt-1">{activeLocations}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Instituições com sessões</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Locais ativos</p>
+                <p className="text-3xl sm:text-4xl font-bold font-display mt-2">{activeLocations}</p>
+                <p className="text-xs text-muted-foreground mt-1">Instituições com sessões</p>
               </div>
-              <div className="p-2 rounded-lg bg-orange-500/10 shrink-0">
-                <MapPin className="h-5 w-5 text-orange-500" />
+              <div className="p-3 rounded-xl bg-orange-500/10 shadow-inner shrink-0">
+                <MapPin className="h-6 w-6 text-orange-500" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => setDetailView('mentores')}>
+        <Card className="cursor-pointer bg-card/50 backdrop-blur-sm border-white/5 hover:-translate-y-1 hover:shadow-xl hover:shadow-purple-500/10 hover:border-purple-500/30 transition-all duration-300" onClick={() => setDetailView('mentores')}>
           <CardContent className="p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-xs font-medium text-muted-foreground">Mentores ativos</p>
-                <p className="text-2xl sm:text-3xl font-bold font-display mt-1">{activeMentors}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Com sessões agendadas</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Mentores ativos</p>
+                <p className="text-3xl sm:text-4xl font-bold font-display mt-2">{activeMentors}</p>
+                <p className="text-xs text-muted-foreground mt-1">Com sessões agendadas</p>
               </div>
-              <div className="p-2 rounded-lg bg-purple-500/10 shrink-0">
-                <Users className="h-5 w-5 text-purple-500" />
+              <div className="p-3 rounded-xl bg-purple-500/10 shadow-inner shrink-0">
+                <Users className="h-6 w-6 text-purple-500" />
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="cursor-pointer hover:bg-accent/50 transition-colors" onClick={() => setDetailView('equipa')}>
+        <Card className="cursor-pointer bg-card/50 backdrop-blur-sm border-white/5 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/10 hover:border-indigo-500/30 transition-all duration-300" onClick={() => setDetailView('equipa')}>
           <CardContent className="p-4 sm:p-5">
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-xs font-medium text-muted-foreground">Equipa Total</p>
-                <p className="text-2xl sm:text-3xl font-bold font-display mt-1">{equipa.length}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Membros registados</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Equipa Total</p>
+                <p className="text-3xl sm:text-4xl font-bold font-display mt-2">{equipa.length}</p>
+                <p className="text-xs text-muted-foreground mt-1">Membros registados</p>
               </div>
-              <div className="p-2 rounded-lg bg-indigo-500/10 shrink-0">
-                <Users className="h-5 w-5 text-indigo-500" />
+              <div className="p-3 rounded-xl bg-indigo-500/10 shadow-inner shrink-0">
+                <Users className="h-6 w-6 text-indigo-500" />
               </div>
             </div>
           </CardContent>
@@ -302,33 +302,40 @@ export function CoordinatorDashboard() {
                 <div
                   key={session.id}
                   className={cn(
-                    'flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-secondary/30 border-l-2',
+                    'flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-xl bg-secondary/20 hover:bg-secondary/40 transition-colors border border-white/5 border-l-4',
                     statusBorderColors[session.estado] || 'border-l-transparent'
                   )}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="text-center min-w-[52px]">
-                      <p className="text-base font-bold font-display leading-none">
+                  <div className="flex items-center gap-4 sm:gap-6">
+                    <div className="flex flex-col items-center justify-center p-2.5 rounded-lg bg-background/50 border border-white/5 min-w-[70px] shadow-sm">
+                      <p className="text-lg font-bold font-display leading-none text-foreground">
                         {format(new Date(session.data_hora), 'HH:mm')}
                       </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">{session.duracao_minutos}min</p>
+                      <p className="text-[11px] font-medium text-muted-foreground mt-1.5 uppercase tracking-wider">{session.duracao_minutos} min</p>
                     </div>
-                    <div className="w-px h-8 bg-border shrink-0" />
-                    <div>
-                      <p className="font-medium text-sm">{session.estabelecimento_nome}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {session.turma_nome} · {session.mentor_nome || 'Sem mentor'}
-                      </p>
+                    
+                    <div className="flex flex-col">
+                      <p className="font-bold text-base md:text-lg text-foreground leading-tight">{session.estabelecimento_nome}</p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        <Badge variant="secondary" className="bg-background/50 text-xs font-normal border-white/5">
+                          {session.turma_nome}
+                        </Badge>
+                        <span className="text-muted-foreground/50 text-xs">•</span>
+                        <p className="text-sm font-medium text-muted-foreground flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5" />
+                          {session.mentor_nome || 'Sem mentor'}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <div className="flex items-center gap-3 self-end sm:self-auto mt-2 sm:mt-0">
                     {session.estado === 'confirmada' && !session.is_autonomous && new Date(session.data_hora) < now && (
-                      <Button size="sm" variant="outline" onClick={() => openTerminarModal(session.id)}>
-                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                      <Button size="sm" variant="outline" className="shadow-sm border-white/10 hover:bg-background/80" onClick={() => openTerminarModal(session.id)}>
+                        <CheckCircle2 className="h-4 w-4 mr-1.5 text-green-500" />
                         Terminar
                       </Button>
                     )}
-                    <Badge className={statusColors[session.estado] || statusColors.confirmada}>
+                    <Badge className={cn("px-2.5 py-1 text-xs font-semibold shadow-sm", statusColors[session.estado] || statusColors.confirmada)}>
                       {statusLabels[session.estado] || session.estado}
                     </Badge>
                   </div>

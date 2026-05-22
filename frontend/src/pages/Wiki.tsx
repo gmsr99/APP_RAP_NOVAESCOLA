@@ -1595,9 +1595,9 @@ const Wiki = () => {
                 const pathKey = `${tipo}_path` as 'logo_esq_path' | 'logo_dir_path' | 'footer_path';
                 const currentPath = selectedProjeto?.[pathKey];
                 const labels: Record<string, { title: string; hint: string }> = {
-                  logo_esq: { title: 'Logo esquerdo (cabeçalho)', hint: 'Por defeito: logo Tempos Brilhantes' },
+                  logo_esq: { title: 'Logo esquerdo (cabeçalho)', hint: 'Por defeito: vazio' },
                   logo_dir: { title: 'Logo direito (cabeçalho)', hint: 'Por defeito: logo RAP Nova Escola' },
-                  footer: { title: 'Rodapé', hint: 'Por defeito: logos de cofinanciadoras' },
+                  footer: { title: 'Rodapé', hint: 'Por defeito: vazio' },
                 };
                 const { title, hint } = labels[tipo];
                 const previewUrl = currentPath

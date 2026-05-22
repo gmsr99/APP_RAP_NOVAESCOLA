@@ -37,7 +37,7 @@ export function Header({ onMenuToggle }: HeaderProps) {
   });
 
   return (
-    <header className="flex items-center justify-between h-16 px-4 sm:px-6 border-b border-border bg-card shrink-0">
+    <header className="flex items-center justify-between h-16 px-4 sm:px-6 border-b border-white/5 bg-background/80 backdrop-blur-md shrink-0">
       {/* Mobile: hamburger */}
       <Button
         variant="ghost"

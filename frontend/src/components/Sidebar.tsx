@@ -219,7 +219,7 @@ export function BottomNav({ onMoreClick }: { onMoreClick: () => void }) {
   ) as NavItem[]).sort((a, b) => BOTTOM_NAV_HREFS.indexOf(a.href) - BOTTOM_NAV_HREFS.indexOf(b.href));
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sidebar border-t border-sidebar-border flex items-stretch h-16" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-sidebar/80 backdrop-blur-md border-t border-white/5 flex items-stretch h-16" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {bottomItems.map(item => {
         const Icon = item.icon;
         const isActive = location.pathname === item.href;

@@ -29,7 +29,7 @@ _supabase = create_client(_supabase_url, _supabase_key) if _supabase_url else No
 # Image loading helpers
 # ---------------------------------------------------------------------------
 
-def _load_image(storage_path: Optional[str], default_filename: str) -> Optional[bytes]:
+def _load_image(storage_path: Optional[str], default_filename: Optional[str]) -> Optional[bytes]:
     """Load image bytes from Supabase public storage or local fallback."""
     if storage_path and _supabase:
         try:
@@ -40,6 +40,8 @@ def _load_image(storage_path: Optional[str], default_filename: str) -> Optional[
         except Exception as e:
             logger.warning("Could not load asset from storage (%s): %s", storage_path, e)
 
+    if not default_filename:
+        return None
     local = os.path.join(ASSETS_DIR, default_filename)
     if os.path.exists(local):
         with open(local, "rb") as f:
@@ -272,9 +274,9 @@ def gerar_pdf_pre_registo(form_data: dict, projeto_config: dict) -> bytes:
     """
     is_autonomous = bool(form_data.get("is_autonomous", False))
 
-    logo_esq = _load_image(projeto_config.get("logo_esq_path"), "logo_tempos_brilhantes.png")
+    logo_esq = _load_image(projeto_config.get("logo_esq_path"), None)
     logo_dir = _load_image(projeto_config.get("logo_dir_path"), "logo_rap_nova_escola.png")
-    footer_img = _load_image(projeto_config.get("footer_path"), "footer_default.png")
+    footer_img = _load_image(projeto_config.get("footer_path"), None)
 
     W, _ = A4
     margin = 30

@@ -94,3 +94,6 @@ pywebpush>=2.0.0
 
 # PDF Generation
 reportlab==4.2.5
+
+# Multipart form data (required for UploadFile)
+python-multipart>=0.0.7
