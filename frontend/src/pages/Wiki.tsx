@@ -1636,7 +1636,9 @@ const Wiki = () => {
                             try {
                               const fd = new FormData();
                               fd.append('file', file);
-                              await api.post(`/api/projetos/${selectedProjetoId}/assets?tipo=${tipo}`, fd);
+                              await api.post(`/api/projetos/${selectedProjetoId}/assets?tipo=${tipo}`, fd, {
+                                headers: { 'Content-Type': undefined },
+                              });
                               queryClient.invalidateQueries({ queryKey: ['projetos'] });
                               toast.success('Imagem atualizada.');
                             } catch {
