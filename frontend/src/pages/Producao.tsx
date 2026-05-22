@@ -52,6 +52,7 @@ import {
   AlertTriangle,
   Clock,
   Timer,
+  RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, addMinutes } from 'date-fns';
@@ -174,6 +175,7 @@ const Producao = () => {
   const [editMusicForm, setEditMusicForm] = useState({ titulo: '', turma_id: '', disciplina_id: '' });
 
   const isCoordinator = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
+  const isAdmin = profile === 'direcao' || profile === 'it_support';
   const isProdutor = profile === 'produtor' || profile === 'mentor_produtor';
 
   // ─── Queries ─────────────────────────────────────────────────────────────────
@@ -328,6 +330,15 @@ const Producao = () => {
       setDeleteConfirm(null);
     },
     onError: () => toast({ title: 'Erro', description: 'Falha ao apagar música.', variant: 'destructive' })
+  });
+
+  const resetTimerMutation = useMutation({
+    mutationFn: (id: number) => api.post(`/api/musicas/${id}/reset-timer`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['musicas'] });
+      toast({ title: 'Timer reposto', description: 'O prazo foi reiniciado.' });
+    },
+    onError: () => toast({ title: 'Erro', description: 'Falha ao repor timer.', variant: 'destructive' })
   });
 
   // ─── Filtering ───────────────────────────────────────────────────────────────
@@ -518,6 +529,7 @@ const Producao = () => {
     const overdue = isOverdue(m);
     const isPending = advancePhaseMutation.isPending || aceitarTarefaMutation.isPending;
     const showAction = canUserAction(m) && m.estado !== 'concluído' && m.estado !== 'pool_mistura';
+    const showResetTimer = isAdmin && (m.estado === 'edição' || m.estado === 'mistura_wip');
 
     let timerLabel: string | null = null;
     if (m.estado === 'mistura_wip' && m.mistura_atribuida_em)
@@ -563,7 +575,7 @@ const Producao = () => {
         )}
 
         {/* Actions */}
-        {(showAction || isCoordinator || m.criador?.id === user?.id) && (
+        {(showAction || isCoordinator || showResetTimer || m.criador?.id === user?.id) && (
           <div className="flex items-center gap-1.5 pt-1 border-t border-border">
             {showAction && (
               m.estado === 'feedback_wip' ? (
@@ -574,6 +586,17 @@ const Producao = () => {
                   <span className="truncate">{ACTION_LABELS[m.estado] || 'Avançar'}</span>
                 </Button>
               )
+            )}
+            {showResetTimer && (
+              <Button
+                size="icon" variant="ghost"
+                className="h-7 w-7 shrink-0 text-muted-foreground hover:text-amber-500"
+                title="Repor timer"
+                onClick={() => resetTimerMutation.mutate(m.id)}
+                disabled={resetTimerMutation.isPending}
+              >
+                <RotateCcw className="w-3 h-3" />
+              </Button>
             )}
             {(isCoordinator || m.criador?.id === user?.id) && (
               <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground" onClick={() => openEditMusic(m)}>

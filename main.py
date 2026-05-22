@@ -1229,6 +1229,16 @@ async def aceitar_tarefa_musica(musica_id: int, user=Depends(get_current_user_re
         raise HTTPException(status_code=400, detail=mensagem)
     return {"message": mensagem}
 
+@app.post("/api/musicas/{musica_id}/reset-timer", tags=["Producao"])
+async def reset_timer_musica(musica_id: int, user=Depends(get_current_user_required)):
+    """Repõe o timer de uma música (apenas direção/it_support)."""
+    if user.get("role") not in ("direcao", "it_support"):
+        raise HTTPException(status_code=403, detail="Apenas admins podem repor timers.")
+    sucesso, mensagem = musica_service.reset_timer(musica_id)
+    if not sucesso:
+        raise HTTPException(status_code=400, detail=mensagem)
+    return {"message": mensagem}
+
 @app.patch("/api/musicas/{musica_id}/arquivar", tags=["Producao"])
 async def arquivar_musica(musica_id: int):
     """Arquiva uma música (apenas se estiver em Finalização)."""

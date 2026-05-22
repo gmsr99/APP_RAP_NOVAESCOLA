@@ -470,6 +470,41 @@ def auto_assign_from_pool(projeto_id: int) -> int:
         if 'conn' in locals() and conn: conn.close()
 
 
+def reset_timer(musica_id: int) -> tuple:
+    """Repõe o temporizador de uma música em 'edição' (24h) ou 'mistura_wip' (48h)."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT estado FROM musicas WHERE id = %s", (musica_id,))
+        row = cur.fetchone()
+        if not row:
+            return False, "Música não encontrada"
+        estado = row[0]
+        if estado == 'edição':
+            cur.execute("""
+                UPDATE musicas SET edicao_iniciada_em = NOW(),
+                    fase_deadline = CURRENT_DATE + 1, updated_at = NOW()
+                WHERE id = %s
+            """, (musica_id,))
+        elif estado == 'mistura_wip':
+            cur.execute("""
+                UPDATE musicas SET mistura_atribuida_em = NOW(),
+                    fase_deadline = CURRENT_DATE + 2, updated_at = NOW()
+                WHERE id = %s
+            """, (musica_id,))
+        else:
+            return False, f"Estado '{estado}' não suporta reset de timer"
+        conn.commit()
+        return True, "Timer reposto"
+    except Exception as e:
+        logger.error("Erro em reset_timer: %s", e)
+        if 'conn' in locals() and conn: conn.rollback()
+        return False, str(e)
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
 def aceitar_tarefa(musica_id, user_id):
     """
     Permite a um utilizador 'pegar' numa música que está numa Pool.
