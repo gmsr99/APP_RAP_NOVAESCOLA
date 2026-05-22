@@ -89,7 +89,7 @@ def _draw_header(c, logo_esq: Optional[bytes], logo_dir: Optional[bytes]) -> Non
     c.line(margin, top - logo_h - 5, W - margin, top - logo_h - 5)
 
 
-def _draw_footer(c, footer_img: Optional[bytes], is_autonomous: bool) -> None:
+def _draw_footer(c, footer_img: Optional[bytes]) -> None:
     W, _ = A4
     margin = 30
     footer_line_y = margin + 45
@@ -99,12 +99,11 @@ def _draw_footer(c, footer_img: Optional[bytes], is_autonomous: bool) -> None:
     c.setStrokeColor(colors.black)
     c.line(margin, footer_line_y, W - margin, footer_line_y)
 
-    # Footer image (funding logos, occupies most of footer row)
     if footer_img:
         try:
             img = ImageReader(io.BytesIO(footer_img))
             iw, ih = img.getSize()
-            max_w = W - 2 * margin - 65  # leave ~65pt on right for page ref
+            max_w = W - 2 * margin
             max_h = 38
             scale = min(max_w / iw, max_h / ih)
             dw, dh = iw * scale, ih * scale
@@ -112,13 +111,6 @@ def _draw_footer(c, footer_img: Optional[bytes], is_autonomous: bool) -> None:
                         width=dw, height=dh, mask="auto")
         except Exception as e:
             logger.warning("Could not draw footer image: %s", e)
-
-    # Page reference (right side, small text)
-    ref = "IS.IMP11 | 01.10.2025" if is_autonomous else "IS.IMP02 | 05.05.2025"
-    c.setFont("Helvetica", 6.5)
-    c.drawRightString(W - margin, margin + 28, "Página 1 de 1")
-    c.drawRightString(W - margin, margin + 18, ref)
-    c.drawRightString(W - margin, margin + 8, "IMPRESSA CERTIFICADA")
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +286,7 @@ def gerar_pdf_pre_registo(form_data: dict, projeto_config: dict) -> bytes:
 
     def on_page(canvas_obj, doc_obj):
         _draw_header(canvas_obj, logo_esq, logo_dir)
-        _draw_footer(canvas_obj, footer_img, is_autonomous)
+        _draw_footer(canvas_obj, footer_img)
 
     story = _build_story(form_data, projeto_config, is_autonomous, cw)
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)

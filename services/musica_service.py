@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 # Dias de deadline automática por fase (apenas estados com responsável atribuído)
 FASE_DEADLINES_DIAS = {
     'gravação': 3,
-    'edição': 2,
-    'mistura_wip': 3,
+    'edição': 1,       # 24h para o mentor enviar para mistura
+    'mistura_wip': 2,  # 48h individuais por música
     'feedback_wip': 2,
     'finalização_wip': 3,
 }
@@ -99,7 +99,9 @@ def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None, a
                 m.deadline,
                 m.notas,
                 m.projeto_id,
-                m.fase_deadline
+                m.fase_deadline,
+                m.mistura_atribuida_em,
+                m.edicao_iniciada_em
             FROM musicas m
             LEFT JOIN turmas t ON m.turma_id = t.id
             LEFT JOIN estabelecimentos e ON t.estabelecimento_id = e.id
@@ -156,6 +158,8 @@ def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None, a
                 'notas': row[22],
                 'projeto_id': row[23],
                 'fase_deadline': row[24].isoformat() if row[24] else None,
+                'mistura_atribuida_em': row[25].isoformat() if row[25] else None,
+                'edicao_iniciada_em': row[26].isoformat() if row[26] else None,
             })
             
         return resultado
@@ -210,7 +214,11 @@ def criar_musica(dados, criador_id, criador_role=None):
         
         new_id = cur.fetchone()[0]
         conn.commit()
-        
+
+        # Se entrou direto em pool_mistura, tentar auto-atribuição imediata
+        if estado_inicial == 'pool_mistura' and dados.get('projeto_id'):
+            auto_assign_from_pool(dados['projeto_id'])
+
         return {'id': new_id, 'message': 'Música criada com sucesso'}
     except Exception as e:
         logger.error(f"Erro ao criar música: {e}")
@@ -229,8 +237,8 @@ def avancar_fase(musica_id, user_id, dados=None):
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Obter estado atual, responsável e título
-        cur.execute("SELECT estado, responsavel_id, titulo FROM musicas WHERE id = %s", (musica_id,))
+        # Obter estado atual, responsável, título e projeto
+        cur.execute("SELECT estado, responsavel_id, titulo, projeto_id FROM musicas WHERE id = %s", (musica_id,))
         row = cur.fetchone()
 
         if not row:
@@ -239,6 +247,7 @@ def avancar_fase(musica_id, user_id, dados=None):
         estado_atual = row[0]
         responsavel_atual = row[1]
         titulo_musica = row[2]
+        projeto_id = row[3]
 
         # Validar permissão (Apenas o responsável atual pode avançar, exceto se for Pool)
         if responsavel_atual and str(responsavel_atual) != str(user_id):
@@ -254,10 +263,11 @@ def avancar_fase(musica_id, user_id, dados=None):
             novo_estado = 'edição'
             novo_responsavel = user_id
             fase_dl = _calcular_fase_deadline(novo_estado)
-            cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, fase_deadline = %s, updated_at = NOW() WHERE id = %s",
+            cur.execute("""UPDATE musicas SET estado = %s, responsavel_id = %s, fase_deadline = %s,
+                          edicao_iniciada_em = NOW(), updated_at = NOW() WHERE id = %s""",
                        (novo_estado, novo_responsavel, fase_dl, musica_id))
 
-        # 2. Mentor: Edição -> Pool Mistura (Liberta para Produtores)
+        # 2. Mentor: Edição -> Pool Mistura (auto-atribuição a produtor elegível)
         elif estado_atual == 'edição':
             novo_estado = 'pool_mistura'
             novo_responsavel = None
@@ -297,8 +307,12 @@ def avancar_fase(musica_id, user_id, dados=None):
         cur.close()
         conn.close()
 
-        # --- NOTIFICAÇÕES PÓS-TRANSIÇÃO (fora da transação, em background) ---
+        # --- PÓS-TRANSIÇÃO: notificações + auto-atribuição ---
         _notificar_transicao(musica_id, titulo_musica, estado_atual, novo_estado, user_id)
+
+        # Auto-atribuir da pool quando há slot livre
+        if novo_estado in ('pool_mistura', 'pool_feedback') and projeto_id:
+            auto_assign_from_pool(projeto_id)
 
         return True, f"Fase avançada para {novo_estado}"
 
@@ -372,6 +386,90 @@ def _notificar_transicao(musica_id, titulo_musica, _estado_anterior, novo_estado
     except Exception as e:
         logger.warning("Erro em _notificar_transicao: %s", e)
 
+def auto_assign_from_pool(projeto_id: int) -> int:
+    """Auto-atribui músicas de pool_mistura a produtores com slot disponível (< 3 mistura_wip).
+    Retorna o número de atribuições feitas."""
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Músicas à espera (FIFO)
+        cur.execute("""
+            SELECT id, titulo FROM musicas
+            WHERE estado = 'pool_mistura' AND projeto_id = %s AND arquivado = FALSE
+            ORDER BY criado_em ASC
+        """, (projeto_id,))
+        pool = cur.fetchall()
+
+        if not pool:
+            return 0
+
+        # Produtores elegíveis com acesso ao projeto e wip_count < 3 (global)
+        cur.execute("""
+            SELECT p.id, COUNT(m.id) AS wip_count
+            FROM profiles p
+            LEFT JOIN musicas m ON m.responsavel_id = p.id
+                               AND m.estado = 'mistura_wip'
+                               AND m.arquivado = FALSE
+            WHERE p.role IN ('produtor', 'mentor_produtor')
+              AND (
+                p.is_root = TRUE
+                OR p.project_scoped = FALSE
+                OR EXISTS (
+                  SELECT 1 FROM user_project_access upa
+                  WHERE upa.user_id = p.id AND upa.projeto_id = %s
+                )
+              )
+            GROUP BY p.id
+            HAVING COUNT(m.id) < 3
+            ORDER BY wip_count ASC, MAX(m.mistura_atribuida_em) ASC NULLS FIRST
+        """, (projeto_id,))
+        producers = [[row[0], int(row[1])] for row in cur.fetchall()]
+
+        if not producers:
+            return 0
+
+        assignments = []
+        for musica_id, titulo in pool:
+            producers.sort(key=lambda x: x[1])
+            for prod in producers:
+                if prod[1] < 3:
+                    cur.execute("""
+                        UPDATE musicas
+                        SET estado = 'mistura_wip',
+                            responsavel_id = %s,
+                            mistura_atribuida_em = NOW(),
+                            fase_deadline = CURRENT_DATE + 2,
+                            updated_at = NOW()
+                        WHERE id = %s AND estado = 'pool_mistura'
+                    """, (prod[0], musica_id))
+                    if cur.rowcount > 0:
+                        prod[1] += 1
+                        assignments.append((str(prod[0]), titulo))
+                    break
+            if not any(p[1] < 3 for p in producers):
+                break
+
+        conn.commit()
+
+        for prod_id, titulo in assignments:
+            _notificar_users(
+                [prod_id], 'producao_atribuicao',
+                'Nova música para mistura',
+                f'"{titulo}" foi atribuída para mistura.',
+                '/producao'
+            )
+
+        return len(assignments)
+    except Exception as e:
+        logger.error("Erro em auto_assign_from_pool: %s", e)
+        if 'conn' in locals() and conn: conn.rollback()
+        return 0
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
 def aceitar_tarefa(musica_id, user_id):
     """
     Permite a um utilizador 'pegar' numa música que está numa Pool.
@@ -394,7 +492,7 @@ def aceitar_tarefa(musica_id, user_id):
         novo_estado = None
 
         if estado_atual == 'pool_mistura':
-            novo_estado = 'mistura_wip'
+            return False, "A atribuição de mistura é automática — não é possível aceitar manualmente."
         elif estado_atual == 'pool_feedback':
             novo_estado = 'feedback_wip'
         elif estado_atual == 'pool_finalização':
@@ -568,13 +666,17 @@ def verificar_e_notificar_deadlines():
               AND m.responsavel_id IS NOT NULL
         """)
         rows = cur.fetchall()
+
+        # Coordenadores para alertar sobre mentores em atraso na edição
+        coord_ids = _buscar_users_por_roles(['coordenador'])
+
         cur.close()
         conn.close()
 
         from services.notification_service import criar_notificacao
         count = 0
         for row in rows:
-            musica_id, titulo, estado, responsavel_id, _ = row
+            musica_id, titulo, estado, responsavel_id, resp_nome = row
             criar_notificacao(
                 str(responsavel_id),
                 'producao_atraso',
@@ -583,6 +685,17 @@ def verificar_e_notificar_deadlines():
                 '/producao'
             )
             count += 1
+            # Notificar coordenadores quando mentor está em atraso na edição
+            if estado == 'edição':
+                for cid in coord_ids:
+                    if cid != str(responsavel_id):
+                        criar_notificacao(
+                            cid,
+                            'producao_atraso',
+                            f'Mentor em atraso: {titulo}',
+                            f'{resp_nome or "Mentor"} não enviou "{titulo}" para mistura dentro das 24h.',
+                            '/producao'
+                        )
         logger.info("verificar_e_notificar_deadlines: %s notificações enviadas", count)
         return count
     except Exception as e:

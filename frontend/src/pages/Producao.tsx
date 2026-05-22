@@ -50,6 +50,8 @@ import {
   Trash2,
   CheckCircle2,
   AlertTriangle,
+  Clock,
+  Timer,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, addMinutes } from 'date-fns';
@@ -75,6 +77,8 @@ interface Musica {
   deadline?: string | null;
   notas?: string | null;
   fase_deadline?: string | null;
+  mistura_atribuida_em?: string | null;
+  edicao_iniciada_em?: string | null;
 }
 
 interface Turma { id: number; nome: string; display_name: string; estabelecimento_id: number }
@@ -112,7 +116,7 @@ const MENTOR_STATES = ['gravação', 'edição'];
 const LAB_STATES = ['pool_mistura', 'mistura_wip', 'pool_finalização', 'finalização_wip'];
 const FEEDBACK_STATES = ['pool_feedback', 'feedback_wip'];
 const WORKLOG_STATES = ['gravação', 'edição', 'mistura_wip', 'finalização_wip'];
-const DIRECT_ADVANCE_STATES = ['pool_mistura', 'pool_finalização', 'pool_feedback'];
+const DIRECT_ADVANCE_STATES = ['pool_finalização', 'pool_feedback'];
 
 const STATUS_LABELS: Record<string, string> = {
   'gravação': 'Gravação', 'edição': 'Edição',
@@ -489,7 +493,159 @@ const Producao = () => {
     );
   };
 
-  // ─── Vista Geral (Tabela desktop / Cards mobile) ──────────────────────────
+  // ─── Kanban helpers ─────────────────────────────────────────────────────────
+
+  const horasRestantes = (desde: string | null | undefined, horasTotal: number): string | null => {
+    if (!desde) return null;
+    const deadline = new Date(new Date(desde).getTime() + horasTotal * 3600 * 1000);
+    const diff = deadline.getTime() - Date.now();
+    if (diff <= 0) return null; // overdue handled separately
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`;
+    return `${h}h ${m}m`;
+  };
+
+  const KANBAN_COLS = [
+    { id: 'mentor',     label: 'Mentor',        estados: ['gravação', 'edição'],                       headerClass: 'border-t-blue-400' },
+    { id: 'fila',       label: 'Fila',           estados: ['pool_mistura'],                             headerClass: 'border-t-gray-400' },
+    { id: 'mistura',    label: 'Em Mistura',     estados: ['mistura_wip'],                              headerClass: 'border-t-sky-400' },
+    { id: 'feedback',   label: 'Feedback',       estados: ['pool_feedback', 'feedback_wip'],            headerClass: 'border-t-orange-400' },
+    { id: 'finalizacao',label: 'Finalização',    estados: ['pool_finalização', 'finalização_wip'],      headerClass: 'border-t-green-400' },
+  ] as const;
+
+  const KanbanCard = ({ m, colIdx }: { m: Musica; colIdx: number }) => {
+    const overdue = isOverdue(m);
+    const isPending = advancePhaseMutation.isPending || aceitarTarefaMutation.isPending;
+    const showAction = canUserAction(m) && m.estado !== 'concluído' && m.estado !== 'pool_mistura';
+
+    let timerLabel: string | null = null;
+    if (m.estado === 'mistura_wip' && m.mistura_atribuida_em)
+      timerLabel = horasRestantes(m.mistura_atribuida_em, 48);
+    else if (m.estado === 'edição' && m.edicao_iniciada_em)
+      timerLabel = horasRestantes(m.edicao_iniciada_em, 24);
+
+    return (
+      <div className={cn(
+        'rounded-lg border bg-card p-3 space-y-2 text-sm shadow-sm',
+        overdue && 'border-destructive/60 bg-destructive/5'
+      )}>
+        {/* Title row */}
+        <div className="flex items-start gap-1.5">
+          {overdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />}
+          <p className={cn('font-semibold leading-snug break-words', overdue && 'text-destructive')}>{m.titulo}</p>
+        </div>
+
+        {/* Turma + estado badge */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground truncate">
+            {m.turma ? `${m.turma.nome} · ${m.turma.estabelecimento}` : '—'}
+          </span>
+          <Badge variant="secondary" className={cn('text-[10px] shrink-0 px-1.5', STATUS_COLORS[m.estado])}>
+            {STATUS_LABELS[m.estado]}
+          </Badge>
+        </div>
+
+        {/* Assignee + timer */}
+        {(m.responsavel || m.criador || timerLabel || overdue) && (
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span className="truncate">
+              {(m.responsavel || m.criador) && `👤 ${(m.responsavel || m.criador)?.nome?.split(' ')[0]}`}
+            </span>
+            <span className={cn('shrink-0 flex items-center gap-1', overdue ? 'text-destructive font-medium' : timerLabel ? 'text-amber-500' : '')}>
+              {overdue ? (
+                <><AlertTriangle className="h-3 w-3" /> Atrasado</>
+              ) : timerLabel ? (
+                <><Timer className="h-3 w-3" /> {timerLabel}</>
+              ) : null}
+            </span>
+          </div>
+        )}
+
+        {/* Actions */}
+        {(showAction || isCoordinator || m.criador?.id === user?.id) && (
+          <div className="flex items-center gap-1.5 pt-1 border-t border-border">
+            {showAction && (
+              m.estado === 'feedback_wip' ? (
+                <FeedbackDialog music={m} />
+              ) : (
+                <Button size="sm" variant="outline" className="h-7 text-xs flex-1 px-2" onClick={() => handleAdvance(m)} disabled={isPending}>
+                  <PlayCircle className="w-3 h-3 mr-1 shrink-0" />
+                  <span className="truncate">{ACTION_LABELS[m.estado] || 'Avançar'}</span>
+                </Button>
+              )
+            )}
+            {(isCoordinator || m.criador?.id === user?.id) && (
+              <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground" onClick={() => openEditMusic(m)}>
+                <Pencil className="w-3 h-3" />
+              </Button>
+            )}
+            {isCoordinator && (
+              <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteConfirm(m)}>
+                <Trash2 className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const VistaKanban = () => {
+    const wip3Count = activeMusicas.filter(m => m.estado === 'mistura_wip').length;
+
+    return (
+      <div className="overflow-x-auto pb-4">
+        <div className="flex gap-3 min-w-max">
+          {KANBAN_COLS.map((col, colIdx) => {
+            const cards = activeMusicas.filter(m => col.estados.includes(m.estado as any));
+            const isFila = col.id === 'fila';
+            const isMistura = col.id === 'mistura';
+
+            return (
+              <div key={col.id} className={cn('flex flex-col w-[260px] rounded-lg border bg-secondary/20 border-t-4', col.headerClass)}>
+                {/* Column header */}
+                <div className="px-3 py-2 border-b border-border">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-sm">{col.label}</span>
+                    <span className="text-xs text-muted-foreground bg-secondary rounded-full px-2 py-0.5">
+                      {cards.length}
+                      {isMistura && <span className="text-muted-foreground/60">/3</span>}
+                    </span>
+                  </div>
+                  {isFila && wip3Count > 0 && cards.length > 0 && (
+                    <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                      <Clock className="h-3 w-3" /> Auto-atribuído quando houver slot
+                    </p>
+                  )}
+                </div>
+
+                {/* Cards */}
+                <div className="flex flex-col gap-2 p-2 flex-1 min-h-[80px]">
+                  {cards.length === 0 ? (
+                    <div className="flex items-center justify-center h-16 text-xs text-muted-foreground/50 italic">
+                      Vazio
+                    </div>
+                  ) : (
+                    cards.map((m, i) => (
+                      <div key={m.id}>
+                        {isFila && (
+                          <p className="text-[10px] text-muted-foreground mb-0.5 font-medium">#{i + 1}</p>
+                        )}
+                        <KanbanCard m={m} colIdx={colIdx} />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // ─── Vista Geral (Tabela desktop / Cards mobile) — mantida para fallback ──
 
   const VistaGeral = () => (
     <>
@@ -963,7 +1119,7 @@ const Producao = () => {
         </TabsList>
 
         <TabsContent value="geral" className="mt-4">
-          <VistaGeral />
+          <VistaKanban />
         </TabsContent>
         {isCoordinator && (
         <TabsContent value="instituicao" className="mt-4">
