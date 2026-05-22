@@ -857,6 +857,9 @@ class EquipaMembroUpdate(BaseModel):
     full_name: Optional[str] = None
     avatar_url: Optional[str] = None
 
+class ProducaoColsUpdate(BaseModel):
+    cols: Optional[list] = None  # None = mostrar todas
+
 @app.patch("/api/equipa/{user_id}", tags=["Core"])
 async def update_equipa_member(user_id: str, payload: EquipaMembroUpdate, user=Depends(get_current_user_required)):
     """Atualiza role, nome e avatar de um membro (apenas direção/it_support)."""
@@ -876,6 +879,16 @@ async def update_equipa_member(user_id: str, payload: EquipaMembroUpdate, user=D
     sucesso = profile_service.atualizar_membro(user_id, dados)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar membro.")
+    return {"ok": True}
+
+
+@app.patch("/api/equipa/{user_id}/producao-cols", tags=["Core"])
+async def update_producao_cols(user_id: str, payload: ProducaoColsUpdate, user=Depends(get_current_user_required)):
+    """Define colunas visíveis da produção para um utilizador (apenas admins)."""
+    _require_root_or_role(user, {"direcao", "it_support"})
+    sucesso = profile_service.atualizar_producao_cols(user_id, payload.cols)
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao guardar configuração.")
     return {"ok": True}
 
 

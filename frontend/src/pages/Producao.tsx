@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from '@/components/ui/progress';
+import { Switch } from '@/components/ui/switch';
 import {
   Dialog,
   DialogContent,
@@ -53,6 +55,7 @@ import {
   Clock,
   Timer,
   RotateCcw,
+  Settings,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, addMinutes } from 'date-fns';
@@ -173,6 +176,8 @@ const Producao = () => {
   const [editMusicOpen, setEditMusicOpen] = useState(false);
   const [editMusicTarget, setEditMusicTarget] = useState<Musica | null>(null);
   const [editMusicForm, setEditMusicForm] = useState({ titulo: '', turma_id: '', disciplina_id: '' });
+  const [colSettingsOpen, setColSettingsOpen] = useState(false);
+  const [colDraft, setColDraft] = useState<Record<string, string[] | null>>({});
 
   const isCoordinator = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
   const isAdmin = profile === 'direcao' || profile === 'it_support';
@@ -258,6 +263,24 @@ const Producao = () => {
     enabled: concluidasOpen,
   });
 
+  // Colunas visíveis do utilizador atual (lidas diretamente do Supabase)
+  const { data: myVisibleCols, refetch: refetchMyCols } = useQuery({
+    queryKey: ['my-producao-cols', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data } = await supabase.from('profiles').select('producao_cols').eq('id', user.id).single();
+      return (data?.producao_cols as string[] | null) ?? null;
+    },
+    enabled: !!user?.id,
+  });
+
+  // Membros da equipa com producao_cols (apenas carregado para admins)
+  const { data: equipaMembers = [], refetch: refetchEquipa } = useQuery({
+    queryKey: ['equipa-cols'],
+    queryFn: async () => (await api.get('/api/equipa')).data as Array<{ id: string; full_name: string; role: string; producao_cols: string[] | null }>,
+    enabled: isAdmin,
+  });
+
   // ─── Mutations ───────────────────────────────────────────────────────────────
 
   const createMusicMutation = useMutation({
@@ -339,6 +362,23 @@ const Producao = () => {
       toast({ title: 'Timer reposto', description: 'O prazo foi reiniciado.' });
     },
     onError: () => toast({ title: 'Erro', description: 'Falha ao repor timer.', variant: 'destructive' })
+  });
+
+  const saveColsMutation = useMutation({
+    mutationFn: async (draft: Record<string, string[] | null>) => {
+      await Promise.all(
+        Object.entries(draft).map(([uid, cols]) =>
+          api.patch(`/api/equipa/${uid}/producao-cols`, { cols })
+        )
+      );
+    },
+    onSuccess: () => {
+      refetchEquipa();
+      refetchMyCols();
+      toast({ title: 'Configuração guardada' });
+      setColSettingsOpen(false);
+    },
+    onError: () => toast({ title: 'Erro', description: 'Falha ao guardar configuração.', variant: 'destructive' })
   });
 
   // ─── Filtering ───────────────────────────────────────────────────────────────
@@ -518,7 +558,7 @@ const Producao = () => {
   };
 
   const KANBAN_COLS = [
-    { id: 'mentor',     label: 'Mentor',        estados: ['gravação', 'edição'],                       headerClass: 'border-t-blue-400' },
+    { id: 'gravacao',   label: 'Gravação',       estados: ['gravação', 'edição'],                       headerClass: 'border-t-blue-400' },
     { id: 'fila',       label: 'Fila',           estados: ['pool_mistura'],                             headerClass: 'border-t-gray-400' },
     { id: 'mistura',    label: 'Em Mistura',     estados: ['mistura_wip'],                              headerClass: 'border-t-sky-400' },
     { id: 'feedback',   label: 'Feedback',       estados: ['pool_feedback', 'feedback_wip'],            headerClass: 'border-t-orange-400' },
@@ -616,11 +656,14 @@ const Producao = () => {
 
   const VistaKanban = () => {
     const wip3Count = activeMusicas.filter(m => m.estado === 'mistura_wip').length;
+    const visibleCols = myVisibleCols
+      ? KANBAN_COLS.filter(c => myVisibleCols.includes(c.id))
+      : KANBAN_COLS;
 
     return (
       <div className="overflow-x-auto pb-4">
         <div className="flex gap-3 min-w-max">
-          {KANBAN_COLS.map((col, colIdx) => {
+          {visibleCols.map((col, colIdx) => {
             const cards = activeMusicas.filter(m => col.estados.includes(m.estado as any));
             const isFila = col.id === 'fila';
             const isMistura = col.id === 'mistura';
@@ -1046,6 +1089,16 @@ const Producao = () => {
           <p className="text-muted-foreground mt-1">Gestão do fluxo de trabalho de produção musical.</p>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <Button variant="outline" size="icon" title="Configuração de colunas" onClick={() => {
+              const init: Record<string, string[] | null> = {};
+              equipaMembers.forEach(m => { init[m.id] = m.producao_cols ?? null; });
+              setColDraft(init);
+              setColSettingsOpen(true);
+            }}>
+              <Settings className="h-4 w-4" />
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setConcluidasOpen(true)}>
             <CheckCircle2 className="h-4 w-4 mr-2" /> Concluídas
           </Button>
@@ -1155,6 +1208,66 @@ const Producao = () => {
         </TabsContent>
         )}
       </Tabs>
+
+      {/* Column Settings Dialog */}
+      <Dialog open={colSettingsOpen} onOpenChange={setColSettingsOpen}>
+        <DialogContent className="w-full sm:max-w-[700px] max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" /> Colunas visíveis por utilizador
+            </DialogTitle>
+            <DialogDescription>
+              Configura quais colunas do quadro de produção cada membro vê. Sem seleção = vê todas.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            {/* Column headers */}
+            <div className="grid grid-cols-[1fr_repeat(5,_48px)] gap-x-2 items-center mb-2 px-2">
+              <span className="text-xs font-medium text-muted-foreground">Utilizador</span>
+              {KANBAN_COLS.map(c => (
+                <span key={c.id} className="text-[10px] font-medium text-muted-foreground text-center leading-tight">{c.label}</span>
+              ))}
+            </div>
+            <div className="space-y-1">
+              {equipaMembers.map(m => {
+                const userCols = colDraft[m.id] ?? null;
+                const allVisible = userCols === null;
+                return (
+                  <div key={m.id} className="grid grid-cols-[1fr_repeat(5,_48px)] gap-x-2 items-center px-2 py-1.5 rounded hover:bg-muted/50">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{m.full_name}</p>
+                      <p className="text-xs text-muted-foreground capitalize">{m.role}</p>
+                    </div>
+                    {KANBAN_COLS.map(c => (
+                      <div key={c.id} className="flex justify-center">
+                        <Switch
+                          checked={allVisible || userCols!.includes(c.id)}
+                          onCheckedChange={(checked) => {
+                            setColDraft(prev => {
+                              const current = prev[m.id] ?? KANBAN_COLS.map(k => k.id);
+                              const next = checked
+                                ? [...new Set([...current, c.id])]
+                                : current.filter(x => x !== c.id);
+                              const isAll = next.length === KANBAN_COLS.length;
+                              return { ...prev, [m.id]: isAll ? null : next };
+                            });
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setColSettingsOpen(false)}>Cancelar</Button>
+            <Button onClick={() => saveColsMutation.mutate(colDraft)} disabled={saveColsMutation.isPending}>
+              Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>

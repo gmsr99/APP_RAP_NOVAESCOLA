@@ -26,7 +26,8 @@ def listar_perfis():
                 p.role,
                 COALESCE(au.raw_user_meta_data->>'avatar_url', p.avatar_url) AS avatar_url,
                 p.created_at,
-                p.updated_at
+                p.updated_at,
+                p.producao_cols
             FROM profiles p
             JOIN auth.users au ON au.id = p.id
             ORDER BY p.full_name
@@ -87,6 +88,26 @@ def atualizar_membro(user_id: str, dados: dict):
         logger.error(f"Erro ao atualizar membro {user_id}: {e}")
         if 'conn' in locals() and conn:
             conn.rollback()
+        return False
+
+
+def atualizar_producao_cols(user_id: str, cols):
+    """Define as colunas visíveis da página de produção para um utilizador. None = todas."""
+    try:
+        from database.connection import get_db_connection
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE profiles SET producao_cols = %s, updated_at = NOW() WHERE id = %s",
+            (cols, user_id)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar producao_cols de {user_id}: {e}")
+        if 'conn' in locals() and conn: conn.rollback()
         return False
 
 
