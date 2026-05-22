@@ -5,6 +5,9 @@ from database.connection import get_db_connection
 logger = logging.getLogger(__name__)
 
 
+_PROJETO_COLS = "id, nome, descricao, estado, requer_digitalizacao, tem_pre_registos, codigo_projeto, logo_esq_path, logo_dir_path, footer_path"
+
+
 def listar_projetos(allowed_ids=None):
     """Lista projetos. Se allowed_ids for uma lista, filtra por esses IDs."""
     conn = get_db_connection()
@@ -15,16 +18,37 @@ def listar_projetos(allowed_ids=None):
                 return []
             placeholders = ",".join(["%s"] * len(allowed_ids))
             cur.execute(
-                f"SELECT id, nome, descricao, estado, requer_digitalizacao, tem_pre_registos FROM projetos WHERE id IN ({placeholders}) ORDER BY nome",
+                f"SELECT {_PROJETO_COLS} FROM projetos WHERE id IN ({placeholders}) ORDER BY nome",
                 allowed_ids,
             )
         else:
-            cur.execute("SELECT id, nome, descricao, estado, requer_digitalizacao, tem_pre_registos FROM projetos ORDER BY nome")
+            cur.execute(f"SELECT {_PROJETO_COLS} FROM projetos ORDER BY nome")
         cols = [desc[0] for desc in cur.description]
         return [dict(zip(cols, row)) for row in cur.fetchall()]
     except Exception as e:
         logger.error(f"Erro ao listar projetos: {e}")
         return []
+    finally:
+        conn.close()
+
+
+def obter_projeto_config(projeto_id: int) -> dict:
+    """Obtém a configuração completa de um projeto (para geração de PDF)."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            f"SELECT {_PROJETO_COLS} FROM projetos WHERE id = %s",
+            (projeto_id,),
+        )
+        row = cur.fetchone()
+        if not row:
+            return {}
+        cols = [desc[0] for desc in cur.description]
+        return dict(zip(cols, row))
+    except Exception as e:
+        logger.error(f"Erro ao obter config do projeto {projeto_id}: {e}")
+        return {}
     finally:
         conn.close()
 
@@ -146,26 +170,50 @@ def desassociar_estabelecimento(projeto_id, estabelecimento_id):
         conn.close()
 
 
-def atualizar_config_projeto(projeto_id: int, requer_digitalizacao: bool, tem_pre_registos: bool | None = None) -> bool:
+def atualizar_config_projeto(
+    projeto_id: int,
+    requer_digitalizacao: bool,
+    tem_pre_registos: bool | None = None,
+    codigo_projeto: str | None = None,
+) -> bool:
     """Atualiza as configurações de um projeto."""
     conn = get_db_connection()
     try:
         cur = conn.cursor()
+        sets = ["requer_digitalizacao = %s"]
+        vals: list = [requer_digitalizacao]
         if tem_pre_registos is not None:
-            cur.execute(
-                "UPDATE projetos SET requer_digitalizacao = %s, tem_pre_registos = %s WHERE id = %s",
-                (requer_digitalizacao, tem_pre_registos, projeto_id),
-            )
-        else:
-            cur.execute(
-                "UPDATE projetos SET requer_digitalizacao = %s WHERE id = %s",
-                (requer_digitalizacao, projeto_id),
-            )
+            sets.append("tem_pre_registos = %s")
+            vals.append(tem_pre_registos)
+        if codigo_projeto is not None:
+            sets.append("codigo_projeto = %s")
+            vals.append(codigo_projeto if codigo_projeto.strip() else None)
+        vals.append(projeto_id)
+        cur.execute(f"UPDATE projetos SET {', '.join(sets)} WHERE id = %s", vals)
         conn.commit()
         return cur.rowcount > 0
     except Exception as e:
         conn.rollback()
         logger.error(f"Erro ao atualizar config projeto: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def atualizar_logo_projeto(projeto_id: int, campo: str, path: str | None) -> bool:
+    """Atualiza o path de um logo/footer de projeto. campo: logo_esq_path | logo_dir_path | footer_path"""
+    allowed = {"logo_esq_path", "logo_dir_path", "footer_path"}
+    if campo not in allowed:
+        return False
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(f"UPDATE projetos SET {campo} = %s WHERE id = %s", (path, projeto_id))
+        conn.commit()
+        return cur.rowcount > 0
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Erro ao atualizar logo do projeto: {e}")
         return False
     finally:
         conn.close()

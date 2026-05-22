@@ -229,6 +229,10 @@ export interface Projeto {
   estado?: string;
   requer_digitalizacao?: boolean;
   tem_pre_registos?: boolean;
+  codigo_projeto?: string | null;
+  logo_esq_path?: string | null;
+  logo_dir_path?: string | null;
+  footer_path?: string | null;
 }
 
 export interface ContactoEstabelecimento {

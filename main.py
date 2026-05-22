@@ -18,7 +18,7 @@ Versão: 2.0
 # Importações de bibliotecas
 import uvicorn
 from typing import List, Optional
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
@@ -660,14 +660,92 @@ class AulaRegistoPayload(BaseModel):
 class ProjetoConfigPayload(BaseModel):
     requer_digitalizacao: bool
     tem_pre_registos: Optional[bool] = None
+    codigo_projeto: Optional[str] = None
+
+class PreRegistoPdfPayload(BaseModel):
+    aula_id: int
+    projeto_id: int
+    atividade: str = ""
+    numero_sessao: str = ""
+    data: str = ""
+    local: str = ""
+    horario: str = ""
+    tecnicos: str = ""
+    objetivos_gerais: str = ""
+    sumario: str = ""
+    participantes: list = []
+    is_autonomous: bool = False
 
 @app.patch("/api/projetos/{id}/config", tags=["Projetos"])
 async def update_projeto_config(id: int, data: ProjetoConfigPayload, user=Depends(get_current_user_required)):
     _require_root_or_role(user, COORD_ROLES)
-    sucesso = projeto_service.atualizar_config_projeto(id, data.requer_digitalizacao, data.tem_pre_registos)
+    sucesso = projeto_service.atualizar_config_projeto(
+        id, data.requer_digitalizacao, data.tem_pre_registos, data.codigo_projeto
+    )
     if not sucesso:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
     return {"message": "Configurações atualizadas"}
+
+@app.post("/api/pre-registos/pdf", tags=["Registos"])
+async def gerar_pre_registo_pdf(payload: PreRegistoPdfPayload, user=Depends(get_current_user_required)):
+    from services import pdf_service
+    from fastapi.responses import Response as FastResponse
+    config = projeto_service.obter_projeto_config(payload.projeto_id)
+    if not config:
+        raise HTTPException(status_code=404, detail="Projeto não encontrado")
+    pdf_bytes = pdf_service.gerar_pdf_pre_registo(payload.dict(), config)
+    return FastResponse(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="registo.pdf"'},
+    )
+
+_ASSET_TIPOS = {"logo_esq": "logo_esq_path", "logo_dir": "logo_dir_path", "footer": "footer_path"}
+
+@app.post("/api/projetos/{id}/assets", tags=["Projetos"])
+async def upload_projeto_asset(
+    id: int,
+    tipo: str,
+    file: UploadFile = File(...),
+    user=Depends(get_current_user_required),
+):
+    _require_root_or_role(user, COORD_ROLES)
+    if tipo not in _ASSET_TIPOS:
+        raise HTTPException(status_code=400, detail="tipo inválido: use logo_esq, logo_dir ou footer")
+    ext = (file.filename or "").rsplit(".", 1)[-1].lower()
+    if ext not in ("png", "jpg", "jpeg", "webp"):
+        raise HTTPException(status_code=400, detail="Formato não suportado. Use PNG ou JPG.")
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Ficheiro demasiado grande (máx 5MB).")
+    from supabase import create_client as _sb_client
+    sb_url = os.environ.get("SUPABASE_URL", "")
+    sb_key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_ANON_KEY", "")
+    sb = _sb_client(sb_url, sb_key)
+    path = f"{id}/{tipo}.{ext}"
+    sb.storage.from_("project-assets").upload(path, content, {"upsert": "true", "content-type": file.content_type})
+    campo = _ASSET_TIPOS[tipo]
+    projeto_service.atualizar_logo_projeto(id, campo, path)
+    public_url = f"{sb_url}/storage/v1/object/public/project-assets/{path}"
+    return {"path": path, "url": public_url}
+
+@app.delete("/api/projetos/{id}/assets/{tipo}", tags=["Projetos"])
+async def delete_projeto_asset(id: int, tipo: str, user=Depends(get_current_user_required)):
+    _require_root_or_role(user, COORD_ROLES)
+    if tipo not in _ASSET_TIPOS:
+        raise HTTPException(status_code=400, detail="tipo inválido")
+    from supabase import create_client as _sb_client
+    sb_url = os.environ.get("SUPABASE_URL", "")
+    sb_key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_ANON_KEY", "")
+    sb = _sb_client(sb_url, sb_key)
+    # Try to remove both .png and .jpg variants
+    for ext in ("png", "jpg", "jpeg", "webp"):
+        try:
+            sb.storage.from_("project-assets").remove([f"{id}/{tipo}.{ext}"])
+        except Exception:
+            pass
+    projeto_service.atualizar_logo_projeto(id, _ASSET_TIPOS[tipo], None)
+    return {"message": "Asset removido"}
 
 @app.post("/api/aula-registos", tags=["Registos"])
 async def create_aula_registo(data: AulaRegistoPayload, user=Depends(get_current_user_required)):

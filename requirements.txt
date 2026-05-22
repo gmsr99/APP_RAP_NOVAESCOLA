@@ -91,3 +91,6 @@ pytz>=2023.3
 
 # Web Push Notifications (VAPID)
 pywebpush>=2.0.0
+
+# PDF Generation
+reportlab==4.2.5

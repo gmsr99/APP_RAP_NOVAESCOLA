@@ -201,10 +201,11 @@ const Wiki = () => {
 
   // State for Config modal
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-  const [configForm, setConfigForm] = useState({ requer_digitalizacao: false, tem_pre_registos: false });
+  const [configForm, setConfigForm] = useState({ requer_digitalizacao: false, tem_pre_registos: false, codigo_projeto: '' });
+  const [assetUploading, setAssetUploading] = useState<Record<string, boolean>>({});
 
   // --- QUERIES ---
-  interface Projeto { id: number; nome: string; descricao?: string; estado?: string; requer_digitalizacao?: boolean; tem_pre_registos?: boolean; }
+  interface Projeto { id: number; nome: string; descricao?: string; estado?: string; requer_digitalizacao?: boolean; tem_pre_registos?: boolean; codigo_projeto?: string | null; logo_esq_path?: string | null; logo_dir_path?: string | null; footer_path?: string | null; }
 
   const { data: projetos = [] } = useQuery({
     queryKey: ['projetos'],
@@ -302,7 +303,7 @@ const Wiki = () => {
   });
 
   const saveConfigMutation = useMutation({
-    mutationFn: (data: { requer_digitalizacao: boolean; tem_pre_registos: boolean }) =>
+    mutationFn: (data: { requer_digitalizacao: boolean; tem_pre_registos: boolean; codigo_projeto?: string }) =>
       api.patch(`/api/projetos/${selectedProjetoId}/config`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projetos'] });
@@ -751,6 +752,7 @@ const Wiki = () => {
                     setConfigForm({
                       requer_digitalizacao: selectedProjeto?.requer_digitalizacao ?? false,
                       tem_pre_registos: selectedProjeto?.tem_pre_registos ?? false,
+                      codigo_projeto: selectedProjeto?.codigo_projeto ?? '',
                     });
                     setIsConfigModalOpen(true);
                   }}
@@ -1546,11 +1548,11 @@ const Wiki = () => {
       </AlertDialog>
 
       <Dialog open={isConfigModalOpen} onOpenChange={setIsConfigModalOpen}>
-        <DialogContent className="sm:max-w-[420px]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
             <DialogTitle>Configurações do Projeto</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
             <div className="flex items-center justify-between gap-4">
               <div className="space-y-1">
                 <Label className="font-medium">Exigir digitalização de registos</Label>
@@ -1574,6 +1576,106 @@ const Wiki = () => {
                 checked={configForm.tem_pre_registos}
                 onCheckedChange={(checked) => setConfigForm(f => ({ ...f, tem_pre_registos: checked }))}
               />
+            </div>
+
+            {/* PDF config section */}
+            <div className="border-t pt-4 space-y-4">
+              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Folha de Registo (PDF)</p>
+
+              <div className="space-y-1.5">
+                <Label className="font-medium">Código do Projeto</Label>
+                <Input
+                  placeholder="Ex: CENTRO2030-FSE+0232800"
+                  value={configForm.codigo_projeto}
+                  onChange={e => setConfigForm(f => ({ ...f, codigo_projeto: e.target.value }))}
+                />
+              </div>
+
+              {(['logo_esq', 'logo_dir', 'footer'] as const).map(tipo => {
+                const pathKey = `${tipo}_path` as 'logo_esq_path' | 'logo_dir_path' | 'footer_path';
+                const currentPath = selectedProjeto?.[pathKey];
+                const labels: Record<string, { title: string; hint: string }> = {
+                  logo_esq: { title: 'Logo esquerdo (cabeçalho)', hint: 'Por defeito: logo Tempos Brilhantes' },
+                  logo_dir: { title: 'Logo direito (cabeçalho)', hint: 'Por defeito: logo RAP Nova Escola' },
+                  footer: { title: 'Rodapé', hint: 'Por defeito: logos de cofinanciadoras' },
+                };
+                const { title, hint } = labels[tipo];
+                const previewUrl = currentPath
+                  ? `${(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/$/, '')}/storage/v1/object/public/project-assets/${currentPath}`
+                  : null;
+
+                return (
+                  <div key={tipo} className="space-y-2">
+                    <Label className="font-medium">{title}</Label>
+                    {previewUrl && (
+                      <div className="rounded border p-2 bg-secondary/30">
+                        <img src={previewUrl} alt={title} className="max-h-12 object-contain" />
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">{hint}</p>
+                    <div className="flex gap-2">
+                      <label
+                        className={[
+                          'flex-1 inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium shadow-sm transition-colors cursor-pointer',
+                          assetUploading[tipo] ? 'opacity-50 pointer-events-none' : 'hover:bg-accent hover:text-accent-foreground',
+                        ].join(' ')}
+                      >
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg"
+                          className="hidden"
+                          disabled={assetUploading[tipo]}
+                          onChange={async e => {
+                            const file = e.target.files?.[0];
+                            if (!file || !selectedProjetoId) return;
+                            if (file.size > 2 * 1024 * 1024) {
+                              toast.error('Ficheiro demasiado grande (máx 2 MB).');
+                              return;
+                            }
+                            setAssetUploading(s => ({ ...s, [tipo]: true }));
+                            try {
+                              const fd = new FormData();
+                              fd.append('file', file);
+                              await api.post(`/api/projetos/${selectedProjetoId}/assets?tipo=${tipo}`, fd);
+                              queryClient.invalidateQueries({ queryKey: ['projetos'] });
+                              toast.success('Imagem atualizada.');
+                            } catch {
+                              toast.error('Erro ao carregar imagem.');
+                            } finally {
+                              setAssetUploading(s => ({ ...s, [tipo]: false }));
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                        {assetUploading[tipo] ? 'A carregar...' : 'Carregar imagem'}
+                      </label>
+                      {currentPath && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={assetUploading[tipo]}
+                          onClick={async () => {
+                            if (!selectedProjetoId) return;
+                            setAssetUploading(s => ({ ...s, [tipo]: true }));
+                            try {
+                              await api.delete(`/api/projetos/${selectedProjetoId}/assets/${tipo}`);
+                              queryClient.invalidateQueries({ queryKey: ['projetos'] });
+                              toast.success('Imagem removida.');
+                            } catch {
+                              toast.error('Erro ao remover imagem.');
+                            } finally {
+                              setAssetUploading(s => ({ ...s, [tipo]: false }));
+                            }
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
           <DialogFooter>

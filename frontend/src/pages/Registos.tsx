@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProfile } from '@/contexts/ProfileContext';
-import { fillPdf, downloadPdf, type RegistoFormData } from '@/lib/pdfFiller';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -606,10 +605,21 @@ const Registos = () => {
     setSelectedSession(null);
   };
 
-  const handleExportPdf = async () => {
-    if (!selectedSession) return;
+  const _downloadPdfBlob = (data: ArrayBuffer, filename: string) => {
+    const blob = new Blob([data], { type: 'application/pdf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-    const pdfData: RegistoFormData = {
+  const handleExportPdf = async () => {
+    if (!selectedSession || !selectedProjetoId) return;
+    const payload = {
+      aula_id: selectedSession.id,
+      projeto_id: selectedProjetoId,
       atividade: formData.atividade,
       numero_sessao: formData.numero_sessao,
       data: formData.data,
@@ -619,12 +629,12 @@ const Registos = () => {
       objetivos_gerais: formData.objetivos_gerais,
       sumario: formData.sumario,
       participantes: formData.participantes.filter(p => p.nome_completo.trim()),
+      is_autonomous: selectedSession.is_autonomous,
     };
-
     try {
-      const bytes = await fillPdf(pdfData, selectedSession.is_autonomous);
+      const res = await api.post('/api/pre-registos/pdf', payload, { responseType: 'arraybuffer' });
       const safeName = formData.atividade.replace(/[^a-zA-Z0-9À-ú ]/g, '').trim();
-      downloadPdf(bytes, `Registo_${safeName}_${formData.data.replace(/\//g, '-')}.pdf`);
+      _downloadPdfBlob(res.data, `Registo_${safeName}_${formData.data.replace(/\//g, '-')}.pdf`);
       toast({ title: 'PDF exportado', description: 'O ficheiro foi descarregado.' });
     } catch (err) {
       console.error('PDF export error:', err);
@@ -640,24 +650,28 @@ const Registos = () => {
   /** Re-export PDF from a previously saved registo */
   const handleReExportPdf = async (reg: Registo) => {
     const start = parseISO(reg.data_hora);
-    const pdfData: RegistoFormData = {
-      atividade: reg.atividade
-        || (reg.is_autonomous ? (reg.tipo_atividade || 'Trabalho Autónomo') : `Sessão ${reg.turma_nome || ''}`.trim()),
+    const atividade = reg.atividade
+      || (reg.is_autonomous ? (reg.tipo_atividade || 'Trabalho Autónomo') : `Sessão ${reg.turma_nome || ''}`.trim());
+    const data = reg.data_registo || format(start, 'dd/MM/yyyy');
+    const payload = {
+      aula_id: reg.aula_id,
+      projeto_id: reg.projeto_id ?? selectedProjetoId,
+      atividade,
       numero_sessao: reg.numero_sessao || '',
-      data: reg.data_registo || format(start, 'dd/MM/yyyy'),
+      data,
       local: reg.local_registo
-        || (reg.is_autonomous ? (reg.local || '') : `${reg.estabelecimento_sigla || reg.estabelecimento_nome || ''} ${reg.local ? `- ${reg.local}` : ''}`.trim()),
+        || (reg.is_autonomous ? (reg.local || '') : `${reg.estabelecimento_sigla || reg.estabelecimento_nome || ''}${reg.local ? ` - ${reg.local}` : ''}`.trim()),
       horario: reg.horario || buildHorario(reg.data_hora, reg.duracao_minutos),
       tecnicos: reg.tecnicos || reg.mentor_nome || user?.name || '',
       objetivos_gerais: reg.objetivos_gerais || '',
       sumario: reg.sumario || '',
       participantes: (reg.participantes || []).filter(p => p.nome_completo.trim()),
+      is_autonomous: reg.is_autonomous,
     };
-
     try {
-      const bytes = await fillPdf(pdfData, reg.is_autonomous);
-      const safeName = pdfData.atividade.replace(/[^a-zA-Z0-9À-ú ]/g, '').trim();
-      downloadPdf(bytes, `Registo_${safeName}_${pdfData.data.replace(/\//g, '-')}.pdf`);
+      const res = await api.post('/api/pre-registos/pdf', payload, { responseType: 'arraybuffer' });
+      const safeName = atividade.replace(/[^a-zA-Z0-9À-ú ]/g, '').trim();
+      _downloadPdfBlob(res.data, `Registo_${safeName}_${data.replace(/\//g, '-')}.pdf`);
       toast({ title: 'PDF exportado', description: 'O ficheiro foi descarregado.' });
     } catch (err) {
       console.error('PDF re-export error:', err);
