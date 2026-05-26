@@ -661,6 +661,7 @@ class ProjetoConfigPayload(BaseModel):
     requer_digitalizacao: bool
     tem_pre_registos: Optional[bool] = None
     codigo_projeto: Optional[str] = None
+    usar_template_proprio: Optional[bool] = None
 
 class PreRegistoPdfPayload(BaseModel):
     aula_id: int
@@ -680,7 +681,7 @@ class PreRegistoPdfPayload(BaseModel):
 async def update_projeto_config(id: int, data: ProjetoConfigPayload, user=Depends(get_current_user_required)):
     _require_root_or_role(user, COORD_ROLES)
     sucesso = projeto_service.atualizar_config_projeto(
-        id, data.requer_digitalizacao, data.tem_pre_registos, data.codigo_projeto
+        id, data.requer_digitalizacao, data.tem_pre_registos, data.codigo_projeto, data.usar_template_proprio
     )
     if not sucesso:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")

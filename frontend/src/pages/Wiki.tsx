@@ -201,11 +201,11 @@ const Wiki = () => {
 
   // State for Config modal
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-  const [configForm, setConfigForm] = useState({ requer_digitalizacao: false, tem_pre_registos: false, codigo_projeto: '' });
+  const [configForm, setConfigForm] = useState({ requer_digitalizacao: false, tem_pre_registos: false, codigo_projeto: '', usar_template_proprio: false });
   const [assetUploading, setAssetUploading] = useState<Record<string, boolean>>({});
 
   // --- QUERIES ---
-  interface Projeto { id: number; nome: string; descricao?: string; estado?: string; requer_digitalizacao?: boolean; tem_pre_registos?: boolean; codigo_projeto?: string | null; logo_esq_path?: string | null; logo_dir_path?: string | null; footer_path?: string | null; }
+  interface Projeto { id: number; nome: string; descricao?: string; estado?: string; requer_digitalizacao?: boolean; tem_pre_registos?: boolean; codigo_projeto?: string | null; logo_esq_path?: string | null; logo_dir_path?: string | null; footer_path?: string | null; usar_template_proprio?: boolean; }
 
   const { data: projetos = [] } = useQuery({
     queryKey: ['projetos'],
@@ -303,7 +303,7 @@ const Wiki = () => {
   });
 
   const saveConfigMutation = useMutation({
-    mutationFn: (data: { requer_digitalizacao: boolean; tem_pre_registos: boolean; codigo_projeto?: string }) =>
+    mutationFn: (data: { requer_digitalizacao: boolean; tem_pre_registos: boolean; codigo_projeto?: string; usar_template_proprio?: boolean }) =>
       api.patch(`/api/projetos/${selectedProjetoId}/config`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projetos'] });
@@ -753,6 +753,7 @@ const Wiki = () => {
                       requer_digitalizacao: selectedProjeto?.requer_digitalizacao ?? false,
                       tem_pre_registos: selectedProjeto?.tem_pre_registos ?? false,
                       codigo_projeto: selectedProjeto?.codigo_projeto ?? '',
+                      usar_template_proprio: selectedProjeto?.usar_template_proprio ?? false,
                     });
                     setIsConfigModalOpen(true);
                   }}
@@ -1588,6 +1589,19 @@ const Wiki = () => {
                   placeholder="Ex: CENTRO2030-FSE+0232800"
                   value={configForm.codigo_projeto}
                   onChange={e => setConfigForm(f => ({ ...f, codigo_projeto: e.target.value }))}
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <Label className="font-medium">Usar template próprio do projeto</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Quando ativo, as folhas de registo são geradas a partir dos templates PDF fornecidos pelo projeto (ex: PIS), em vez do layout padrão com cabeçalho/rodapé configurável.
+                  </p>
+                </div>
+                <Switch
+                  checked={configForm.usar_template_proprio}
+                  onCheckedChange={(checked) => setConfigForm(f => ({ ...f, usar_template_proprio: checked }))}
                 />
               </div>
 

@@ -5,7 +5,7 @@ from database.connection import get_db_connection
 logger = logging.getLogger(__name__)
 
 
-_PROJETO_COLS = "id, nome, descricao, estado, requer_digitalizacao, tem_pre_registos, codigo_projeto, logo_esq_path, logo_dir_path, footer_path"
+_PROJETO_COLS = "id, nome, descricao, estado, requer_digitalizacao, tem_pre_registos, codigo_projeto, logo_esq_path, logo_dir_path, footer_path, usar_template_proprio"
 
 
 def listar_projetos(allowed_ids=None):
@@ -175,6 +175,7 @@ def atualizar_config_projeto(
     requer_digitalizacao: bool,
     tem_pre_registos: bool | None = None,
     codigo_projeto: str | None = None,
+    usar_template_proprio: bool | None = None,
 ) -> bool:
     """Atualiza as configurações de um projeto."""
     conn = get_db_connection()
@@ -188,6 +189,9 @@ def atualizar_config_projeto(
         if codigo_projeto is not None:
             sets.append("codigo_projeto = %s")
             vals.append(codigo_projeto if codigo_projeto.strip() else None)
+        if usar_template_proprio is not None:
+            sets.append("usar_template_proprio = %s")
+            vals.append(usar_template_proprio)
         vals.append(projeto_id)
         cur.execute(f"UPDATE projetos SET {', '.join(sets)} WHERE id = %s", vals)
         conn.commit()
