@@ -246,8 +246,8 @@ function TimePicker5Min({
 }
 
 const Horarios = () => {
-  const { profile } = useProfile();
-  const isAdmin = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
+  const { profile, isCoordenacao } = useProfile();
+  const isAdmin = isCoordenacao;
   const { user } = useAuth(); // Get current user
   const [filterMode, setFilterMode] = useState<'all' | 'mine'>(profile === 'mentor' ? 'mine' : 'all');
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
@@ -464,12 +464,10 @@ const Horarios = () => {
 
   // ── Helper: filtra atividades pelo role da atividade ──
   // Coordenadores são metamórficos: podem fazer sessões de qualquer atividade.
-  const COORD_ROLES_SET = new Set(['coordenador', 'direcao', 'it_support']);
-
   function canRoleDoActivity(actRole: string | null | undefined, userRole: string | null | undefined): boolean {
     if (!actRole) return true; // sem restrição: visível para todos
     if (!userRole) return true; // sem role definido: mostra tudo
-    if (COORD_ROLES_SET.has(userRole.toLowerCase())) return true; // coordenadores vêem tudo
+    if (isCoordenacao) return true; // acesso de coordenação vê todas as atividades
     return actRole.toLowerCase() === userRole.toLowerCase();
   }
 
@@ -515,7 +513,8 @@ const Horarios = () => {
     : null;
 
   // Perfil efetivo para códigos de sessão: coordenadores assumem o role da atividade (metamórfico)
-  const effectivePerfil: string | null = selectedMentorPerfil && COORD_ROLES_SET.has(selectedMentorPerfil) && selectedActivityRole
+  const MENTOR_COORD_ROLES = new Set(['coordenador', 'direcao', 'it_support']);
+  const effectivePerfil: string | null = selectedMentorPerfil && MENTOR_COORD_ROLES.has(selectedMentorPerfil) && selectedActivityRole
     ? selectedActivityRole
     : selectedMentorPerfil;
 

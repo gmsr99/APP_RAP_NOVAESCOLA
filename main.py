@@ -177,7 +177,7 @@ async def get_sessoes_registaveis(user=Depends(get_current_user_required)):
 @app.get("/api/aulas/registaveis/todas", tags=["Registos"])
 async def get_todas_sessoes_registaveis(user=Depends(get_current_user_required)):
     """Todas as sessões terminadas/realizadas sem registo (coordenadores/direção)."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     return registo_service.listar_todas_sessoes_registaveis()
 
 @app.get("/api/aulas/export", tags=["Aulas"])
@@ -191,7 +191,7 @@ async def export_aulas(
     user=Depends(get_current_user_required),
 ):
     """Exporta lista de atividades/sessões com filtros flexíveis (coordenadores e superiores)."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     projeto_ids_list = [int(p.strip()) for p in projeto_ids.split(",") if p.strip()] if projeto_ids else None
     estados_list = [e.strip() for e in estados.split(",")] if estados else None
     mentor_id_int = int(mentor_id) if mentor_id else None
@@ -221,8 +221,6 @@ async def get_aula_by_id(aula_id: int, user=Depends(get_current_user_required)):
 # Modelos Pydantic para validação
 from models.sqlmodel_models import AulaCreate, AulaUpdate
 
-COORD_ROLES = {"coordenador", "direcao", "it_support"}
-
 
 def _require_root_or_role(user: dict, allowed_roles: set):
     """Levanta 403 se o utilizador não for root nem tiver um dos roles permitidos."""
@@ -232,6 +230,15 @@ def _require_root_or_role(user: dict, allowed_roles: set):
         return
     if perms["role"] not in allowed_roles:
         raise HTTPException(status_code=403, detail="Acesso negado.")
+
+
+def _require_coordenacao(user: dict):
+    """Levanta 403 se o utilizador não tiver acesso de coordenação (is_root ou is_coordenacao)."""
+    user_id = user.get("sub")
+    perms = _perm_svc.get_user_permissions(user_id)
+    if perms["is_root"] or perms["is_coordenacao"]:
+        return
+    raise HTTPException(status_code=403, detail="Acesso negado.")
 
 
 @app.post("/api/aulas", tags=["Aulas"])
@@ -354,8 +361,8 @@ def _check_session_permission(user: dict, aula_info: dict):
     Coordenadores podem alterar todas. Outros users só as atribuídas a eles."""
     user_id = user.get("sub")
     perms = _perm_svc.get_user_permissions(user_id)
-    # Root, coordenadores, direção e IT têm acesso total
-    if perms["is_root"] or perms["role"] in COORD_ROLES:
+    # Root e utilizadores com acesso de coordenação têm acesso total
+    if perms["is_root"] or perms["is_coordenacao"]:
         return True
     # Sessão regular: apenas o mentor atribuído pode agir
     if not aula_info.get("is_autonomous"):
@@ -403,7 +410,7 @@ class AulaEstadoOverride(BaseModel):
 @app.patch("/api/aulas/{aula_id}/estado", tags=["Aulas"])
 async def override_aula_estado(aula_id: int, payload: AulaEstadoOverride, user=Depends(get_current_user_required)):
     """Coordenador/direcao/it_support pode forçar mudança de estado numa sessão."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     estados_permitidos = ["rascunho", "pendente", "agendada", "confirmada", "recusada"]
     if payload.estado not in estados_permitidos:
         raise HTTPException(status_code=400, detail=f"Estado '{payload.estado}' não permitido via esta operação.")
@@ -603,7 +610,7 @@ async def get_projetos(user=Depends(get_current_user_required)):
 @app.post("/api/projetos", tags=["Projetos"])
 async def create_projeto(data: ProjetoCreate, user=Depends(get_current_user_required)):
     """Cria um novo projeto."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     res = projeto_service.criar_projeto(data.nome, data.descricao)
     if not res:
         raise HTTPException(status_code=400, detail="Falha ao criar projeto")
@@ -612,7 +619,7 @@ async def create_projeto(data: ProjetoCreate, user=Depends(get_current_user_requ
 @app.put("/api/projetos/{id}", tags=["Projetos"])
 async def update_projeto(id: int, data: ProjetoCreate, user=Depends(get_current_user_required)):
     """Atualiza um projeto."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = projeto_service.atualizar_projeto(id, data.nome, data.descricao)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar projeto")
@@ -621,7 +628,7 @@ async def update_projeto(id: int, data: ProjetoCreate, user=Depends(get_current_
 @app.delete("/api/projetos/{id}", tags=["Projetos"])
 async def delete_projeto(id: int, user=Depends(get_current_user_required)):
     """Apaga um projeto."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = projeto_service.apagar_projeto(id)
     if not sucesso:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
@@ -635,7 +642,7 @@ async def get_projeto_estabelecimentos(id: int, user=Depends(get_current_user_re
 @app.post("/api/projetos/{id}/estabelecimentos", tags=["Projetos"])
 async def add_projeto_estabelecimento(id: int, data: ProjetoEstabAssoc, user=Depends(get_current_user_required)):
     """Associa um estabelecimento a um projeto."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = projeto_service.associar_estabelecimento(id, data.estabelecimento_id)
     if not sucesso:
         raise HTTPException(status_code=400, detail="Falha ao associar estabelecimento")
@@ -644,7 +651,7 @@ async def add_projeto_estabelecimento(id: int, data: ProjetoEstabAssoc, user=Dep
 @app.delete("/api/projetos/{id}/estabelecimentos/{estab_id}", tags=["Projetos"])
 async def remove_projeto_estabelecimento(id: int, estab_id: int, user=Depends(get_current_user_required)):
     """Remove associação entre projeto e estabelecimento."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = projeto_service.desassociar_estabelecimento(id, estab_id)
     if not sucesso:
         raise HTTPException(status_code=404, detail="Associação não encontrada")
@@ -679,7 +686,7 @@ class PreRegistoPdfPayload(BaseModel):
 
 @app.patch("/api/projetos/{id}/config", tags=["Projetos"])
 async def update_projeto_config(id: int, data: ProjetoConfigPayload, user=Depends(get_current_user_required)):
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = projeto_service.atualizar_config_projeto(
         id, data.requer_digitalizacao, data.tem_pre_registos, data.codigo_projeto, data.usar_template_proprio
     )
@@ -710,7 +717,7 @@ async def upload_projeto_asset(
     file: UploadFile = File(...),
     user=Depends(get_current_user_required),
 ):
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     if tipo not in _ASSET_TIPOS:
         raise HTTPException(status_code=400, detail="tipo inválido: use logo_esq, logo_dir ou footer")
     ext = (file.filename or "").rsplit(".", 1)[-1].lower()
@@ -732,7 +739,7 @@ async def upload_projeto_asset(
 
 @app.delete("/api/projetos/{id}/assets/{tipo}", tags=["Projetos"])
 async def delete_projeto_asset(id: int, tipo: str, user=Depends(get_current_user_required)):
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     if tipo not in _ASSET_TIPOS:
         raise HTTPException(status_code=400, detail="tipo inválido")
     from supabase import create_client as _sb_client
@@ -801,7 +808,7 @@ async def export_aula_evidencias(
     user=Depends(get_current_user_required),
 ):
     """Exporta fotos de evidência num ZIP organizado por pastas."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     zip_bytes = aula_evidencia_service.exportar_evidencias_zip(projeto_id, data_inicio, data_fim)
     from fastapi.responses import Response
     return Response(
@@ -818,7 +825,7 @@ async def export_aula_feedback(
     user=Depends(get_current_user_required),
 ):
     """Exporta áudios de feedback num ZIP organizado por pastas."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     zip_bytes = aula_evidencia_service.exportar_feedback_zip(projeto_id, data_inicio, data_fim)
     from fastapi.responses import Response
     return Response(
@@ -1078,7 +1085,7 @@ class TurmaCreate(BaseModel):
 @app.post("/api/turmas", tags=["Core"])
 async def create_turma(turma: TurmaCreate, user=Depends(get_current_user_required)):
     """Cria uma nova turma."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     res = turma_service.criar_turma(turma.nome, turma.estabelecimento_id)
     if res:
         return res
@@ -1092,7 +1099,7 @@ async def get_turmas(estabelecimento_id: Optional[int] = None, user=Depends(get_
 @app.put("/api/turmas/{id}", tags=["Core"])
 async def update_turma(id: int, turma: TurmaCreate, user=Depends(get_current_user_required)):
     """Atualiza uma turma."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = turma_service.atualizar_turma(id, turma.nome, turma.estabelecimento_id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar turma")
@@ -1101,7 +1108,7 @@ async def update_turma(id: int, turma: TurmaCreate, user=Depends(get_current_use
 @app.delete("/api/turmas/{id}", tags=["Core"])
 async def delete_turma(id: int, user=Depends(get_current_user_required)):
     """Apaga uma turma."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = turma_service.apagar_turma(id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar turma")
@@ -1237,9 +1244,7 @@ async def avancar_fase_musica(musica_id: int, dados: Optional[dict] = None, user
 @app.post("/api/musicas/{musica_id}/prioritizar", tags=["Producao"])
 async def prioritizar_musica(musica_id: int, dados: Optional[dict] = None, user=Depends(get_current_user_required)):
     """Prioriza uma música da fila para mistura (coordenadores/admins)."""
-    role = user.get("role", "")
-    if role not in ("coordenador", "direcao", "it_support") and not user.get("is_root"):
-        raise HTTPException(status_code=403, detail="Sem permissão.")
+    _require_coordenacao(user)
     swap_id = (dados or {}).get("swap_id")
     sucesso, mensagem = musica_service.prioritizar_mistura(musica_id, swap_id)
     if not sucesso:
@@ -1259,7 +1264,8 @@ async def aceitar_tarefa_musica(musica_id: int, user=Depends(get_current_user_re
 @app.post("/api/musicas/{musica_id}/reset-timer", tags=["Producao"])
 async def reset_timer_musica(musica_id: int, user=Depends(get_current_user_required)):
     """Repõe o timer de uma música (apenas direção/it_support)."""
-    if user.get("role") not in ("direcao", "it_support"):
+    perms = _perm_svc.get_user_permissions(user.get("sub"))
+    if not perms["is_root"] and perms["role"] not in ("direcao", "it_support"):
         raise HTTPException(status_code=403, detail="Apenas admins podem repor timers.")
     sucesso, mensagem = musica_service.reset_timer(musica_id)
     if not sucesso:
@@ -1298,7 +1304,7 @@ async def export_registos(
     user=Depends(get_current_user_required),
 ):
     """Exporta registos filtrados (para direção/coordenadores)."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     user_id_list = [uid.strip() for uid in user_ids.split(",")] if user_ids else None
     estab_id_list = [int(eid.strip()) for eid in estabelecimento_ids.split(",")] if estabelecimento_ids else None
     return registo_service.listar_registos_export(data_inicio, data_fim, user_id_list, estab_id_list)
@@ -1398,7 +1404,7 @@ async def update_musica_detalhes(musica_id: int, payload: MusicaDetalhesUpdate, 
 @app.delete("/api/musicas/{musica_id}", tags=["Producao"])
 async def delete_musica(musica_id: int, user=Depends(get_current_user_required)):
     """Apaga permanentemente uma música. Restrito a coordenador, direção e IT support."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = musica_service.apagar_musica(musica_id)
     if not sucesso:
         raise HTTPException(status_code=404, detail="Música não encontrada.")
@@ -1407,7 +1413,7 @@ async def delete_musica(musica_id: int, user=Depends(get_current_user_required))
 @app.post("/api/producao/verificar-deadlines", tags=["Producao"])
 async def verificar_deadlines_musicas(user=Depends(get_current_user_required)):
     """Verifica músicas em atraso e notifica os responsáveis. Chamar diariamente (cron)."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     count = musica_service.verificar_e_notificar_deadlines()
     return {"notificacoes_enviadas": count}
 
@@ -1542,7 +1548,7 @@ async def get_estabelecimentos(user=Depends(get_current_user_required)):
 
 @app.post("/api/estabelecimentos", tags=["Wiki"])
 async def create_estabelecimento(inst: EstabelecimentoWikiCreate, user=Depends(get_current_user_required)):
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     res = turma_service.criar_estabelecimento(inst.nome, inst.sigla, inst.morada, inst.latitude, inst.longitude)
     if not res:
         raise HTTPException(status_code=400, detail="Erro ao criar. Possível duplicado.")
@@ -1550,7 +1556,7 @@ async def create_estabelecimento(inst: EstabelecimentoWikiCreate, user=Depends(g
 
 @app.put("/api/estabelecimentos/{id}", tags=["Wiki"])
 async def update_estabelecimento(id: int, inst: EstabelecimentoWikiCreate, user=Depends(get_current_user_required)):
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = turma_service.atualizar_estabelecimento(id, inst.nome, inst.sigla, inst.morada, inst.latitude, inst.longitude)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar.")
@@ -1558,7 +1564,7 @@ async def update_estabelecimento(id: int, inst: EstabelecimentoWikiCreate, user=
 
 @app.delete("/api/estabelecimentos/{id}", tags=["Wiki"])
 async def delete_estabelecimento(id: int, user=Depends(get_current_user_required)):
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = turma_service.apagar_estabelecimento(id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar.")
@@ -1581,7 +1587,7 @@ async def get_contactos_estabelecimento(id: int, user=Depends(get_current_user_r
 
 @app.post("/api/estabelecimentos/{id}/contactos", tags=["Wiki"])
 async def create_contacto_estabelecimento(id: int, data: ContactoCreate, user=Depends(get_current_user_required)):
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     if data.tipo not in ('telefone', 'email', 'maps', 'website', 'outro'):
         raise HTTPException(status_code=400, detail="Tipo inválido")
     res = turma_service.criar_contacto_estabelecimento(id, data.tipo, data.valor, data.descricao)
@@ -1591,7 +1597,7 @@ async def create_contacto_estabelecimento(id: int, data: ContactoCreate, user=De
 
 @app.put("/api/contactos/{id}", tags=["Wiki"])
 async def update_contacto(id: int, data: ContactoCreate, user=Depends(get_current_user_required)):
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = turma_service.atualizar_contacto_estabelecimento(id, data.tipo, data.valor, data.descricao)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar contacto.")
@@ -1599,7 +1605,7 @@ async def update_contacto(id: int, data: ContactoCreate, user=Depends(get_curren
 
 @app.delete("/api/contactos/{id}", tags=["Wiki"])
 async def delete_contacto(id: int, user=Depends(get_current_user_required)):
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = turma_service.apagar_contacto_estabelecimento(id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar contacto.")
@@ -1639,7 +1645,7 @@ class TurmaDisciplinaCreate(BaseModel):
 @app.post("/api/wiki/turma/{turma_id}/disciplinas", tags=["Wiki"])
 async def create_wiki_disciplina(turma_id: int, payload: TurmaDisciplinaCreate, user=Depends(get_current_user_required)):
     """Cria disciplina local com atividades em batch."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     result = wiki_service.criar_disciplina_turma(
         turma_id, payload.nome, payload.descricao,
         payload.musicas_previstas, payload.atividades
@@ -1656,7 +1662,7 @@ class TurmaDisciplinaUpdate(BaseModel):
 @app.put("/api/wiki/disciplinas/{td_id}", tags=["Wiki"])
 async def update_wiki_disciplina(td_id: int, payload: TurmaDisciplinaUpdate, user=Depends(get_current_user_required)):
     """Atualiza uma disciplina local."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = wiki_service.atualizar_disciplina_turma(td_id, payload.nome, payload.descricao, payload.musicas_previstas)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar disciplina")
@@ -1665,7 +1671,7 @@ async def update_wiki_disciplina(td_id: int, payload: TurmaDisciplinaUpdate, use
 @app.delete("/api/wiki/disciplinas/{td_id}", tags=["Wiki"])
 async def delete_wiki_disciplina(td_id: int, user=Depends(get_current_user_required)):
     """Remove disciplina local (cascade apaga atividades)."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = wiki_service.apagar_disciplina_turma(td_id)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar disciplina")
@@ -1684,7 +1690,7 @@ class TurmaAtividadeCreate(BaseModel):
 @app.post("/api/wiki/atividades", tags=["Wiki"])
 async def create_wiki_atividade(payload: TurmaAtividadeCreate, user=Depends(get_current_user_required)):
     """Cria uma atividade local."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     result = wiki_service.criar_atividade(
         payload.turma_disciplina_id, payload.nome, payload.codigo,
         payload.sessoes_previstas, payload.horas_por_sessao,
@@ -1706,7 +1712,7 @@ class TurmaAtividadeUpdate(BaseModel):
 @app.put("/api/wiki/atividades/{uuid}", tags=["Wiki"])
 async def update_wiki_atividade(uuid: str, payload: TurmaAtividadeUpdate, user=Depends(get_current_user_required)):
     """Atualiza uma atividade local por UUID."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = wiki_service.atualizar_atividade(uuid, payload.dict())
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar atividade")
@@ -1715,7 +1721,7 @@ async def update_wiki_atividade(uuid: str, payload: TurmaAtividadeUpdate, user=D
 @app.delete("/api/wiki/atividades/{uuid}", tags=["Wiki"])
 async def delete_wiki_atividade(uuid: str, user=Depends(get_current_user_required)):
     """Remove uma atividade local por UUID."""
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
     sucesso = wiki_service.apagar_atividade(uuid)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao apagar atividade")
@@ -1770,7 +1776,7 @@ async def ai_agent_horarios(payload: AIAgentMessage, user=Depends(get_current_us
     Processa uma mensagem de linguagem natural via Agente AI (Gemini).
     Apenas acessível a coordenadores, direção e IT support.
     """
-    _require_root_or_role(user, COORD_ROLES)
+    _require_coordenacao(user)
 
     # Processar mensagem
     resultado = ai_agent_service.processar_mensagem(
@@ -1944,8 +1950,6 @@ _scheduler.add_job(
     replace_existing=True,
 )
 
-SYNC_ROLES = {"direcao", "it_support", "coordenador"}
-
 @app.on_event("startup")
 async def start_scheduler():
     if not _scheduler.running:
@@ -1954,7 +1958,7 @@ async def start_scheduler():
 @app.post("/api/chatbot/sync", tags=["Chatbot"])
 async def chatbot_sync(user=Depends(get_current_user_required)):
     """Força uma sincronização imediata da pasta Drive → KNOWLEDGE_BASE. Apenas admins."""
-    _require_root_or_role(user, SYNC_ROLES)
+    _require_coordenacao(user)
 
     try:
         stats = drive_sync_service.sync_knowledge_base()
@@ -2024,8 +2028,6 @@ async def delete_atalho(atalho_id: int, user=Depends(get_current_user_required))
 # -----------------------------------------------------------------------------
 from services import tarefas_service
 
-COORD_ROLES_TAREFAS = {"coordenador", "direcao", "it_support"}
-
 class TarefaCreate(BaseModel):
     titulo: str
     descricao: Optional[str] = None
@@ -2048,14 +2050,14 @@ async def get_tarefas(user=Depends(get_current_user_required)):
     """Lista tarefas do user autenticado (+ gerais). Coordenadores vêem todas."""
     user_id = user.get("sub")
     perms = _perm_svc.get_user_permissions(user_id)
-    if perms["is_root"] or perms["role"] in COORD_ROLES_TAREFAS:
+    if perms["is_root"] or perms["is_coordenacao"]:
         return tarefas_service.listar_todas_tarefas()
     return tarefas_service.listar_tarefas_para_user(user_id)
 
 @app.post("/api/tarefas", tags=["Tarefas"])
 async def post_tarefa(payload: TarefaCreate, user=Depends(get_current_user_required)):
     """Cria uma tarefa. Apenas coordenadores e superiores."""
-    _require_root_or_role(user, COORD_ROLES_TAREFAS)
+    _require_coordenacao(user)
     user_id = user.get("sub")
     res = tarefas_service.criar_tarefa(
         payload.titulo, user_id, payload.descricao,
@@ -2068,7 +2070,7 @@ async def post_tarefa(payload: TarefaCreate, user=Depends(get_current_user_requi
 @app.put("/api/tarefas/{id}", tags=["Tarefas"])
 async def put_tarefa(id: int, payload: TarefaUpdate, user=Depends(get_current_user_required)):
     """Atualiza uma tarefa."""
-    _require_root_or_role(user, COORD_ROLES_TAREFAS)
+    _require_coordenacao(user)
     ok = tarefas_service.atualizar_tarefa(
         id, payload.titulo, payload.descricao,
         payload.prioridade, payload.data_limite, payload.user_ids
@@ -2080,7 +2082,7 @@ async def put_tarefa(id: int, payload: TarefaUpdate, user=Depends(get_current_us
 @app.delete("/api/tarefas/{id}", tags=["Tarefas"])
 async def delete_tarefa(id: int, user=Depends(get_current_user_required)):
     """Apaga uma tarefa."""
-    _require_root_or_role(user, COORD_ROLES_TAREFAS)
+    _require_coordenacao(user)
     ok = tarefas_service.apagar_tarefa(id)
     if not ok:
         raise HTTPException(status_code=500, detail="Erro ao apagar tarefa")
@@ -2127,6 +2129,7 @@ async def get_my_permissions(user=Depends(get_current_user_required)):
     perms = _perm_svc.get_user_permissions(user_id)
     return {
         "is_root": perms["is_root"],
+        "is_coordenacao": perms["is_coordenacao"],
         "role": perms["role"],
         "allowed_pages": list(perms["allowed_pages"]),
         "project_scoped": perms["project_scoped"],
@@ -2181,6 +2184,7 @@ class AdminCreateUserPayload(BaseModel):
     page_overrides: dict = {}
     project_ids: List[int] = []
     is_root: bool = False
+    is_coordenacao: bool = False
 
 
 @app.post("/api/admin/users", tags=["Admin"])
@@ -2196,6 +2200,7 @@ async def admin_criar_utilizador(payload: AdminCreateUserPayload, user=Depends(g
             page_overrides=payload.page_overrides,
             project_ids=payload.project_ids,
             is_root=payload.is_root,
+            is_coordenacao=payload.is_coordenacao,
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -2216,6 +2221,7 @@ class AdminUpdatePermissionsPayload(BaseModel):
     page_overrides: dict = {}
     project_ids: List[int] = []
     is_root: bool = False
+    is_coordenacao: bool = False
 
 
 @app.put("/api/admin/users/{user_id}/permissions", tags=["Admin"])
@@ -2232,6 +2238,7 @@ async def admin_atualizar_permissoes(user_id: str, payload: AdminUpdatePermissio
             page_overrides=payload.page_overrides,
             project_ids=payload.project_ids,
             is_root=payload.is_root,
+            is_coordenacao=payload.is_coordenacao,
         )
         return {"ok": True}
     except Exception as e:

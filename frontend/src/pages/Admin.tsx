@@ -215,6 +215,7 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
   const [form, setForm] = useState({
     email: '', password: '', full_name: '', role: '',
     is_root: false,
+    is_coordenacao: false,
   });
   const [customRoleName, setCustomRoleName] = useState('');
   const [customRoleLabel, setCustomRoleLabel] = useState('');
@@ -236,7 +237,7 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
   });
 
   const resetForm = () => {
-    setForm({ email: '', password: '', full_name: '', role: '', is_root: false });
+    setForm({ email: '', password: '', full_name: '', role: '', is_root: false, is_coordenacao: false });
     setCustomRoleName(''); setCustomRoleLabel(''); setIsCustomRole(false);
     setPageOverrides({}); setSelectedProjects([]); setRolePages([]);
   };
@@ -248,7 +249,11 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
       setRolePages([]);
     } else {
       setIsCustomRole(false);
-      setForm(f => ({ ...f, role: value }));
+      setForm(f => ({
+        ...f,
+        role: value,
+        is_coordenacao: ['coordenador', 'direcao', 'it_support'].includes(value),
+      }));
       const found = roles.find(r => r.name === value);
       setRolePages(found ? found.pages : []);
       setPageOverrides({});
@@ -297,6 +302,7 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
       full_name: form.full_name,
       role: roleName,
       is_root: form.is_root,
+      is_coordenacao: form.is_coordenacao,
       page_overrides: overrides,
       project_ids: selectedProjects,
     });
@@ -417,6 +423,21 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
               </div>
             </div>
           )}
+
+          {/* Coordination access toggle */}
+          <div className="flex items-center justify-between p-3 border rounded-md">
+            <div>
+              <p className="font-medium text-sm">Acesso de Coordenação</p>
+              <p className="text-xs text-muted-foreground">
+                Coordena sessões, turmas e exportações, independentemente do cargo.
+              </p>
+            </div>
+            <Switch
+              checked={form.is_coordenacao}
+              onCheckedChange={v => setForm(f => ({ ...f, is_coordenacao: v }))}
+              disabled={form.is_root}
+            />
+          </div>
 
           {/* Root toggle */}
           <div className="flex items-center justify-between p-3 border rounded-md">

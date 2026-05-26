@@ -67,6 +67,7 @@ const Equipa = () => {
     // Advanced permissions state
     const [advPerms, setAdvPerms] = useState<{
         is_root: boolean;
+        is_coordenacao: boolean;
         page_overrides: Record<string, boolean>;
         project_ids: number[];
         role_pages: string[];
@@ -133,12 +134,13 @@ const Equipa = () => {
                 const found = roles.find(r => r.name === permsData.role);
                 setAdvPerms({
                     is_root: permsData.is_root,
+                    is_coordenacao: permsData.is_coordenacao ?? false,
                     page_overrides: permsData.page_overrides || {},
                     project_ids: permsData.project_ids || [],
                     role_pages: found ? found.pages : [],
                 });
             } catch {
-                setAdvPerms({ is_root: false, page_overrides: {}, project_ids: [], role_pages: [] });
+                setAdvPerms({ is_root: false, is_coordenacao: false, page_overrides: {}, project_ids: [], role_pages: [] });
             }
         }
     };
@@ -166,6 +168,7 @@ const Equipa = () => {
                     page_overrides: advPerms.page_overrides,
                     project_ids: advPerms.project_ids,
                     is_root: advPerms.is_root,
+                    is_coordenacao: advPerms.is_coordenacao,
                 },
             });
         } else {
@@ -406,6 +409,18 @@ const Equipa = () => {
                                         </div>
                                     </div>
                                 )}
+
+                                <div className="flex items-center justify-between pt-2 border-t">
+                                    <div>
+                                        <p className="text-sm font-semibold">Acesso de Coordenação</p>
+                                        <p className="text-xs text-muted-foreground">Coordena sessões, turmas e exportações, independentemente do cargo.</p>
+                                    </div>
+                                    <Switch
+                                        checked={advPerms.is_coordenacao}
+                                        onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_coordenacao: v } : prev)}
+                                        disabled={advPerms.is_root}
+                                    />
+                                </div>
 
                                 <div className="flex items-center justify-between pt-2 border-t">
                                     <div>

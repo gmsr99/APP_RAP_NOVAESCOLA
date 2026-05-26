@@ -47,6 +47,7 @@ def get_user_permissions(user_id: str) -> dict:
     Returns:
         {
             "is_root": bool,
+            "is_coordenacao": bool,
             "role": str,
             "allowed_pages": set[str],
             "project_scoped": bool,
@@ -64,13 +65,14 @@ def get_user_permissions(user_id: str) -> dict:
 
         # 1. Fetch profile base data
         cur.execute(
-            "SELECT role, is_root, project_scoped FROM profiles WHERE id = %s",
+            "SELECT role, is_root, is_coordenacao, project_scoped FROM profiles WHERE id = %s",
             (user_id,)
         )
         row = cur.fetchone()
         if not row:
             result = {
                 "is_root": False,
+                "is_coordenacao": False,
                 "role": "mentor",
                 "allowed_pages": set(),
                 "project_scoped": False,
@@ -79,7 +81,7 @@ def get_user_permissions(user_id: str) -> dict:
             _cache_set(user_id, result)
             return result
 
-        role, is_root, project_scoped = row
+        role, is_root, is_coordenacao, project_scoped = row
 
         if is_root:
             allowed_pages = set(ALL_PAGE_SLUGS)
@@ -93,7 +95,12 @@ def get_user_permissions(user_id: str) -> dict:
             """, (role,))
             allowed_pages = {r[0] for r in cur.fetchall()}
 
-            # 3. Per-user overrides
+            # 3. Coordination access expands pages regardless of role name
+            if is_coordenacao:
+                allowed_pages.add("equipamento")
+                allowed_pages.add("estatisticas")
+
+            # 4. Per-user overrides
             cur.execute(
                 "SELECT page_slug, granted FROM user_page_permissions WHERE user_id = %s",
                 (user_id,)
@@ -104,7 +111,7 @@ def get_user_permissions(user_id: str) -> dict:
                 else:
                     allowed_pages.discard(page_slug)
 
-        # 4. Project access
+        # 5. Project access
         allowed_project_ids = []
         if project_scoped and not is_root:
             cur.execute(
@@ -116,6 +123,7 @@ def get_user_permissions(user_id: str) -> dict:
         cur.close()
         result = {
             "is_root": bool(is_root),
+            "is_coordenacao": bool(is_coordenacao),
             "role": role or "mentor",
             "allowed_pages": allowed_pages,
             "project_scoped": bool(project_scoped),
@@ -127,6 +135,7 @@ def get_user_permissions(user_id: str) -> dict:
         logger.error(f"Erro ao obter permissões do utilizador {user_id}: {e}")
         return {
             "is_root": False,
+            "is_coordenacao": False,
             "role": "mentor",
             "allowed_pages": set(),
             "project_scoped": False,
@@ -249,6 +258,7 @@ def criar_utilizador(
     page_overrides: dict,  # {page_slug: bool}
     project_ids: list[int],
     is_root: bool,
+    is_coordenacao: bool = False,
 ) -> dict:
     """
     Creates a new user via Supabase Admin API (email pre-confirmed).
@@ -278,15 +288,16 @@ def criar_utilizador(
 
         # Upsert profiles row (trigger may have already created it)
         cur.execute("""
-            INSERT INTO profiles (id, email, full_name, role, is_root, project_scoped)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO profiles (id, email, full_name, role, is_root, is_coordenacao, project_scoped)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (id) DO UPDATE SET
                 full_name = EXCLUDED.full_name,
                 role = EXCLUDED.role,
                 is_root = EXCLUDED.is_root,
+                is_coordenacao = EXCLUDED.is_coordenacao,
                 project_scoped = EXCLUDED.project_scoped,
                 updated_at = NOW()
-        """, (user_id, email, full_name, role_name, is_root, project_scoped))
+        """, (user_id, email, full_name, role_name, is_root, is_coordenacao, project_scoped))
 
         # Per-user page overrides
         for slug, granted in page_overrides.items():
@@ -324,13 +335,13 @@ def obter_permissoes_utilizador_detalhe(user_id: str) -> dict:
         cur = conn.cursor()
 
         cur.execute(
-            "SELECT role, is_root, project_scoped FROM profiles WHERE id = %s",
+            "SELECT role, is_root, is_coordenacao, project_scoped FROM profiles WHERE id = %s",
             (user_id,)
         )
         row = cur.fetchone()
         if not row:
             return {}
-        role, is_root, project_scoped = row
+        role, is_root, is_coordenacao, project_scoped = row
 
         cur.execute(
             "SELECT page_slug, granted FROM user_page_permissions WHERE user_id = %s",
@@ -348,6 +359,7 @@ def obter_permissoes_utilizador_detalhe(user_id: str) -> dict:
         return {
             "role": role,
             "is_root": bool(is_root),
+            "is_coordenacao": bool(is_coordenacao),
             "project_scoped": bool(project_scoped),
             "page_overrides": page_overrides,
             "project_ids": project_ids,
@@ -365,6 +377,7 @@ def atualizar_permissoes_utilizador(
     page_overrides: dict,
     project_ids: list[int],
     is_root: bool,
+    is_coordenacao: bool = False,
 ) -> bool:
     from database.connection import get_db_connection
     conn = get_db_connection()
@@ -374,9 +387,9 @@ def atualizar_permissoes_utilizador(
 
         cur.execute("""
             UPDATE profiles
-            SET role = %s, is_root = %s, project_scoped = %s, updated_at = NOW()
+            SET role = %s, is_root = %s, is_coordenacao = %s, project_scoped = %s, updated_at = NOW()
             WHERE id = %s
-        """, (role_name, is_root, project_scoped, user_id))
+        """, (role_name, is_root, is_coordenacao, project_scoped, user_id))
 
         # Replace page overrides
         cur.execute("DELETE FROM user_page_permissions WHERE user_id = %s", (user_id,))
