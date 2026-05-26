@@ -368,14 +368,21 @@ const Producao = () => {
   });
 
   const prioritizarMutation = useMutation({
-    mutationFn: ({ id, swapId }: { id: number; swapId?: number }) =>
+    mutationFn: ({ id, swapId }: { id: number; swapId?: number; target?: Musica }) =>
       api.post(`/api/musicas/${id}/prioritizar`, swapId !== undefined ? { swap_id: swapId } : {}),
-    onSuccess: (_, vars) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['musicas'] });
       toast({ title: 'Música priorizada', description: 'A faixa foi movida para mistura.' });
       setPrioritizarModal(null);
     },
-    onError: (err: any) => toast({ title: 'Erro', description: err?.response?.data?.detail || 'Falha ao priorizar.', variant: 'destructive' })
+    onError: (err: any, vars) => {
+      const detail: string = err?.response?.data?.detail || '';
+      if (detail.toLowerCase().includes('slot') || detail.toLowerCase().includes('produtor')) {
+        setPrioritizarModal(vars.target ?? null);
+      } else {
+        toast({ title: 'Erro', description: detail || 'Falha ao priorizar.', variant: 'destructive' });
+      }
+    }
   });
 
   const saveColsMutation = useMutation({
@@ -585,7 +592,6 @@ const Producao = () => {
     const showAction = canUserAction(m) && m.estado !== 'concluído' && m.estado !== 'pool_mistura';
     const showResetTimer = isAdmin && (m.estado === 'edição' || m.estado === 'mistura_wip');
     const showPriorizar = isCoordinator && m.estado === 'pool_mistura';
-    const wipCount = activeMusicas.filter(x => x.estado === 'mistura_wip' && x.projeto_id === m.projeto_id).length;
 
     let timerLabel: string | null = null;
     if (m.estado === 'mistura_wip' && m.mistura_atribuida_em)
@@ -638,13 +644,7 @@ const Producao = () => {
                 size="sm" variant="outline"
                 className="h-7 text-xs flex-1 px-2 text-sky-600 border-sky-300 hover:bg-sky-50 hover:border-sky-500"
                 title="Mover para mistura com prioridade"
-                onClick={() => {
-                  if (wipCount < 3) {
-                    prioritizarMutation.mutate({ id: m.id });
-                  } else {
-                    setPrioritizarModal(m);
-                  }
-                }}
+                onClick={() => prioritizarMutation.mutate({ id: m.id, target: m })}
                 disabled={prioritizarMutation.isPending}
               >
                 <ArrowUpCircle className="w-3 h-3 mr-1 shrink-0" />
@@ -1257,7 +1257,7 @@ const Producao = () => {
           </DialogHeader>
           <div className="space-y-2 py-2">
             {activeMusicas
-              .filter(m => m.estado === 'mistura_wip' && m.projeto_id === prioritizarModal?.projeto_id)
+              .filter(m => m.estado === 'mistura_wip')
               .map(m => (
                 <button
                   key={m.id}
