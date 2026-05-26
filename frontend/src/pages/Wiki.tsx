@@ -772,17 +772,17 @@ const Wiki = () => {
     
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-        <div className="flex items-start justify-between border-b pb-4">
-          <div>
-            <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
-              <span>{selectedProjeto?.nome}</span> <ChevronRight className="h-3 w-3"/>
+        <div className="flex items-start justify-between gap-4 border-b pb-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-muted-foreground text-xs sm:text-sm mb-1">
+              <span className="truncate max-w-[200px] sm:max-w-xs">{selectedProjeto?.nome}</span> <ChevronRight className="h-3 w-3 shrink-0"/>
             </div>
-            <h2 className="text-2xl font-bold flex items-center gap-2"><Building2 className="h-6 w-6 text-primary"/> {estab.nome}</h2>
+            <h2 className="text-xl sm:text-2xl font-bold flex items-start gap-2"><Building2 className="h-6 w-6 text-primary shrink-0 mt-1 sm:mt-0"/> <span className="break-words min-w-0">{estab.nome}</span></h2>
             {estab.sigla && <Badge variant="outline" className="mt-2">{estab.sigla}</Badge>}
           </div>
           {isCoordinator && (
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => { const e = estabelecimentos.find(x => x.id === estab.id); if (e) openEditEstab(e); }}><Edit2 className="h-4 w-4 mr-2"/> Editar</Button>
+            <div className="flex gap-2 shrink-0">
+              <Button variant="outline" size="sm" onClick={() => { const e = estabelecimentos.find(x => x.id === estab.id); if (e) openEditEstab(e); }}><Edit2 className="h-4 w-4 sm:mr-2"/> <span className="hidden sm:inline">Editar</span></Button>
             </div>
           )}
         </div>
@@ -822,7 +822,7 @@ const Wiki = () => {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg flex items-center gap-2"><Users className="h-5 w-5"/> Turmas ({estab.turmas.length})</h3>
-            {isCoordinator && <Button size="sm" onClick={() => openNewTurma(estab.id)}><Plus className="h-4 w-4 mr-1"/> Nova Turma</Button>}
+            {isCoordinator && <Button size="sm" className="shrink-0" onClick={() => openNewTurma(estab.id)}><Plus className="h-4 w-4 sm:mr-1"/> <span className="hidden sm:inline">Nova Turma</span><span className="sm:hidden">Nova</span></Button>}
           </div>
           {estab.turmas.length === 0 ? (
             <div className="text-center py-12 bg-muted/10 border border-dashed rounded-xl"><p className="text-muted-foreground">Nenhuma turma registada.</p></div>
@@ -853,15 +853,15 @@ const Wiki = () => {
 
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-        <div className="flex items-start justify-between border-b pb-4">
-          <div>
-            <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1 truncate">
-              <span className="truncate">{estab.nome}</span> <ChevronRight className="h-3 w-3 shrink-0"/>
+        <div className="flex items-start justify-between gap-4 border-b pb-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-muted-foreground text-xs sm:text-sm mb-1">
+              <span className="truncate max-w-[200px] sm:max-w-xs">{estab.nome}</span> <ChevronRight className="h-3 w-3 shrink-0"/>
             </div>
-            <h2 className="text-2xl font-bold flex items-center gap-2"><Users className="h-6 w-6 text-primary"/> Turma {turma.nome}</h2>
+            <h2 className="text-xl sm:text-2xl font-bold flex items-start gap-2"><Users className="h-6 w-6 text-primary shrink-0 mt-1 sm:mt-0"/> <span className="break-words min-w-0">Turma {turma.nome}</span></h2>
           </div>
           {isCoordinator && (
-            <Button variant="outline" size="sm" onClick={() => openEditTurma(turma, estab.id)}><Edit2 className="h-4 w-4 mr-2"/> Gerir Turma & Alunos</Button>
+            <Button variant="outline" size="sm" className="shrink-0" onClick={() => openEditTurma(turma, estab.id)}><Edit2 className="h-4 w-4 sm:mr-2"/> <span className="hidden sm:inline">Gerir Turma & Alunos</span><span className="sm:hidden">Gerir</span></Button>
           )}
         </div>
 
@@ -869,7 +869,7 @@ const Wiki = () => {
         <div>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-lg flex items-center gap-2"><Book className="h-5 w-5"/> Disciplinas ({turma.disciplinas.length})</h3>
-            {isCoordinator && <Button size="sm" onClick={() => openNewDisciplina(turma.id)}><Plus className="h-4 w-4 mr-1"/> Nova Disciplina</Button>}
+            {isCoordinator && <Button size="sm" className="shrink-0" onClick={() => openNewDisciplina(turma.id)}><Plus className="h-4 w-4 sm:mr-1"/> <span className="hidden sm:inline">Nova Disciplina</span><span className="sm:hidden">Nova</span></Button>}
           </div>
           {turma.disciplinas.length === 0 ? (
             <div className="text-center py-12 bg-muted/10 border border-dashed rounded-xl"><p className="text-muted-foreground">Nenhuma disciplina atribuída.</p></div>
