@@ -56,6 +56,7 @@ import {
   Timer,
   RotateCcw,
   Settings,
+  ArrowUpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format, addMinutes } from 'date-fns';
@@ -83,6 +84,7 @@ interface Musica {
   fase_deadline?: string | null;
   mistura_atribuida_em?: string | null;
   edicao_iniciada_em?: string | null;
+  projeto_id?: number | null;
 }
 
 interface Turma { id: number; nome: string; display_name: string; estabelecimento_id: number }
@@ -178,6 +180,7 @@ const Producao = () => {
   const [editMusicForm, setEditMusicForm] = useState({ titulo: '', turma_id: '', disciplina_id: '' });
   const [colSettingsOpen, setColSettingsOpen] = useState(false);
   const [colDraft, setColDraft] = useState<Record<string, string[] | null>>({});
+  const [prioritizarModal, setPrioritizarModal] = useState<Musica | null>(null);
 
   const isCoordinator = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
   const isAdmin = profile === 'direcao' || profile === 'it_support';
@@ -581,6 +584,8 @@ const Producao = () => {
     const isPending = advancePhaseMutation.isPending || aceitarTarefaMutation.isPending;
     const showAction = canUserAction(m) && m.estado !== 'concluído' && m.estado !== 'pool_mistura';
     const showResetTimer = isAdmin && (m.estado === 'edição' || m.estado === 'mistura_wip');
+    const showPriorizar = isCoordinator && m.estado === 'pool_mistura';
+    const wipCount = activeMusicas.filter(x => x.estado === 'mistura_wip' && x.projeto_id === m.projeto_id).length;
 
     let timerLabel: string | null = null;
     if (m.estado === 'mistura_wip' && m.mistura_atribuida_em)
@@ -626,8 +631,26 @@ const Producao = () => {
         )}
 
         {/* Actions */}
-        {(showAction || isCoordinator || showResetTimer || m.criador?.id === user?.id) && (
+        {(showAction || isCoordinator || showResetTimer || showPriorizar || m.criador?.id === user?.id) && (
           <div className="flex items-center gap-1.5 pt-1 border-t border-border">
+            {showPriorizar && (
+              <Button
+                size="sm" variant="outline"
+                className="h-7 text-xs flex-1 px-2 text-sky-600 border-sky-300 hover:bg-sky-50 hover:border-sky-500"
+                title="Mover para mistura com prioridade"
+                onClick={() => {
+                  if (wipCount < 3) {
+                    prioritizarMutation.mutate({ id: m.id });
+                  } else {
+                    setPrioritizarModal(m);
+                  }
+                }}
+                disabled={prioritizarMutation.isPending}
+              >
+                <ArrowUpCircle className="w-3 h-3 mr-1 shrink-0" />
+                Priorizar
+              </Button>
+            )}
             {showAction && (
               m.estado === 'feedback_wip' ? (
                 <FeedbackDialog music={m} />
@@ -1219,6 +1242,49 @@ const Producao = () => {
         </TabsContent>
         )}
       </Tabs>
+
+      {/* Priorizar / Troca Dialog */}
+      <Dialog open={!!prioritizarModal} onOpenChange={(open) => !open && setPrioritizarModal(null)}>
+        <DialogContent className="w-full sm:max-w-[460px] max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ArrowUpCircle className="h-5 w-5 text-sky-500" /> Priorizar faixa
+            </DialogTitle>
+            <DialogDescription>
+              Os 3 slots de mistura estão ocupados. Escolhe qual faixa sai para dar lugar a{' '}
+              <span className="font-semibold text-foreground">"{prioritizarModal?.titulo}"</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            {activeMusicas
+              .filter(m => m.estado === 'mistura_wip' && m.projeto_id === prioritizarModal?.projeto_id)
+              .map(m => (
+                <button
+                  key={m.id}
+                  className="w-full text-left rounded-lg border bg-card p-3 hover:border-sky-400 hover:bg-sky-50/10 transition-colors"
+                  onClick={() => prioritizarMutation.mutate({ id: prioritizarModal!.id, swapId: m.id })}
+                  disabled={prioritizarMutation.isPending}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-sm">{m.titulo}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {m.turma ? `${m.turma.nome} · ${m.turma.estabelecimento}` : '—'}
+                        {m.responsavel && ` · 👤 ${m.responsavel.nome.split(' ')[0]}`}
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className={cn('text-[10px] shrink-0', STATUS_COLORS[m.estado])}>
+                      Em Mistura
+                    </Badge>
+                  </div>
+                </button>
+              ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPrioritizarModal(null)}>Cancelar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Column Settings Dialog */}
       <Dialog open={colSettingsOpen} onOpenChange={setColSettingsOpen}>
