@@ -1222,7 +1222,7 @@ def listar_aulas_export(
                 a.estado,
                 a.is_autonomous,
                 a.is_realized,
-                a.tipo_atividade,
+                COALESCE(ta.nome, a.tipo_atividade) AS tipo_atividade,
                 a.tema,
                 a.local,
                 a.objetivos,
@@ -1236,13 +1236,16 @@ def listar_aulas_export(
                 e.sigla        AS estabelecimento_sigla,
                 m.nome         AS mentor_nome,
                 pr.nome        AS projeto_nome,
-                resp.full_name AS responsavel_nome
+                resp.full_name AS responsavel_nome,
+                td.nome        AS disciplina_nome,
+                ta.nome        AS atividade_nome
             FROM aulas a
             LEFT JOIN turmas t         ON a.turma_id = t.id
             LEFT JOIN estabelecimentos e ON t.estabelecimento_id = e.id
             LEFT JOIN mentores m       ON a.mentor_id = m.id
             LEFT JOIN projetos pr      ON a.projeto_id = pr.id
             LEFT JOIN turma_atividades ta ON a.atividade_uuid = ta.uuid
+            LEFT JOIN turma_disciplinas td ON ta.turma_disciplina_id = td.id
             LEFT JOIN profiles resp    ON a.responsavel_user_id = resp.id::text
             {where}
             ORDER BY a.data_hora ASC

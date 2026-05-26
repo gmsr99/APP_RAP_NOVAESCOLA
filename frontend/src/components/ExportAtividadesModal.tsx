@@ -66,6 +66,8 @@ const ESTADO_LABELS: Record<string, string> = {
 
 type ExportRow = {
   atividade_codigo?: string | null;
+  atividade_nome?: string | null;
+  disciplina_nome?: string | null;
   data_fmt?: string | null;
   hora_inicio?: string | null;
   hora_fim?: string | null;
@@ -114,8 +116,8 @@ function gerarXLSX(rows: ExportRow[], labelProjetos: string, labelTipo: string, 
   const colHeaders = [
     'Código', 'Data', 'Hora Início', 'Hora Fim', 'Duração (h)',
     'Estado', 'Autónoma?', 'Realizada?', 'Colaborador', 'Turma',
-    'Escola', 'Projeto', 'Local', 'Tema / Atividade', 'Objetivos', 'Sumário',
-    'Avaliação', 'Observações Termino', 'Observações Gerais',
+    'Escola', 'Projeto', 'Atividade', 'Disciplina', 'Local', 'Sumário',
+    'Objetivos', 'Avaliação', 'Observações Termino', 'Observações Gerais',
   ];
 
   const dataRows = rows.map((r) => [
@@ -131,10 +133,11 @@ function gerarXLSX(rows: ExportRow[], labelProjetos: string, labelTipo: string, 
     r.turma_nome       ?? '',
     r.estabelecimento_nome ?? '',
     r.projeto_nome     ?? '',
+    r.atividade_nome ?? r.tipo_atividade ?? '',
+    r.disciplina_nome  ?? '',
     r.local            ?? '',
-    r.tema ?? r.tipo_atividade ?? '',
-    r.objetivos        ?? '',
     r.sumario          ?? '',
+    r.objetivos        ?? '',
     r.avaliacao != null ? `${r.avaliacao}/5` : '',
     r.obs_termino      ?? '',
     r.observacoes      ?? '',
@@ -157,8 +160,8 @@ function gerarXLSX(rows: ExportRow[], labelProjetos: string, labelTipo: string, 
   ws['!cols'] = [
     { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
     { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 24 }, { wch: 20 },
-    { wch: 28 }, { wch: 20 }, { wch: 26 }, { wch: 30 }, { wch: 36 }, { wch: 36 },
-    { wch: 12 }, { wch: 40 }, { wch: 40 },
+    { wch: 28 }, { wch: 18 }, { wch: 26 }, { wch: 22 }, { wch: 22 }, { wch: 36 },
+    { wch: 36 }, { wch: 12 }, { wch: 40 }, { wch: 40 },
   ];
 
   ws['!rows'] = [
@@ -232,7 +235,7 @@ function gerarXLSX(rows: ExportRow[], labelProjetos: string, labelTipo: string, 
     styleRowRange(r, (c) => ({
       font: { sz: 10, color: withColor(palette.ink), bold: c === 0 },
       fill: { fgColor: withColor(r % 2 === 0 ? palette.white : palette.paper) },
-      alignment: { vertical: 'top', horizontal: [1,2,3,4,7,14].includes(c) ? 'center' : 'left', wrapText: true },
+      alignment: { vertical: 'top', horizontal: [1,2,3,4,7,17].includes(c) ? 'center' : 'left', wrapText: true },
       border: borderAll,
     }));
   }
