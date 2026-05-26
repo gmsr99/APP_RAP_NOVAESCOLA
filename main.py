@@ -1015,15 +1015,15 @@ async def get_my_rate(projeto_id: int, user=Depends(get_current_user_required)):
 
 @app.put("/api/honorarios/rates/{projeto_id}/{target_user_id}", tags=["Financeiro"])
 async def upsert_user_rate(projeto_id: int, target_user_id: str, payload: UserRateUpsert, user=Depends(get_current_user_required)):
-    """Define/atualiza valor_hora de um utilizador num projeto (coordenação)."""
-    _require_coordenacao(user)
+    """Define/atualiza valor_hora de um utilizador num projeto (direção/root)."""
+    _require_direcao(user)
     return _hon_svc.upsert_rate(target_user_id, projeto_id, payload.valor_hora)
 
 
 @app.get("/api/honorarios/rates/{projeto_id}", tags=["Financeiro"])
 async def get_rates_projeto(projeto_id: int, user=Depends(get_current_user_required)):
-    """Lista rates de todos os utilizadores num projeto (coordenação)."""
-    _require_coordenacao(user)
+    """Lista rates de todos os utilizadores num projeto (direção/root)."""
+    _require_direcao(user)
     return _hon_svc.listar_rates_projeto(projeto_id)
 
 

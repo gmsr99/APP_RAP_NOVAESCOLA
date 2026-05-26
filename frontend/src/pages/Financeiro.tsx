@@ -94,6 +94,7 @@ const Financeiro = () => {
   const queryClient = useQueryClient();
 
   const isCoord = isCoordenacao || isDirecao;
+  const canManageRates = isDirecao;
 
   // Selectors state
   const [projetoId, setProjetoId] = useState<string>('');
@@ -143,7 +144,7 @@ const Financeiro = () => {
   const { data: rates = [] } = useQuery<Membro[]>({
     queryKey: ['rates', ratesProjId],
     queryFn: async () => (await api.get(`/api/honorarios/rates/${ratesProjId}`)).data,
-    enabled: !!ratesProjId && isCoord,
+    enabled: !!ratesProjId && canManageRates,
   });
 
   // My own financial profile (nif, morada, funcao)
@@ -226,7 +227,7 @@ const Financeiro = () => {
         <TabsList>
           <TabsTrigger value="gerar">Gerar Nota</TabsTrigger>
           <TabsTrigger value="dados">Os Meus Dados</TabsTrigger>
-          {isCoord && <TabsTrigger value="rates">Gestão de Rates</TabsTrigger>}
+          {canManageRates && <TabsTrigger value="rates">Gestão de Rates</TabsTrigger>}
         </TabsList>
 
         {/* ── Tab: Gerar Nota ── */}
@@ -390,7 +391,7 @@ const Financeiro = () => {
         </TabsContent>
 
         {/* ── Tab: Gestão de Rates (coordenadores) ── */}
-        {isCoord && (
+        {canManageRates && (
           <TabsContent value="rates" className="mt-4 space-y-4">
             <Card>
               <CardHeader className="pb-3">
