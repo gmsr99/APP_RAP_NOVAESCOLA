@@ -134,25 +134,25 @@ function StatCard({
   tone?: 'default' | 'primary' | 'danger' | 'success';
 }) {
   const toneClassName = {
-    default: 'border-border/70 bg-card',
-    primary: 'border-[hsl(var(--primary)/0.28)] bg-card',
-    danger: 'border-[hsl(var(--brand)/0.32)] bg-card',
-    success: 'border-emerald-400/25 bg-card',
+    default: 'border-border/40 bg-muted/20',
+    primary: 'border-[hsl(var(--primary)/0.3)] bg-[hsl(var(--primary)/0.05)]',
+    danger: 'border-orange-500/30 bg-orange-500/5',
+    success: 'border-emerald-500/30 bg-emerald-500/5',
   }[tone];
 
   const valueClassName = {
     default: 'text-white',
     primary: 'text-[hsl(var(--primary))]',
-    danger: 'text-orange-300',
-    success: 'text-emerald-300',
+    danger: 'text-orange-400',
+    success: 'text-emerald-400',
   }[tone];
 
   return (
-    <Card className={cn('rounded-2xl shadow-none', toneClassName)}>
-      <CardContent className="p-3">
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-slate-300/80">{label}</p>
-        <p className={cn('mt-1 text-2xl font-semibold leading-none', valueClassName)}>{value}</p>
-        <p className="mt-1 text-xs text-slate-300/75">{hint}</p>
+    <Card className={cn('rounded-2xl shadow-sm transition-all hover:shadow-md', toneClassName)}>
+      <CardContent className="p-4">
+        <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{label}</p>
+        <p className={cn('mt-2 text-3xl font-bold leading-none', valueClassName)}>{value}</p>
+        <p className="mt-1.5 text-xs font-medium text-slate-500">{hint}</p>
       </CardContent>
     </Card>
   );
@@ -301,20 +301,50 @@ export default function Tarefas() {
     return (
       <Card
         className={cn(
-          'relative overflow-hidden rounded-2xl border bg-card shadow-none transition-colors',
-          isMinhaConcluida && 'opacity-70',
-          deadlineVencido ? 'border-[hsl(var(--brand)/0.4)]' : 'border-border/70'
+          'relative overflow-hidden rounded-2xl border bg-card shadow-sm transition-all hover:shadow-md',
+          isMinhaConcluida && 'opacity-60',
+          deadlineVencido ? 'border-orange-500/30' : 'border-border/40'
         )}
       >
-        <div className={cn('pointer-events-none absolute inset-y-4 left-0 w-1 rounded-r-full', deadlineVencido ? 'bg-[hsl(var(--brand))]' : prio.accentClassName)} />
-        <CardContent className="p-4">
-          <div className="space-y-3">
+        <div className={cn('pointer-events-none absolute inset-y-0 left-0 w-1.5', deadlineVencido ? 'bg-orange-500' : prio.accentClassName)} />
+        <CardContent className="p-4 sm:p-5">
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline" className={cn('rounded-full px-2.5 py-0.5 text-xs font-semibold', prio.badgeClassName)}>
+                  {prio.label}
+                </Badge>
+                <Badge variant="outline" className="rounded-full border-white/10 bg-white/5 px-2.5 py-0.5 text-xs font-medium text-slate-200">
+                  {assignmentLabel}
+                </Badge>
+                {isMinhaAtribuicao && (
+                  <Badge variant="outline" className={cn("rounded-full border-white/10 bg-white/5 px-2.5 py-0.5 text-xs font-medium", estadoCfg.className)}>
+                    <EstadoIcon className="mr-1.5 h-3.5 w-3.5" />
+                    {estadoCfg.label}
+                  </Badge>
+                )}
+              </div>
+              
+              {isCoord && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-8 shrink-0 rounded-full p-0 text-slate-400 hover:text-white"
+                  onClick={() => openEdit(t)}
+                  aria-label={`Editar ${t.titulo}`}
+                >
+                  <Edit2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
             <div className="flex items-start gap-3">
               {isMinhaAtribuicao && !isCoord && (
                 <button
                   className={cn(
-                    'mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border bg-background transition-colors',
-                    deadlineVencido && 'border-[hsl(var(--brand)/0.35)] bg-[hsl(var(--brand)/0.08)]',
+                    'mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors',
+                    deadlineVencido && 'border-orange-500/40 bg-orange-500/10',
+                    !deadlineVencido && 'border-border/80 bg-background hover:bg-muted',
                     estadoCfg.className
                   )}
                   onClick={() => estadoMutation.mutate({ id: t.id, estado: nextEstado(meuEstado) })}
@@ -323,103 +353,68 @@ export default function Tarefas() {
                   <EstadoIcon className="h-4 w-4" />
                 </button>
               )}
-
+              
               <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline" className={cn('rounded-full px-2.5 py-0.5 text-[11px] font-medium', prio.badgeClassName)}>
-                    {prio.label}
-                  </Badge>
-                  <Badge variant="outline" className="rounded-full border-white/12 bg-white/5 px-2.5 py-0.5 text-[11px] font-medium text-slate-100">
-                    {assignmentLabel}
-                  </Badge>
-                  {isMinhaAtribuicao && (
-                    <Badge variant="outline" className="rounded-full border-white/12 bg-white/5 px-2.5 py-0.5 text-[11px] font-medium text-slate-100">
-                      <EstadoIcon className={cn('mr-1 h-3 w-3', estadoCfg.className)} />
-                      {estadoCfg.label}
-                    </Badge>
-                  )}
-                </div>
-
-                <div className="mt-2 flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
-                    <p className={cn('text-sm font-semibold leading-snug text-white', isMinhaConcluida && 'line-through')}>
-                      {t.titulo}
-                    </p>
-                    {t.descricao && (
-                      <p className="mt-1 text-sm leading-5 text-slate-300/80 line-clamp-3">
-                        {t.descricao}
-                      </p>
-                    )}
-                  </div>
-
-                  {isCoord && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 w-8 shrink-0 rounded-full p-0"
-                      onClick={() => openEdit(t)}
-                      aria-label={`Editar ${t.titulo}`}
-                    >
-                      <Edit2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              <div className={cn(
-                'rounded-xl border px-3 py-2',
-                deadlineVencido
-                  ? 'border-[hsl(var(--brand)/0.35)] bg-[hsl(var(--brand)/0.08)] text-orange-50'
-                  : 'border-border/70 bg-muted/30'
-              )}>
-                <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Prazo</p>
-                <div className={cn('mt-1 flex items-center gap-1.5 text-sm font-medium text-white', deadlineVencido && 'text-orange-50')}>
-                  <CalendarClock className="h-4 w-4" />
-                  {deadline ? format(deadline, 'd MMMM', { locale: pt }) : 'Sem data limite'}
-                  {deadlineVencido && <AlertTriangle className="h-4 w-4" />}
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-border/70 bg-muted/30 px-3 py-2">
-                <p className="text-[11px] uppercase tracking-[0.14em] text-slate-300/75">Atribuição</p>
-                <div className="mt-1 flex items-center gap-1.5 text-sm font-medium text-white">
-                  {isGeral ? <Users className="h-4 w-4" /> : <User className="h-4 w-4" />}
-                  <span className="break-words">{atribuicaoTexto}</span>
-                </div>
-                {t.atribuicoes.length > 1 && (
-                  <p className="mt-1 text-xs text-slate-300/75">
-                    {concluidoCount}/{t.atribuicoes.length} concluídas
+                <p className={cn('text-base font-bold text-white', isMinhaConcluida && 'line-through text-slate-400')}>
+                  {t.titulo}
+                </p>
+                {t.descricao && (
+                  <p className="mt-1 text-sm text-slate-300 line-clamp-2">
+                    {t.descricao}
                   </p>
                 )}
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between">
-              {isCoord && isMinhaAtribuicao ? (
-                <button
-                  className={cn('flex items-center gap-1.5 text-sm font-medium', estadoCfg.className)}
-                  onClick={() => estadoMutation.mutate({ id: t.id, estado: nextEstado(meuEstado) })}
-                >
-                  <EstadoIcon className="h-4 w-4" />
-                  Marcar como {nextEstado(meuEstado) === 'em_progresso' ? 'em progresso' : nextEstado(meuEstado) === 'concluida' ? 'concluída' : 'pendente'}
-                </button>
-              ) : (
-                <p className="text-xs text-slate-300/70">
-                  {deadlineVencido ? 'Precisa de atenção imediata.' : 'Ação rápida disponível abaixo.'}
-                </p>
-              )}
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm pl-0">
+              <div className={cn('flex items-center gap-1.5 font-medium', deadlineVencido ? 'text-orange-400' : 'text-slate-300')}>
+                <CalendarClock className="h-4 w-4" />
+                {deadline ? format(deadline, 'd MMM', { locale: pt }) : 'Sem data limite'}
+                {deadlineVencido && <AlertTriangle className="h-4 w-4 ml-1" />}
+              </div>
+              
+              <div className="flex items-center gap-1.5 font-medium text-slate-300">
+                {isGeral ? <Users className="h-4 w-4" /> : <User className="h-4 w-4" />}
+                <span className="truncate max-w-[200px]">{atribuicaoTexto}</span>
+                {t.atribuicoes.length > 1 && (
+                  <span className="text-xs text-slate-500 ml-1">
+                    ({concluidoCount}/{t.atribuicoes.length})
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-border/40 pt-4 mt-2">
+              <div className="flex-1">
+                {isCoord && isMinhaAtribuicao ? (
+                  <button
+                    className={cn('flex items-center gap-1.5 text-sm font-semibold transition-colors hover:brightness-110', estadoCfg.className)}
+                    onClick={() => estadoMutation.mutate({ id: t.id, estado: nextEstado(meuEstado) })}
+                  >
+                    <EstadoIcon className="h-4 w-4" />
+                    Marcar como {nextEstado(meuEstado) === 'em_progresso' ? 'em progresso' : nextEstado(meuEstado) === 'concluida' ? 'concluída' : 'pendente'}
+                  </button>
+                ) : (
+                  <p className={cn("text-xs font-medium", deadlineVencido ? "text-orange-400/80" : "text-slate-400")}>
+                    {deadlineVencido ? '⚠️ Precisa de atenção imediata' : 'Ação rápida disponível'}
+                  </p>
+                )}
+              </div>
 
               {t.estado_global !== 'concluida' && meuEstado !== 'concluida' && (
                 <Button
                   size="sm"
+                  className={cn(
+                    "h-9 shrink-0 rounded-xl font-semibold transition-all",
+                    deadlineVencido 
+                      ? "bg-orange-500 hover:bg-orange-600 text-white border-transparent" 
+                      : "bg-white/10 hover:bg-white/20 text-white border-transparent"
+                  )}
                   variant="outline"
-                  className="h-9 w-full rounded-xl sm:w-auto"
                   onClick={() => setConfirmConcluirId(t.id)}
                 >
                   <CheckCircle2 className="mr-1.5 h-4 w-4" />
-                  Terminar tarefa
+                  Terminar
                 </Button>
               )}
             </div>
@@ -443,19 +438,19 @@ export default function Tarefas() {
     if (items.length === 0) return null;
 
     return (
-      <section className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-3 px-1">
           <div>
-            <h2 className="text-base font-semibold text-white">{title}</h2>
-            <p className="text-sm text-slate-300/75">{subtitle}</p>
+            <h2 className="text-lg font-bold text-white">{title}</h2>
+            <p className="text-sm font-medium text-slate-400">{subtitle}</p>
           </div>
           <Badge
             variant="outline"
             className={cn(
-              'rounded-full px-2.5 py-1 text-xs font-medium',
+              'rounded-full px-3 py-1 text-xs font-bold',
               tone === 'danger'
-                ? 'border-[hsl(var(--brand)/0.4)] bg-[hsl(var(--brand)/0.16)] text-orange-100'
-                : 'border-border/70 bg-muted/30 text-slate-100'
+                ? 'border-orange-500/30 bg-orange-500/10 text-orange-400'
+                : 'border-border/50 bg-muted/50 text-slate-300'
             )}
           >
             {items.length}
@@ -470,79 +465,73 @@ export default function Tarefas() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 px-4 pb-24 pt-4 md:px-6 md:pb-6 md:pt-6">
-      <Card className="overflow-hidden rounded-3xl border-border/70 bg-card shadow-none">
-        <CardContent className="p-4 md:p-5">
-          <div className="space-y-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-                    <CheckSquare className="h-5 w-5" />
-                  </span>
-                  <div>
-                    <h1 className="text-lg font-semibold text-white md:text-xl">Tarefas Internas</h1>
-                    <p className="text-sm text-slate-200/80">Tudo organizado para leitura rápida e ação no telemóvel.</p>
-                  </div>
-                </div>
-              </div>
-
-              {isCoord && (
-                <Button size="sm" onClick={openNew} className="h-10 shrink-0 rounded-xl px-3">
-                  <Plus className="mr-1.5 h-4 w-4" />
-                  Nova
-                </Button>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <StatCard label="Pendentes" value={pendingCount} hint="Tarefas ativas" tone="primary" />
-              <StatCard label="Em progresso" value={inProgressCount} hint="Já iniciadas" />
-              <StatCard label="Atrasadas" value={overdueCount} hint="Precisam de atenção" tone="danger" />
-              <StatCard label="Concluídas" value={completedCount} hint="Fechadas" tone="success" />
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-slate-300/75">
-                <ListFilter className="h-3.5 w-3.5" />
-                Filtros rápidos
-              </div>
-
-              <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
-                <div className="flex w-max gap-2">
-                  {([
-                    { key: 'todas', label: 'Todas', count: filterCounts.todas },
-                    { key: 'minhas', label: 'Minhas', count: filterCounts.minhas },
-                    { key: 'gerais', label: 'Gerais', count: filterCounts.gerais },
-                    { key: 'prioritarias', label: 'Prioritárias', count: filterCounts.prioritarias },
-                  ] as const).map(filter => (
-                    <button
-                      key={filter.key}
-                      className={cn(
-                        'rounded-full border px-3 py-2 text-sm font-medium transition-colors',
-                        activeFilter === filter.key
-                          ? 'border-primary bg-primary text-primary-foreground'
-                          : 'border-border bg-background text-white hover:bg-muted'
-                      )}
-                      onClick={() => setActiveFilter(filter.key)}
-                    >
-                      {filter.label}
-                      <span className={cn(
-                        'ml-2 rounded-full px-1.5 py-0.5 text-[11px]',
-                        activeFilter === filter.key
-                          ? 'bg-black/10 text-[hsl(var(--primary-foreground))]'
-                          : 'bg-muted text-muted-foreground'
-                      )}>
-                        {filter.count}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+    <div className="mx-auto max-w-4xl space-y-8 px-4 pb-24 pt-6 md:px-6 md:pb-8 md:pt-8">
+      <div className="space-y-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/20 text-primary shadow-inner shadow-primary/20">
+              <CheckSquare className="h-6 w-6" />
+            </span>
+            <div>
+              <h1 className="text-2xl font-bold text-white">Tarefas Internas</h1>
+              <p className="text-sm font-medium text-slate-400">Tudo organizado para leitura rápida e ação no telemóvel.</p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+
+          {isCoord && (
+            <Button onClick={openNew} className="h-11 w-full sm:w-auto shrink-0 rounded-xl px-5 font-semibold shadow-lg shadow-primary/20">
+              <Plus className="mr-2 h-5 w-5" />
+              Nova Tarefa
+            </Button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Pendentes" value={pendingCount} hint="Tarefas ativas" tone="primary" />
+          <StatCard label="Em progresso" value={inProgressCount} hint="Já iniciadas" />
+          <StatCard label="Atrasadas" value={overdueCount} hint="Precisam de atenção" tone="danger" />
+          <StatCard label="Concluídas" value={completedCount} hint="Fechadas" tone="success" />
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+            <ListFilter className="h-4 w-4" />
+            Filtros rápidos
+          </div>
+
+          <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0 scrollbar-hide">
+            <div className="flex w-max gap-2 pb-2">
+              {([
+                { key: 'todas', label: 'Todas', count: filterCounts.todas },
+                { key: 'minhas', label: 'Minhas', count: filterCounts.minhas },
+                { key: 'gerais', label: 'Gerais', count: filterCounts.gerais },
+                { key: 'prioritarias', label: 'Prioritárias', count: filterCounts.prioritarias },
+              ] as const).map(filter => (
+                <button
+                  key={filter.key}
+                  className={cn(
+                    'flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all active:scale-95',
+                    activeFilter === filter.key
+                      ? 'border-primary bg-primary text-primary-foreground shadow-md shadow-primary/20'
+                      : 'border-white/5 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+                  )}
+                  onClick={() => setActiveFilter(filter.key)}
+                >
+                  {filter.label}
+                  <span className={cn(
+                    'flex h-5 items-center justify-center rounded-md px-1.5 text-[11px] font-bold',
+                    activeFilter === filter.key
+                      ? 'bg-black/15 text-[hsl(var(--primary-foreground))]'
+                      : 'bg-black/20 text-slate-400'
+                  )}>
+                    {filter.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
 
       {isLoadingTarefas ? (
         <div className="space-y-3">
@@ -599,26 +588,26 @@ export default function Tarefas() {
       )}
 
       {concluidas.length > 0 && (
-        <Card className="rounded-2xl border-border/70 bg-card shadow-none">
-          <CardContent className="p-4">
+        <Card className="rounded-2xl border-border/40 bg-card/50 shadow-none">
+          <CardContent className="p-5">
             <button
-              className="flex w-full items-center justify-between gap-3 text-left"
+              className="flex w-full items-center justify-between gap-3 text-left group"
               onClick={() => setShowConcluidas(v => !v)}
             >
               <div>
-                <p className="text-base font-semibold text-white">Concluídas</p>
-                <p className="text-sm text-slate-300/75">Arquivo recente para consulta rápida.</p>
+                <p className="text-lg font-bold text-white group-hover:text-emerald-400 transition-colors">Concluídas</p>
+                <p className="text-sm font-medium text-slate-400">Arquivo recente para consulta rápida.</p>
               </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="outline" className="rounded-full border-emerald-400/25 bg-emerald-400/12 px-2.5 py-1 text-xs font-medium text-emerald-100">
+              <div className="flex items-center gap-3 text-slate-400">
+                <Badge variant="outline" className="rounded-full border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-400">
                   {concluidas.length}
                 </Badge>
-                {showConcluidas ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                {showConcluidas ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
               </div>
             </button>
 
             {showConcluidas && (
-              <div className="mt-4 space-y-3">
+              <div className="mt-5 space-y-4">
                 {concluidas.map(t => <TarefaCard key={t.id} t={t} />)}
               </div>
             )}
