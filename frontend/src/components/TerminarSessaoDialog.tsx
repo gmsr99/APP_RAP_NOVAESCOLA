@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Mic, MicOff, Play, Plus, RefreshCw, Square, Trash2, Upload, X } from 'lucide-react';
+import { Camera, CheckCircle2, Images, Mic, MicOff, MessageSquare, Play, Plus, RefreshCw, Square, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,7 @@ import { startRecording, uploadAudioFeedback, type RecordingSession } from '@/ut
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Star } from 'lucide-react';
 
 interface Props {
@@ -37,8 +38,10 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
   // Step 2 — evidências (até 5)
   const [evidencias, setEvidencias] = useState<UploadSlot[]>([]);
 
-  // Step 3 — avaliação + áudio
+  // Step 3 — avaliação + feedback
   const [rating, setRating] = useState(0);
+  const [feedbackMode, setFeedbackMode] = useState<'audio' | 'text'>('audio');
+  const [feedbackText, setFeedbackText] = useState('');
   const [recordingState, setRecordingState] = useState<RecordingState>('idle');
   const [countdown, setCountdown] = useState(30);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -55,6 +58,8 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
       setRegistoUpload({ status: 'idle' });
       setEvidencias([]);
       setRating(0);
+      setFeedbackMode('audio');
+      setFeedbackText('');
       setRecordingState('idle');
       setCountdown(30);
       setAudioBlob(null);
@@ -167,7 +172,7 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
     setIsSubmitting(true);
     try {
       let finalAudioPath = audioPath;
-      if (audioBlob && !finalAudioPath && projetoId != null) {
+      if (feedbackMode === 'audio' && audioBlob && !finalAudioPath && projetoId != null) {
         setRecordingState('uploading');
         const uploadResult = await uploadAudioFeedback(audioBlob, projetoId, aulaId);
         if (uploadResult.ok && uploadResult.storagePath) {
@@ -182,7 +187,8 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
       }
       await api.post(`/api/aulas/${aulaId}/terminar`, {
         avaliacao: rating,
-        feedback_audio_path: finalAudioPath ?? undefined,
+        obs_termino: feedbackMode === 'text' && feedbackText.trim() ? feedbackText.trim() : undefined,
+        feedback_audio_path: feedbackMode === 'audio' ? (finalAudioPath ?? undefined) : undefined,
       });
       toast.success('Sessão terminada!');
       onSuccess();
@@ -193,7 +199,7 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
     } finally {
       setIsSubmitting(false);
     }
-  }, [aulaId, projetoId, rating, audioBlob, audioPath, onSuccess, onOpenChange]);
+  }, [aulaId, projetoId, rating, feedbackMode, feedbackText, audioBlob, audioPath, onSuccess, onOpenChange]);
 
   // ──────────────────── Render ────────────────────
 
@@ -284,17 +290,31 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
                 </div>
               ))}
               {evidencias.length < 5 && (
-                <label htmlFor="evidencia-file-input" className="aspect-square rounded-md border-2 border-dashed border-muted-foreground/30 flex items-center justify-center cursor-pointer hover:border-muted-foreground/60 transition-colors">
-                  <Plus className="h-6 w-6 text-muted-foreground/50" />
-                  <input
-                    id="evidencia-file-input"
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    className="sr-only"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleEvidenciaFile(f); e.target.value = ''; }}
-                  />
-                </label>
+                <div className="aspect-square rounded-md border-2 border-dashed border-muted-foreground/30 flex flex-col items-center justify-center gap-2 hover:border-muted-foreground/60 transition-colors">
+                  <label htmlFor="evidencia-camera-input" className="flex flex-col items-center gap-0.5 cursor-pointer p-1 rounded hover:bg-muted transition-colors">
+                    <Camera className="h-5 w-5 text-muted-foreground/60" />
+                    <span className="text-[10px] text-muted-foreground/60">Câmara</span>
+                    <input
+                      id="evidencia-camera-input"
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="sr-only"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleEvidenciaFile(f); e.target.value = ''; }}
+                    />
+                  </label>
+                  <label htmlFor="evidencia-gallery-input" className="flex flex-col items-center gap-0.5 cursor-pointer p-1 rounded hover:bg-muted transition-colors">
+                    <Images className="h-5 w-5 text-muted-foreground/60" />
+                    <span className="text-[10px] text-muted-foreground/60">Galeria</span>
+                    <input
+                      id="evidencia-gallery-input"
+                      type="file"
+                      accept="image/*"
+                      className="sr-only"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleEvidenciaFile(f); e.target.value = ''; }}
+                    />
+                  </label>
+                </div>
               )}
             </div>
             {evidencias.length === 0 && (
@@ -325,59 +345,93 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label className="font-medium">Feedback em áudio</Label>
-              <p className="text-xs text-muted-foreground">Fala livremente sobre como correu a sessão (máx. 30s)</p>
-
-              {recordingState === 'idle' && (
-                <Button
-                  variant="outline"
-                  className="w-full gap-2"
-                  onClick={handleStartRecording}
-                >
-                  <Mic className="h-4 w-4" /> Gravar
-                </Button>
-              )}
-
-              {recordingState === 'recording' && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-destructive flex items-center gap-1.5 animate-pulse">
-                      <span className="h-2 w-2 rounded-full bg-destructive inline-block" />
-                      A gravar...
-                    </span>
-                    <span className="text-sm tabular-nums font-mono">
-                      00:{String(countdown).padStart(2, '0')}
-                    </span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    className="w-full gap-2 border-destructive text-destructive hover:bg-destructive/10"
-                    onClick={handleStopRecording}
+            <div className="space-y-3">
+              <div className="flex items-center gap-1">
+                <Label className="font-medium">Feedback</Label>
+                <div className="ml-auto flex rounded-md border overflow-hidden text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setFeedbackMode('audio')}
+                    className={cn(
+                      'flex items-center gap-1 px-2.5 py-1 transition-colors',
+                      feedbackMode === 'audio'
+                        ? 'bg-[#6B7280] text-white'
+                        : 'text-muted-foreground hover:bg-muted'
+                    )}
                   >
-                    <Square className="h-4 w-4 fill-current" /> Parar
-                  </Button>
+                    <Mic className="h-3 w-3" /> Áudio
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFeedbackMode('text')}
+                    className={cn(
+                      'flex items-center gap-1 px-2.5 py-1 transition-colors',
+                      feedbackMode === 'text'
+                        ? 'bg-[#6B7280] text-white'
+                        : 'text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    <MessageSquare className="h-3 w-3" /> Texto
+                  </button>
+                </div>
+              </div>
+
+              {feedbackMode === 'audio' && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Fala livremente sobre como correu a sessão (máx. 30s)</p>
+
+                  {recordingState === 'idle' && (
+                    <Button variant="outline" className="w-full gap-2" onClick={handleStartRecording}>
+                      <Mic className="h-4 w-4" /> Gravar
+                    </Button>
+                  )}
+
+                  {recordingState === 'recording' && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-destructive flex items-center gap-1.5 animate-pulse">
+                          <span className="h-2 w-2 rounded-full bg-destructive inline-block" />
+                          A gravar...
+                        </span>
+                        <span className="text-sm tabular-nums font-mono">
+                          00:{String(countdown).padStart(2, '0')}
+                        </span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="w-full gap-2 border-destructive text-destructive hover:bg-destructive/10"
+                        onClick={handleStopRecording}
+                      >
+                        <Square className="h-4 w-4 fill-current" /> Parar
+                      </Button>
+                    </div>
+                  )}
+
+                  {recordingState === 'done' && audioUrl && (
+                    <div className="space-y-2">
+                      <audio src={audioUrl} controls className="w-full h-9" />
+                      <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={handleReRecord}>
+                        <RefreshCw className="h-3.5 w-3.5" /> Regravar
+                      </Button>
+                    </div>
+                  )}
+
+                  {recordingState === 'uploading' && (
+                    <p className="text-sm text-muted-foreground animate-pulse flex items-center gap-1.5">
+                      <MicOff className="h-4 w-4" /> A fazer upload do áudio...
+                    </p>
+                  )}
                 </div>
               )}
 
-              {recordingState === 'done' && audioUrl && (
-                <div className="space-y-2">
-                  <audio src={audioUrl} controls className="w-full h-9" />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="gap-1.5 text-muted-foreground"
-                    onClick={handleReRecord}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" /> Regravar
-                  </Button>
-                </div>
-              )}
-
-              {recordingState === 'uploading' && (
-                <p className="text-sm text-muted-foreground animate-pulse flex items-center gap-1.5">
-                  <MicOff className="h-4 w-4" /> A fazer upload do áudio...
-                </p>
+              {feedbackMode === 'text' && (
+                <Textarea
+                  placeholder="Escreve como correu a sessão..."
+                  value={feedbackText}
+                  onChange={e => setFeedbackText(e.target.value)}
+                  className="resize-none"
+                  rows={4}
+                />
               )}
             </div>
           </div>
@@ -422,7 +476,7 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
               </Button>
               <Button
                 onClick={handleSubmit}
-                disabled={rating < 1 || isSubmitting || recordingState === 'recording' || recordingState === 'uploading'}
+                disabled={rating < 1 || isSubmitting || (feedbackMode === 'audio' && (recordingState === 'recording' || recordingState === 'uploading'))}
                 className="bg-[#6B7280] hover:bg-[#555e68] text-white"
               >
                 <CheckCircle2 className="h-4 w-4 mr-2" />
