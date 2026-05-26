@@ -911,14 +911,14 @@ const Wiki = () => {
 
     return (
       <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col h-full">
-        <div className="flex items-start justify-between border-b pb-4 shrink-0">
-          <div>
-            <div className="flex items-center gap-2 text-muted-foreground text-xs sm:text-sm mb-1 truncate">
-              <span className="truncate">{estabName}</span> <ChevronRight className="h-3 w-3 shrink-0"/>
-              <span className="truncate">Turma {turmaName}</span> <ChevronRight className="h-3 w-3 shrink-0"/>
+        <div className="flex items-start justify-between gap-4 border-b pb-4 shrink-0">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-muted-foreground text-xs sm:text-sm mb-1">
+              <span className="truncate max-w-[120px] sm:max-w-[200px]">{estabName}</span> <ChevronRight className="h-3 w-3 shrink-0"/>
+              <span className="truncate max-w-[120px] sm:max-w-[200px]">Turma {turmaName}</span> <ChevronRight className="h-3 w-3 shrink-0"/>
             </div>
-            <h2 className="text-2xl font-bold flex items-center gap-2"><Book className="h-6 w-6 text-purple-400"/> {disc.nome}</h2>
-            {disc.descricao && <p className="text-muted-foreground mt-2">{disc.descricao}</p>}
+            <h2 className="text-xl sm:text-2xl font-bold flex items-start gap-2"><Book className="h-6 w-6 text-purple-400 shrink-0 mt-1 sm:mt-0"/> <span className="break-words min-w-0">{disc.nome}</span></h2>
+            {disc.descricao && <p className="text-sm sm:text-base text-muted-foreground mt-2 break-words">{disc.descricao}</p>}
           </div>
           {isCoordinator && (
             <div className="flex gap-2">
@@ -931,7 +931,7 @@ const Wiki = () => {
         <div className="flex-1 flex flex-col min-h-0 bg-card rounded-xl border overflow-hidden">
           <div className="p-4 border-b bg-muted/20 flex items-center justify-between shrink-0">
             <h3 className="font-semibold text-lg">Atividades ({disc.atividades.length})</h3>
-            {isCoordinator && <Button size="sm" onClick={() => openNewAtividade(disc!.id)}><Plus className="h-4 w-4 mr-1"/> Adicionar Atividade</Button>}
+            {isCoordinator && <Button size="sm" onClick={() => openNewAtividade(disc!.id)}><Plus className="h-4 w-4 sm:mr-1"/> <span className="hidden sm:inline">Adicionar Atividade</span><span className="sm:hidden">Adicionar</span></Button>}
           </div>
           <div className="overflow-auto p-0 flex-1">
             {disc.atividades.length === 0 ? (
