@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { BarChart3, Clock, Music, Star, MessageSquare, Building2, Calendar, Layers, FileSpreadsheet, FileDown, Images, Mic, Users, List } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { BarChart3, Clock, Music, Star, MessageSquare, Building2, Calendar, Layers, FileSpreadsheet, FileDown, Images, Mic, Users, List, ChevronDown, Download } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -271,48 +272,41 @@ export default function Estatisticas() {
         </h1>
         <div className="flex items-center gap-2 flex-wrap">
           {canExport && projetoId && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setExportOpen(true)}
-              className="gap-2 text-green-600 border-green-600/40 hover:bg-green-50 dark:hover:bg-green-950/30"
-            >
-              <FileSpreadsheet className="h-4 w-4" />
-              Exportar Dados
-            </Button>
-          )}
-          {canExport && projetoId && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setExportRegistosOpen(true)}
-              className="gap-2 text-green-600 border-green-600/40 hover:bg-green-50 dark:hover:bg-green-950/30"
-            >
-              <FileDown className="h-4 w-4" />
-              Exportar Registos
-            </Button>
-          )}
-          {canExportMedia && projetoId && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setExportEvidenciasOpen(true)}
-              className="gap-2 text-blue-600 border-blue-600/40 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-            >
-              <Images className="h-4 w-4" />
-              Exportar Evidências
-            </Button>
-          )}
-          {canExportMedia && projetoId && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setExportFeedbackOpen(true)}
-              className="gap-2 text-purple-600 border-purple-600/40 hover:bg-purple-50 dark:hover:bg-purple-950/30"
-            >
-              <Mic className="h-4 w-4" />
-              Exportar Feedback
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 bg-background hover:bg-muted/50 border-muted">
+                  <Download className="h-4 w-4 text-primary" />
+                  <span className="hidden sm:inline">Exportar</span>
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Dados Estatísticos</DropdownMenuLabel>
+                <DropdownMenuItem onClick={() => setExportOpen(true)} className="gap-2 cursor-pointer py-2">
+                  <FileSpreadsheet className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  Base de Dados Geral
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setExportRegistosOpen(true)} className="gap-2 cursor-pointer py-2">
+                  <FileDown className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  Registos de Sessão
+                </DropdownMenuItem>
+                
+                {canExportMedia && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Ficheiros Multimédia</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => setExportEvidenciasOpen(true)} className="gap-2 cursor-pointer py-2">
+                      <Images className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                      Evidências (Fotos/Vídeos)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setExportFeedbackOpen(true)} className="gap-2 cursor-pointer py-2">
+                      <Mic className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                      Feedback (Áudios)
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           <ProjetoSelect projetos={projetos} value={selectedProjetoId} onChange={setSelectedProjetoId} />
         </div>
@@ -331,7 +325,7 @@ export default function Estatisticas() {
         <Dialog open={exportRegistosOpen} onOpenChange={setExportRegistosOpen}>
           <DialogContent className="sm:max-w-[480px]">
             <DialogHeader>
-              <DialogTitle>Exportar Registos de Sessão</DialogTitle>
+              <DialogTitle className="flex items-center gap-2"><FileDown className="h-5 w-5 text-emerald-600" /> Exportar Registos de Sessão</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="grid grid-cols-2 gap-3">
@@ -397,7 +391,7 @@ export default function Estatisticas() {
         <Dialog open={exportEvidenciasOpen} onOpenChange={setExportEvidenciasOpen}>
           <DialogContent className="sm:max-w-[480px]">
             <DialogHeader>
-              <DialogTitle>Exportar Evidências da Sessão</DialogTitle>
+              <DialogTitle className="flex items-center gap-2"><Images className="h-5 w-5 text-blue-600" /> Exportar Evidências</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="grid grid-cols-2 gap-3">
@@ -460,7 +454,7 @@ export default function Estatisticas() {
         <Dialog open={exportFeedbackOpen} onOpenChange={setExportFeedbackOpen}>
           <DialogContent className="sm:max-w-[480px]">
             <DialogHeader>
-              <DialogTitle>Exportar Feedback de Áudio</DialogTitle>
+              <DialogTitle className="flex items-center gap-2"><Mic className="h-5 w-5 text-purple-600" /> Exportar Feedback de Áudio</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div className="grid grid-cols-2 gap-3">
@@ -520,7 +514,7 @@ export default function Estatisticas() {
 
       {/* KPI Cards */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
-        <Card>
+        <Card className="relative overflow-hidden border-b-4 border-b-blue-500/50 hover:border-b-blue-500 transition-colors">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
@@ -535,7 +529,7 @@ export default function Estatisticas() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="relative overflow-hidden border-b-4 border-b-purple-500/50 hover:border-b-purple-500 transition-colors">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
@@ -550,7 +544,7 @@ export default function Estatisticas() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="relative overflow-hidden border-b-4 border-b-amber-500/50 hover:border-b-amber-500 transition-colors">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/30">
@@ -569,7 +563,7 @@ export default function Estatisticas() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="relative overflow-hidden border-b-4 border-b-green-500/50 hover:border-b-green-500 transition-colors">
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
@@ -660,7 +654,7 @@ export default function Estatisticas() {
                             return (
                               <TableRow
                                 key={`${t.turma_id}-${t.disciplina_id ?? 'none'}`}
-                                className="cursor-pointer hover:bg-muted/50 transition-colors"
+                                className="cursor-pointer hover:bg-muted/50 transition-colors group"
                                 onClick={() => setSessoesModal({ turma_id: t.turma_id, turma_nome: t.turma_nome, disciplina_nome: t.disciplina_nome })}
                               >
                                 <TableCell className="text-xs font-medium">
@@ -675,7 +669,7 @@ export default function Estatisticas() {
                                 </TableCell>
                                 <TableCell className="text-xs text-center">{t.sessoes_realizadas} / {t.sessoes_previstas || '?'}</TableCell>
                                 <TableCell className="text-xs text-center">
-                                  <Badge variant="secondary" className={cn('text-xs', pH >= 75 ? 'bg-green-100 text-green-700' : pH >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-muted')}>
+                                  <Badge variant="secondary" className={cn('text-xs', pH >= 75 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 group-hover:bg-green-200 transition-colors' : pH >= 40 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 group-hover:bg-amber-200 transition-colors' : 'bg-muted')}>
                                     {pH}%
                                   </Badge>
                                 </TableCell>
@@ -683,7 +677,7 @@ export default function Estatisticas() {
                                   {t.musicas_concluidas} / {t.musicas_previstas ?? '?'}
                                 </TableCell>
                                 <TableCell className="text-xs text-center">
-                                  <Badge variant="secondary" className={cn('text-xs', pM >= 75 ? 'bg-green-100 text-green-700' : pM >= 40 ? 'bg-amber-100 text-amber-700' : 'bg-muted')}>
+                                  <Badge variant="secondary" className={cn('text-xs', pM >= 75 ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 group-hover:bg-green-200 transition-colors' : pM >= 40 ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 group-hover:bg-amber-200 transition-colors' : 'bg-muted')}>
                                     {pM}%
                                   </Badge>
                                 </TableCell>
