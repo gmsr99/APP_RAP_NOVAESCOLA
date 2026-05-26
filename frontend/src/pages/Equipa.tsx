@@ -20,6 +20,20 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
+    Sheet,
+    SheetContent,
+    SheetDescription,
+    SheetHeader,
+    SheetTitle,
+    SheetFooter,
+} from '@/components/ui/sheet';
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from '@/components/ui/tabs';
+import {
     Dialog,
     DialogContent,
     DialogHeader,
@@ -36,7 +50,7 @@ import {
 } from '@/components/ui/select';
 import { api } from '@/services/api';
 import type { PublicProfile, RoleDefinition, Projeto } from '@/types';
-import { Mail, Shield, Trash2, Pencil } from 'lucide-react';
+import { Mail, Shield, Trash2, Pencil, Search, UserCircle, Key, Settings2 } from 'lucide-react';
 import { useProfile } from '@/contexts/ProfileContext';
 import { toast } from 'sonner';
 
@@ -63,6 +77,10 @@ const Equipa = () => {
     const [deleteTarget, setDeleteTarget] = useState<PublicProfile | null>(null);
     const [editTarget, setEditTarget] = useState<PublicProfile | null>(null);
     const [editForm, setEditForm] = useState({ full_name: '', role: '', avatar_url: '' });
+
+    const [searchQuery, setSearchQuery] = useState('');
+    const [roleFilter, setRoleFilter] = useState('all');
+
 
     // Advanced permissions state
     const [advPerms, setAdvPerms] = useState<{
@@ -212,251 +230,267 @@ const Equipa = () => {
     };
 
     if (isLoading) {
-        return (
-            <div className="space-y-6">
-                <div className="space-y-2">
-                    <div className="h-8 w-32 rounded-md bg-muted animate-pulse" />
-                    <div className="h-4 w-64 rounded-md bg-muted animate-pulse" />
-                </div>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {Array.from({ length: 6 }).map((_, i) => (
-                        <Card key={i}>
-                            <CardHeader className="flex flex-row items-center gap-4 pb-2">
-                                <div className="h-12 w-12 rounded-full bg-muted animate-pulse shrink-0" />
-                                <div className="space-y-2 flex-1">
-                                    <div className="h-4 w-3/4 rounded bg-muted animate-pulse" />
-                                    <div className="h-3 w-1/2 rounded bg-muted animate-pulse" />
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="h-3 w-1/3 rounded bg-muted animate-pulse" />
-                            </CardContent>
-                        </Card>
-                    ))}
-                </div>
-            </div>
-        );
-    }
-
-    if (error) {
-        return (
-            <div className="p-4 text-center text-destructive">
-                Erro ao carregar a equipa. Tenta novamente mais tarde.
-            </div>
-        );
-    }
+        
+    const filteredProfiles = profiles?.filter(p => {
+        const matchesSearch = (p.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
+                              (p.email?.toLowerCase() || '').includes(searchQuery.toLowerCase());
+        const matchesRole = roleFilter === 'all' || p.role === roleFilter;
+        return matchesSearch && matchesRole;
+    });
 
     return (
-        <div className="space-y-6">
-            <div className="hidden sm:block">
-                <h1 className="text-2xl sm:text-3xl font-display font-bold">Equipa</h1>
-                <p className="text-muted-foreground mt-1">
-                    Membros registados na plataforma e os seus cargos.
-                </p>
+        <div className="space-y-6 max-w-7xl mx-auto pb-10">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h1 className="text-2xl sm:text-3xl font-display font-bold">Equipa</h1>
+                    <p className="text-muted-foreground mt-1 text-sm sm:text-base">
+                        Membros registados na plataforma e os seus cargos.
+                    </p>
+                </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {profiles?.map((p) => (
-                    <Card key={p.id}>
-                        <CardHeader className="flex flex-row items-center gap-4 pb-2">
-                            <Avatar className="h-12 w-12 shrink-0">
-                                <AvatarImage src={p.avatar_url} />
-                                <AvatarFallback>
-                                    {p.full_name?.substring(0, 2).toUpperCase() || 'U'}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div className="flex flex-col flex-1 min-w-0">
-                                <CardTitle className="text-base">{p.full_name || 'Utilizador'}</CardTitle>
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <Mail className="h-3 w-3 shrink-0" />
-                                    <span className="truncate" title={p.email}>{p.email}</span>
-                                </div>
-                            </div>
-                            {isDirecao && p.id !== user.id && (
-                                <div className="flex items-center gap-1 shrink-0">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                                        onClick={() => openEdit(p)}
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                        onClick={() => setDeleteTarget(p)}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            )}
-                        </CardHeader>
-                        <CardContent>
-                            <div className="flex items-center gap-2">
-                                <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
-                                <Badge
-                                    variant={(ROLE_BADGE[p.role] as any) || 'outline'}
-                                    className="capitalize"
-                                >
-                                    {roles.find(r => r.name === p.role)?.label || p.role}
-                                </Badge>
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
+            {/* Filters Bar */}
+            <div className="flex flex-col sm:flex-row gap-4 bg-card p-3 rounded-xl border">
+                <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input 
+                        placeholder="Pesquisar por nome ou email..." 
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-9 bg-background/50 border-muted"
+                    />
+                </div>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                    <SelectTrigger className="w-full sm:w-[220px] bg-background/50 border-muted">
+                        <SelectValue placeholder="Filtrar por cargo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">Todos os cargos</SelectItem>
+                        {roles.map(r => (
+                            <SelectItem key={r.name} value={r.name}>{r.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
 
-            {/* Edit Dialog */}
-            <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null); }}>
-                <DialogContent className="w-full sm:max-w-md max-h-[95dvh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <Pencil className="h-4 w-4" />
+            {filteredProfiles?.length === 0 ? (
+                <div className="text-center py-16 bg-card border border-dashed rounded-xl">
+                    <UserCircle className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+                    <p className="text-muted-foreground">Nenhum membro encontrado com os filtros atuais.</p>
+                </div>
+            ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                    {filteredProfiles?.map((p) => {
+                        const isHighLevel = p.role === 'direcao' || p.role === 'coordenador';
+                        return (
+                            <Card key={p.id} className={`overflow-hidden transition-all hover:shadow-md ${isHighLevel ? 'border-primary/30 shadow-sm' : ''}`}>
+                                <CardHeader className="flex flex-row items-start gap-4 pb-4">
+                                    <Avatar className="h-14 w-14 shrink-0 border-2 border-background shadow-sm">
+                                        <AvatarImage src={p.avatar_url} />
+                                        <AvatarFallback className="bg-primary/5 text-primary">
+                                            {p.full_name?.substring(0, 2).toUpperCase() || 'U'}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex flex-col flex-1 min-w-0 pt-1">
+                                        <CardTitle className="text-base leading-tight truncate" title={p.full_name || 'Utilizador'}>{p.full_name || 'Utilizador'}</CardTitle>
+                                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1.5">
+                                            <Mail className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                                            <span className="truncate" title={p.email}>{p.email}</span>
+                                        </div>
+                                    </div>
+                                    {isDirecao && p.id !== user.id && (
+                                        <div className="flex flex-col gap-1 shrink-0 -mr-2 -mt-2">
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-primary/10 hover:text-primary" onClick={() => openEdit(p)}>
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteTarget(p)}>
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    )}
+                                </CardHeader>
+                                <CardContent className="bg-muted/10 pt-3 pb-3 border-t flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Shield className="h-3.5 w-3.5 text-muted-foreground/70 shrink-0" />
+                                        <Badge variant={(ROLE_BADGE[p.role] as any) || 'outline'} className="capitalize text-[10px] font-medium tracking-wide">
+                                            {roles.find(r => r.name === p.role)?.label || p.role}
+                                        </Badge>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )
+                    })}
+                </div>
+            )}
+
+            {/* Edit Sheet */}
+            <Sheet open={!!editTarget} onOpenChange={(open) => { if (!open) { setEditTarget(null); setAdvPerms(null); } }}>
+                <SheetContent className="w-full sm:max-w-md md:max-w-lg overflow-y-auto p-0 flex flex-col h-full border-l-0 sm:border-l">
+                    <SheetHeader className="p-6 pb-2 shrink-0">
+                        <SheetTitle className="flex items-center gap-2 text-xl">
+                            <Pencil className="h-5 w-5 text-primary" />
                             Editar membro
-                        </DialogTitle>
-                        <DialogDescription>
-                            Altera o nome, cargo ou foto de <strong>{editTarget?.full_name}</strong>.
-                        </DialogDescription>
-                    </DialogHeader>
+                        </SheetTitle>
+                        <SheetDescription>
+                            A alterar configurações de <strong>{editTarget?.full_name}</strong>.
+                        </SheetDescription>
+                    </SheetHeader>
 
-                    <div className="space-y-4 py-2">
-                        {/* Avatar preview */}
-                        <div className="flex items-center gap-4">
-                            <Avatar className="h-16 w-16 shrink-0">
-                                <AvatarImage src={editForm.avatar_url || editTarget?.avatar_url} />
-                                <AvatarFallback className="text-lg">
-                                    {editForm.full_name?.substring(0, 2).toUpperCase() || 'U'}
-                                </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 space-y-1.5">
-                                <Label>URL da foto</Label>
-                                <Input
-                                    placeholder="https://..."
-                                    value={editForm.avatar_url}
-                                    onChange={(e) => setEditForm({ ...editForm, avatar_url: e.target.value })}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                    Link direto para a imagem (HTTPS).
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label>Nome completo <span className="text-destructive">*</span></Label>
-                            <Input
-                                value={editForm.full_name}
-                                onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
-                                placeholder="Nome do membro"
-                            />
-                        </div>
-
-                        <div className="space-y-1.5">
-                            <Label>Cargo <span className="text-destructive">*</span></Label>
-                            <Select value={editForm.role} onValueChange={handleRoleChange}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Selecionar cargo" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {(roles.length > 0 ? roles : [
-                                        { name: 'mentor', label: 'Mentor' },
-                                        { name: 'produtor', label: 'Produtor' },
-                                        { name: 'mentor_produtor', label: 'Mentor / Produtor' },
-                                        { name: 'coordenador', label: 'Coordenador' },
-                                        { name: 'direcao', label: 'Direção' },
-                                        { name: 'it_support', label: 'IT Support' },
-                                    ]).map(r => (
-                                        <SelectItem key={r.name} value={r.name}>{r.label}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {/* Advanced permissions (admin only) */}
-                        {isAdmin && advPerms && (
-                            <>
-                                <div className="space-y-2 pt-2 border-t">
-                                    <Label className="text-sm font-semibold">Acesso a páginas</Label>
-                                    <div className="grid grid-cols-2 gap-1.5">
-                                        {ALL_SLUGS.map(slug => (
-                                            <label key={slug} className="flex items-center gap-2 cursor-pointer select-none">
-                                                <Checkbox
-                                                    checked={getPageAccess(slug)}
-                                                    onCheckedChange={() => togglePage(slug)}
-                                                    disabled={advPerms.is_root}
-                                                />
-                                                <span className="text-sm">{PAGE_LABELS[slug]}</span>
-                                            </label>
-                                        ))}
+                    <div className="flex-1 overflow-y-auto px-6">
+                        <Tabs defaultValue="perfil" className="mt-4 pb-6">
+                            <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-1'} bg-muted/50`}>
+                                <TabsTrigger value="perfil" className="text-xs sm:text-sm"><UserCircle className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" /> Perfil</TabsTrigger>
+                                {isAdmin && <TabsTrigger value="acessos" className="text-xs sm:text-sm"><Key className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" /> Acessos</TabsTrigger>}
+                                {isAdmin && <TabsTrigger value="avancado" className="text-xs sm:text-sm"><Settings2 className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" /> Avançado</TabsTrigger>}
+                            </TabsList>
+                            
+                            <TabsContent value="perfil" className="space-y-6 pt-4 outline-none">
+                                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 p-4 rounded-xl border bg-muted/20">
+                                    <Avatar className="h-20 w-20 shrink-0 border-4 border-background shadow-sm">
+                                        <AvatarImage src={editForm.avatar_url || editTarget?.avatar_url} />
+                                        <AvatarFallback className="text-xl font-medium bg-primary/10 text-primary">
+                                            {editForm.full_name?.substring(0, 2).toUpperCase() || 'U'}
+                                        </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1 space-y-2 w-full">
+                                        <Label className="text-xs uppercase tracking-wider text-muted-foreground font-semibold">URL da Foto</Label>
+                                        <Input
+                                            placeholder="https://..."
+                                            value={editForm.avatar_url}
+                                            onChange={(e) => setEditForm({ ...editForm, avatar_url: e.target.value })}
+                                            className="h-8 text-sm"
+                                        />
                                     </div>
                                 </div>
 
-                                {projetos.length > 0 && (
-                                    <div className="space-y-2 pt-2 border-t">
-                                        <Label className="text-sm font-semibold">Acesso a projetos</Label>
-                                        <p className="text-xs text-muted-foreground">Vazio = acesso a todos.</p>
-                                        <div className="grid grid-cols-2 gap-1.5">
-                                            {projetos.map(p => (
-                                                <label key={p.id} className="flex items-center gap-2 cursor-pointer select-none">
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-semibold">Nome completo <span className="text-destructive">*</span></Label>
+                                    <Input
+                                        value={editForm.full_name}
+                                        onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+                                        placeholder="Nome do membro"
+                                        className="bg-background"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <Label className="text-sm font-semibold">Cargo <span className="text-destructive">*</span></Label>
+                                    <Select value={editForm.role} onValueChange={handleRoleChange}>
+                                        <SelectTrigger className="bg-background">
+                                            <SelectValue placeholder="Selecionar cargo" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(roles.length > 0 ? roles : [
+                                                { name: 'mentor', label: 'Mentor' },
+                                                { name: 'produtor', label: 'Produtor' },
+                                                { name: 'mentor_produtor', label: 'Mentor / Produtor' },
+                                                { name: 'coordenador', label: 'Coordenador' },
+                                                { name: 'direcao', label: 'Direção' },
+                                                { name: 'it_support', label: 'IT Support' },
+                                            ]).map(r => (
+                                                <SelectItem key={r.name} value={r.name}>{r.label}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </TabsContent>
+
+                            {isAdmin && advPerms && (
+                                <TabsContent value="acessos" className="space-y-6 pt-4 outline-none">
+                                    <div className="space-y-3">
+                                        <div>
+                                            <Label className="text-base font-semibold">Páginas</Label>
+                                            <p className="text-xs text-muted-foreground mb-3">Define a que separadores da plataforma o utilizador tem acesso.</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-muted/20 p-3 rounded-lg border">
+                                            {ALL_SLUGS.map(slug => (
+                                                <label key={slug} className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${getPageAccess(slug) ? 'bg-background shadow-sm border' : 'hover:bg-muted/50 border border-transparent'}`}>
                                                     <Checkbox
-                                                        checked={advPerms.project_ids.includes(p.id)}
-                                                        onCheckedChange={() => toggleProject(p.id)}
+                                                        checked={getPageAccess(slug)}
+                                                        onCheckedChange={() => togglePage(slug)}
                                                         disabled={advPerms.is_root}
                                                     />
-                                                    <span className="text-sm">{p.nome}</span>
+                                                    <span className="text-sm font-medium">{PAGE_LABELS[slug]}</span>
                                                 </label>
                                             ))}
                                         </div>
                                     </div>
-                                )}
 
-                                <div className="flex items-center justify-between pt-2 border-t">
-                                    <div>
-                                        <p className="text-sm font-semibold">Acesso de Coordenação</p>
-                                        <p className="text-xs text-muted-foreground">Coordena sessões, turmas e exportações, independentemente do cargo.</p>
-                                    </div>
-                                    <Switch
-                                        checked={advPerms.is_coordenacao}
-                                        onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_coordenacao: v } : prev)}
-                                        disabled={advPerms.is_direcao || advPerms.is_root}
-                                    />
-                                </div>
+                                    {projetos.length > 0 && (
+                                        <div className="space-y-3">
+                                            <div>
+                                                <Label className="text-base font-semibold">Projetos</Label>
+                                                <p className="text-xs text-muted-foreground mb-3">Limitar o acesso apenas a certos projetos (vazio = todos).</p>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-2 bg-muted/20 p-3 rounded-lg border">
+                                                {projetos.map(p => (
+                                                    <label key={p.id} className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${advPerms.project_ids.includes(p.id) ? 'bg-background shadow-sm border' : 'hover:bg-muted/50 border border-transparent'}`}>
+                                                        <Checkbox
+                                                            checked={advPerms.project_ids.includes(p.id)}
+                                                            onCheckedChange={() => toggleProject(p.id)}
+                                                            disabled={advPerms.is_root}
+                                                        />
+                                                        <span className="text-sm font-medium">{p.nome}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </TabsContent>
+                            )}
 
-                                <div className="flex items-center justify-between pt-2 border-t">
-                                    <div>
-                                        <p className="text-sm font-semibold">Acesso de Direção</p>
-                                        <p className="text-xs text-muted-foreground">Acesso total à app exceto painel de administração de sistema.</p>
+                            {isAdmin && advPerms && (
+                                <TabsContent value="avancado" className="space-y-4 pt-4 outline-none">
+                                    <div className="flex flex-col gap-1.5 p-4 rounded-xl border bg-muted/10">
+                                        <div className="flex items-center justify-between">
+                                            <Label className="text-base font-semibold">Acesso de Coordenação</Label>
+                                            <Switch
+                                                checked={advPerms.is_coordenacao}
+                                                onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_coordenacao: v } : prev)}
+                                                disabled={advPerms.is_direcao || advPerms.is_root}
+                                            />
+                                        </div>
+                                        <p className="text-sm text-muted-foreground leading-relaxed">Pode gerir e ver todas as sessões, turmas e exportar dados gerais, independentemente do cargo oficial atribuído no perfil.</p>
                                     </div>
-                                    <Switch
-                                        checked={advPerms.is_direcao}
-                                        onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_direcao: v } : prev)}
-                                        disabled={advPerms.is_root}
-                                    />
-                                </div>
 
-                                <div className="flex items-center justify-between pt-2 border-t">
-                                    <div>
-                                        <p className="text-sm font-semibold">Acesso root</p>
-                                        <p className="text-xs text-muted-foreground">Contorna todas as permissões.</p>
+                                    <div className="flex flex-col gap-1.5 p-4 rounded-xl border border-orange-200/50 bg-orange-50/30 dark:bg-orange-950/20">
+                                        <div className="flex items-center justify-between">
+                                            <Label className="text-base font-semibold text-orange-700 dark:text-orange-400">Acesso de Direção</Label>
+                                            <Switch
+                                                checked={advPerms.is_direcao}
+                                                onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_direcao: v } : prev)}
+                                                disabled={advPerms.is_root}
+                                            />
+                                        </div>
+                                        <p className="text-sm text-muted-foreground leading-relaxed">Privilégios quase totais na app. Apenas o painel "Admin" de sistema lhe está vedado.</p>
                                     </div>
-                                    <Switch
-                                        checked={advPerms.is_root}
-                                        onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_root: v } : prev)}
-                                    />
-                                </div>
-                            </>
-                        )}
+
+                                    <div className="flex flex-col gap-1.5 p-4 rounded-xl border border-destructive/20 bg-destructive/5">
+                                        <div className="flex items-center justify-between">
+                                            <Label className="text-base font-semibold text-destructive">Acesso Root</Label>
+                                            <Switch
+                                                checked={advPerms.is_root}
+                                                onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_root: v } : prev)}
+                                                className="data-[state=checked]:bg-destructive"
+                                            />
+                                        </div>
+                                        <p className="text-sm text-muted-foreground leading-relaxed">Contorna e ignora todas as regras de acesso. Cuidado ao atribuir esta permissão.</p>
+                                    </div>
+                                </TabsContent>
+                            )}
+                        </Tabs>
                     </div>
-
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => { setEditTarget(null); setAdvPerms(null); }}>Cancelar</Button>
-                        <Button onClick={handleSubmitEdit} disabled={updateMutation.isPending || updatePermsMutation.isPending}>
-                            {updateMutation.isPending || updatePermsMutation.isPending ? 'A guardar...' : 'Guardar'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                    
+                    <SheetFooter className="p-6 pt-4 border-t shrink-0 bg-background mt-auto">
+                        <div className="flex gap-3 w-full sm:w-auto">
+                            <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => { setEditTarget(null); setAdvPerms(null); }}>Cancelar</Button>
+                            <Button className="flex-1 sm:flex-none" onClick={handleSubmitEdit} disabled={updateMutation.isPending || updatePermsMutation.isPending}>
+                                {updateMutation.isPending || updatePermsMutation.isPending ? 'A guardar...' : 'Guardar Alterações'}
+                            </Button>
+                        </div>
+                    </SheetFooter>
+                </SheetContent>
+            </Sheet>
 
             {/* Delete Dialog */}
             <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
@@ -482,6 +516,7 @@ const Equipa = () => {
             </AlertDialog>
         </div>
     );
+
 };
 
 export default Equipa;
