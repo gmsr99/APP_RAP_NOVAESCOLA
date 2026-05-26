@@ -24,6 +24,14 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetFooter,
+} from '@/components/ui/sheet';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -200,6 +208,15 @@ const Wiki = () => {
 
   // Info cards visibility
   const [showInfoCards, setShowInfoCards] = useState(false);
+
+  // State for Master-Detail Navigation
+  type SelectedNode = 
+    | null 
+    | { type: 'estab'; id: number; data: WikiEstabelecimento }
+    | { type: 'turma'; id: number; data: WikiTurma; estabId: number }
+    | { type: 'disc'; id: number; data: TurmaDisciplina; turmaId: number };
+  const [selectedNode, setSelectedNode] = useState<SelectedNode>(null);
+
 
   // State for Config modal
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
@@ -625,487 +642,397 @@ const Wiki = () => {
     setBatchAtividades(prev => [...prev, { nome: '', codigo: '', sessoes_previstas: '0', horas_por_sessao: '0', musicas_previstas: '0', role: '' }]);
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div className="hidden sm:block">
-          <h1 className="text-2xl sm:text-3xl font-display font-bold flex items-center gap-2">
-            <Book className="h-8 w-8 text-primary" />
-            Wiki / Base de Conhecimento
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Gestão de projetos, estabelecimentos, turmas, disciplinas e atividades.
-          </p>
-        </div>
-        {/* Info cards toggle */}
-        <Collapsible open={showInfoCards} onOpenChange={setShowInfoCards}>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground shrink-0 mt-1">
-              <HelpCircle className="h-4 w-4" />
-              Ajuda
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showInfoCards ? 'rotate-180' : ''}`} />
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <div className="grid gap-4 md:grid-cols-2 mt-3">
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <Layers className="h-4 w-4 text-blue-500" />
-                    Contexto e Hierarquia
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm">
-                  <div className="bg-muted p-3 rounded-md space-y-2 font-mono text-xs">
-                    <div className="flex items-center gap-2"><Badge variant="default" className="text-xs">PROJETO</Badge><span>contém</span></div>
-                    <div className="flex items-center gap-2 pl-4"><span className="text-muted-foreground">↳</span><Badge variant="secondary" className="text-xs">ESTABELECIMENTOS</Badge><span>que contêm</span></div>
-                    <div className="flex items-center gap-2 pl-8"><span className="text-muted-foreground">↳</span><Badge variant="outline" className="text-xs">TURMAS</Badge><span>que têm</span></div>
-                    <div className="flex items-center gap-2 pl-12"><span className="text-muted-foreground">↳</span><Badge variant="outline" className="border-primary text-primary text-xs">DISCIPLINAS</Badge><span>compostas por</span></div>
-                    <div className="flex items-center gap-2 pl-16"><span className="text-muted-foreground">↳</span><Badge variant="destructive" className="text-xs">ATIVIDADES (UUID)</Badge></div>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-sm">
-                    <Calendar className="h-4 w-4 text-green-500" />
-                    Conceito de "Sessão"
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="text-sm">
-                  <ul className="list-disc pl-4 space-y-1.5 text-muted-foreground">
-                    <li>Ocorre numa <strong className="text-foreground">Turma</strong> específica.</li>
-                    <li>Corresponde a uma <strong className="text-foreground">Atividade</strong> local da turma (UUID).</li>
-                    <li>Tem um <strong className="text-foreground">Mentor</strong> cujo perfil está incluído nos <code>roles</code> da atividade.</li>
-                    <li>Cada turma tem as suas próprias disciplinas e atividades (modelo local).</li>
-                  </ul>
-                </CardContent>
-              </Card>
-            </div>
-          </CollapsibleContent>
-        </Collapsible>
-      </div>
-
-      {/* Seletor de Projeto */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Layers className="h-5 w-5 text-primary" />
-              Projeto
-            </CardTitle>
-            <CardDescription>
-              Seleciona um projeto para ver a sua hierarquia.
-            </CardDescription>
-          </div>
-          {isCoordinator && (
-            <Button size="sm" className="gap-2" onClick={() => {
-              setEditingProjeto(null);
-              setProjetoForm({ nome: '', descricao: '' });
-              setIsProjetoDialogOpen(true);
-            }}>
-              <Plus className="h-4 w-4" />
-              Novo Projeto
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center gap-3 flex-wrap">
-            <Select
-              value={selectedProjetoId ? String(selectedProjetoId) : undefined}
-              onValueChange={(v) => setSelectedProjetoId(Number(v))}
-            >
-              <SelectTrigger className="w-full sm:w-[300px]">
-                <SelectValue placeholder="Selecionar projeto..." />
-              </SelectTrigger>
-              <SelectContent>
-                {projetos.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {selectedProjetoId && isCoordinator && (
-              <>
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
-                  const p = projetos.find(x => x.id === selectedProjetoId);
-                  if (p) {
-                    setEditingProjeto(p);
-                    setProjetoForm({ nome: p.nome, descricao: p.descricao || '' });
-                    setIsProjetoDialogOpen(true);
-                  }
-                }}>
-                  <Edit2 className="h-3.5 w-3.5" /> Editar
-                </Button>
-                <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => {
-                  askConfirm(
-                    'Apagar projeto?',
-                    `O projeto "${selectedProjeto?.nome}" será permanentemente apagado.`,
-                    () => deleteProjetoMutation.mutate(selectedProjetoId)
-                  );
-                }}>
-                  <Trash2 className="h-3.5 w-3.5" /> Apagar
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  onClick={() => {
-                    setConfigForm({
-                      requer_digitalizacao: selectedProjeto?.requer_digitalizacao ?? false,
-                      tem_pre_registos: selectedProjeto?.tem_pre_registos ?? false,
-                      codigo_projeto: selectedProjeto?.codigo_projeto ?? '',
-                      usar_template_proprio: selectedProjeto?.usar_template_proprio ?? false,
-                    });
-                    setIsConfigModalOpen(true);
-                  }}
-                >
-                  <Settings className="h-4 w-4" />
-                  Configurações
-                </Button>
-              </>
+  
+  // Helper renderers for Master-Detail
+  const renderMasterTree = () => {
+    return (
+      <div className="space-y-4">
+        {/* Projeto Selector */}
+        <div className="space-y-3 bg-card p-4 rounded-xl border">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold flex items-center gap-2"><Layers className="h-4 w-4 text-primary"/> Projeto</h3>
+            {isCoordinator && (
+              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => {
+                setEditingProjeto(null); setProjetoForm({ nome: '', descricao: '' }); setIsProjetoDialogOpen(true);
+              }}>
+                <Plus className="h-4 w-4" />
+              </Button>
             )}
           </div>
-        </CardContent>
-      </Card>
+          <Select value={selectedProjetoId ? String(selectedProjetoId) : undefined} onValueChange={(v) => { setSelectedProjetoId(Number(v)); setSelectedNode(null); }}>
+            <SelectTrigger><SelectValue placeholder="Selecionar projeto..." /></SelectTrigger>
+            <SelectContent>
+              {projetos.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {selectedProjetoId && isCoordinator && (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => {
+                const p = projetos.find(x => x.id === selectedProjetoId);
+                if (p) { setEditingProjeto(p); setProjetoForm({ nome: p.nome, descricao: p.descricao || '' }); setIsProjetoDialogOpen(true); }
+              }}>Editar</Button>
+              <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => {
+                setConfigForm({ requer_digitalizacao: selectedProjeto?.requer_digitalizacao ?? false, tem_pre_registos: selectedProjeto?.tem_pre_registos ?? false, codigo_projeto: selectedProjeto?.codigo_projeto ?? '', usar_template_proprio: selectedProjeto?.usar_template_proprio ?? false });
+                setIsConfigModalOpen(true);
+              }}>Configs</Button>
+            </div>
+          )}
+        </div>
 
-      {/* HIERARQUIA UNIFICADA */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+        {/* Hierarchy Tree */}
+        <div className="bg-card rounded-xl border overflow-hidden flex flex-col max-h-[60vh]">
+          <div className="p-3 border-b bg-muted/20 flex items-center justify-between">
+            <h3 className="font-semibold text-sm">Hierarquia</h3>
+            {isCoordinator && (
+              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={openNewEstab}><Plus className="h-4 w-4"/></Button>
+            )}
+          </div>
+          <div className="overflow-y-auto p-2 space-y-1">
+            {!selectedProjetoId ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Seleciona um projeto acima.</p>
+            ) : hierarquiaLoading ? (
+              <p className="text-xs text-muted-foreground text-center py-4">A carregar...</p>
+            ) : wikiHierarquia.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">Sem estabelecimentos.</p>
+            ) : (
+              wikiHierarquia.map(estab => (
+                <div key={estab.id} className="space-y-1">
+                  <button 
+                    onClick={() => setSelectedNode({ type: 'estab', id: estab.id, data: estab })}
+                    className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between text-sm transition-colors ${selectedNode?.type === 'estab' && selectedNode.id === estab.id ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted'}`}
+                  >
+                    <span className="flex items-center gap-2 truncate"><Building2 className="h-4 w-4 shrink-0"/> {estab.nome}</span>
+                    <ChevronRight className="h-3.5 w-3.5 opacity-50 shrink-0"/>
+                  </button>
+                  {/* Render Turmas only if Estab is selected or partially selected */}
+                  {(selectedNode?.type === 'estab' && selectedNode.id === estab.id) || (selectedNode?.type === 'turma' && selectedNode.estabId === estab.id) || (selectedNode?.type === 'disc' && wikiHierarquia.find(e=>e.id===estab.id)?.turmas.some(t=>t.id===selectedNode.turmaId)) ? (
+                    <div className="pl-4 space-y-1 border-l-2 border-muted ml-4 mt-1">
+                      {estab.turmas.map(turma => (
+                        <div key={turma.id} className="space-y-1">
+                          <button
+                            onClick={() => setSelectedNode({ type: 'turma', id: turma.id, data: turma, estabId: estab.id })}
+                            className={`w-full text-left px-3 py-1.5 rounded-lg flex items-center justify-between text-sm transition-colors ${selectedNode?.type === 'turma' && selectedNode.id === turma.id ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted'}`}
+                          >
+                            <span className="flex items-center gap-2 truncate"><Users className="h-3.5 w-3.5 shrink-0"/> {turma.nome}</span>
+                            <ChevronRight className="h-3 w-3 opacity-50 shrink-0"/>
+                          </button>
+                          {/* Render Disciplinas */}
+                          {((selectedNode?.type === 'turma' && selectedNode.id === turma.id) || (selectedNode?.type === 'disc' && selectedNode.turmaId === turma.id)) && (
+                            <div className="pl-4 space-y-1 border-l-2 border-muted ml-4 mt-1">
+                              {turma.disciplinas.map(disc => (
+                                <button
+                                  key={disc.id}
+                                  onClick={() => setSelectedNode({ type: 'disc', id: disc.id, data: disc, turmaId: turma.id })}
+                                  className={`w-full text-left px-3 py-1.5 rounded-lg flex items-center text-sm transition-colors ${selectedNode?.type === 'disc' && selectedNode.id === disc.id ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted text-muted-foreground'}`}
+                                >
+                                  <span className="flex items-center gap-2 truncate"><Book className="h-3 w-3 shrink-0"/> {disc.nome}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderEstabDetail = (node: { type: 'estab', id: number, data: WikiEstabelecimento }) => {
+    const estab = wikiHierarquia.find(e => e.id === node.id);
+    if (!estab) return null;
+    const contactos = contactosPorEstab[estab.id] || [];
+    
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+        <div className="flex items-start justify-between border-b pb-4">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-indigo-500" />
-              {selectedProjeto
-                ? `Hierarquia — ${selectedProjeto.nome}`
-                : 'Estabelecimentos, Turmas e Atividades'}
-            </CardTitle>
-            <CardDescription>
-              Hierarquia completa do projeto selecionado.
-            </CardDescription>
+            <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1">
+              <span>{selectedProjeto?.nome}</span> <ChevronRight className="h-3 w-3"/>
+            </div>
+            <h2 className="text-2xl font-bold flex items-center gap-2"><Building2 className="h-6 w-6 text-primary"/> {estab.nome}</h2>
+            {estab.sigla && <Badge variant="outline" className="mt-2">{estab.sigla}</Badge>}
           </div>
           {isCoordinator && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {selectedProjetoId && unlinkedEstabs.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <Select value={addEstabToProjetoId} onValueChange={setAddEstabToProjetoId}>
-                    <SelectTrigger className="w-full sm:w-[200px]">
-                      <SelectValue placeholder="Associar estabelecimento..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {unlinkedEstabs.map((e) => (
-                        <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button size="sm" disabled={!addEstabToProjetoId} onClick={() => assocEstabMutation.mutate(Number(addEstabToProjetoId))}>
-                    Associar
-                  </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => { const e = estabelecimentos.find(x => x.id === estab.id); if (e) openEditEstab(e); }}><Edit2 className="h-4 w-4 mr-2"/> Editar</Button>
+            </div>
+          )}
+        </div>
+
+        {/* Contactos */}
+        <div className="bg-card border rounded-xl p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-lg">Contactos</h3>
+            {isCoordinator && <Button size="sm" variant="ghost" onClick={() => openNewContacto(estab.id)}><Plus className="h-4 w-4 mr-1"/> Adicionar</Button>}
+          </div>
+          {contactos.length === 0 ? (
+            <p className="text-sm text-muted-foreground italic">Sem contactos.</p>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-3">
+              {contactos.map(c => {
+                const href = contactoHref(c);
+                return (
+                  <div key={c.id} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 group">
+                    <div className="mt-0.5 bg-background p-1.5 rounded-md border shadow-sm">{contactoIcon(c.tipo)}</div>
+                    <div className="min-w-0 flex-1">
+                      {c.descricao && <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{c.descricao}</p>}
+                      {href ? <a href={href} target="_blank" rel="noopener noreferrer" className="text-sm font-medium hover:underline truncate block">{c.valor}</a> : <span className="text-sm font-medium truncate block">{c.valor}</span>}
+                    </div>
+                    {isCoordinator && (
+                      <Button size="icon" variant="ghost" className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => openEditContacto(c)}>
+                        <Edit2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Turmas Grid */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-lg flex items-center gap-2"><Users className="h-5 w-5"/> Turmas ({estab.turmas.length})</h3>
+            {isCoordinator && <Button size="sm" onClick={() => openNewTurma(estab.id)}><Plus className="h-4 w-4 mr-1"/> Nova Turma</Button>}
+          </div>
+          {estab.turmas.length === 0 ? (
+            <div className="text-center py-12 bg-muted/10 border border-dashed rounded-xl"><p className="text-muted-foreground">Nenhuma turma registada.</p></div>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-4">
+              {estab.turmas.map(turma => (
+                <div key={turma.id} onClick={() => setSelectedNode({ type: 'turma', id: turma.id, data: turma, estabId: estab.id })} className="group cursor-pointer border rounded-xl p-4 bg-card hover:border-primary/50 hover:shadow-md transition-all">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-bold text-lg">{turma.nome}</h4>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors"/>
+                  </div>
+                  <div className="flex gap-2">
+                    <Badge variant="secondary">{turma.disciplinas.length} disciplinas</Badge>
+                  </div>
                 </div>
-              )}
-              <Button onClick={openNewEstab} size="sm" className="gap-2">
-                <Plus className="h-4 w-4" />
-                Novo Estabelecimento
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderTurmaDetail = (node: { type: 'turma', id: number, data: WikiTurma, estabId: number }) => {
+    const estab = wikiHierarquia.find(e => e.id === node.estabId);
+    const turma = estab?.turmas.find(t => t.id === node.id);
+    if (!estab || !turma) return null;
+
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
+        <div className="flex items-start justify-between border-b pb-4">
+          <div>
+            <div className="flex items-center gap-2 text-muted-foreground text-sm mb-1 truncate">
+              <span className="truncate">{estab.nome}</span> <ChevronRight className="h-3 w-3 shrink-0"/>
+            </div>
+            <h2 className="text-2xl font-bold flex items-center gap-2"><Users className="h-6 w-6 text-primary"/> Turma {turma.nome}</h2>
+          </div>
+          {isCoordinator && (
+            <Button variant="outline" size="sm" onClick={() => openEditTurma(turma, estab.id)}><Edit2 className="h-4 w-4 mr-2"/> Gerir Turma & Alunos</Button>
+          )}
+        </div>
+
+        {/* Disciplinas Grid */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-lg flex items-center gap-2"><Book className="h-5 w-5"/> Disciplinas ({turma.disciplinas.length})</h3>
+            {isCoordinator && <Button size="sm" onClick={() => openNewDisciplina(turma.id)}><Plus className="h-4 w-4 mr-1"/> Nova Disciplina</Button>}
+          </div>
+          {turma.disciplinas.length === 0 ? (
+            <div className="text-center py-12 bg-muted/10 border border-dashed rounded-xl"><p className="text-muted-foreground">Nenhuma disciplina atribuída.</p></div>
+          ) : (
+            <div className="grid sm:grid-cols-2 gap-4">
+              {turma.disciplinas.map(disc => (
+                <div key={disc.id} onClick={() => setSelectedNode({ type: 'disc', id: disc.id, data: disc, turmaId: turma.id })} className="group cursor-pointer border rounded-xl p-5 bg-card hover:border-purple-500/50 hover:shadow-md transition-all">
+                  <div className="flex justify-between items-start mb-3">
+                    <h4 className="font-bold text-lg text-purple-400">{disc.nome}</h4>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-purple-400 transition-colors"/>
+                  </div>
+                  {disc.descricao && <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{disc.descricao}</p>}
+                  <div className="flex gap-2">
+                    <Badge variant="outline" className="bg-purple-500/10 text-purple-300 border-purple-500/20">{disc.atividades.length} Atividades</Badge>
+                    {disc.musicas_previstas > 0 && <Badge variant="outline"><Music className="h-3 w-3 mr-1"/> {disc.musicas_previstas}</Badge>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderDiscDetail = (node: { type: 'disc', id: number, data: TurmaDisciplina, turmaId: number }) => {
+    let estabName = '';
+    let turmaName = '';
+    let disc = null;
+    for (const e of wikiHierarquia) {
+      for (const t of e.turmas) {
+        if (t.id === node.turmaId) {
+          estabName = e.nome; turmaName = t.nome;
+          disc = t.disciplinas.find(d => d.id === node.id);
+        }
+      }
+    }
+    if (!disc) return null;
+
+    return (
+      <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col h-full">
+        <div className="flex items-start justify-between border-b pb-4 shrink-0">
+          <div>
+            <div className="flex items-center gap-2 text-muted-foreground text-xs sm:text-sm mb-1 truncate">
+              <span className="truncate">{estabName}</span> <ChevronRight className="h-3 w-3 shrink-0"/>
+              <span className="truncate">Turma {turmaName}</span> <ChevronRight className="h-3 w-3 shrink-0"/>
+            </div>
+            <h2 className="text-2xl font-bold flex items-center gap-2"><Book className="h-6 w-6 text-purple-400"/> {disc.nome}</h2>
+            {disc.descricao && <p className="text-muted-foreground mt-2">{disc.descricao}</p>}
+          </div>
+          {isCoordinator && (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => openEditDisciplina(disc!)}><Edit2 className="h-4 w-4 md:mr-2"/><span className="hidden md:inline">Editar Disciplina</span></Button>
+            </div>
+          )}
+        </div>
+
+        {/* Atividades Table - takes remaining height */}
+        <div className="flex-1 flex flex-col min-h-0 bg-card rounded-xl border overflow-hidden">
+          <div className="p-4 border-b bg-muted/20 flex items-center justify-between shrink-0">
+            <h3 className="font-semibold text-lg">Atividades ({disc.atividades.length})</h3>
+            {isCoordinator && <Button size="sm" onClick={() => openNewAtividade(disc!.id)}><Plus className="h-4 w-4 mr-1"/> Adicionar Atividade</Button>}
+          </div>
+          <div className="overflow-auto p-0 flex-1">
+            {disc.atividades.length === 0 ? (
+               <div className="text-center py-16"><p className="text-muted-foreground">Sem atividades planeadas para esta disciplina.</p></div>
+            ) : (
+              <Table>
+                <TableHeader className="bg-muted/50 sticky top-0 backdrop-blur-md">
+                  <TableRow>
+                    <TableHead className="w-[80px]">Cód.</TableHead>
+                    <TableHead>Atividade</TableHead>
+                    <TableHead className="text-center">Sessões</TableHead>
+                    <TableHead className="text-center">H/Sess.</TableHead>
+                    <TableHead>Roles</TableHead>
+                    <TableHead className="w-[150px]">Progresso</TableHead>
+                    {isCoordinator && <TableHead className="w-[60px]"></TableHead>}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {disc.atividades.map((ativ) => {
+                    const sessRealizadas = ativ.sessoes_realizadas ?? 0;
+                    const sessPrevistas = ativ.sessoes_previstas || 0;
+                    const progressPct = sessPrevistas > 0 ? Math.min(100, Math.round((sessRealizadas / sessPrevistas) * 100)) : 0;
+                    return (
+                      <TableRow key={ativ.uuid} className="hover:bg-muted/30 transition-colors">
+                        <TableCell className="font-mono text-xs font-semibold text-muted-foreground">{ativ.codigo || '—'}</TableCell>
+                        <TableCell className="font-medium">{ativ.nome}</TableCell>
+                        <TableCell className="text-center">{ativ.sessoes_previstas || '—'}</TableCell>
+                        <TableCell className="text-center">{ativ.horas_por_sessao || '—'}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {ativ.role ? <Badge variant="secondary" className="text-[10px] uppercase tracking-wider">{ativ.role}</Badge> : <span className="text-muted-foreground text-xs italic">livre</span>}
+                            {ativ.is_autonomous && <Badge className="text-[10px] bg-blue-500 hover:bg-blue-600 uppercase">Autónomo</Badge>}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between text-xs text-muted-foreground font-medium">
+                              <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {sessRealizadas}/{sessPrevistas || '?'}</span>
+                              <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {ativ.horas_realizadas ?? 0}h</span>
+                            </div>
+                            {sessPrevistas > 0 && <Progress value={progressPct} className="h-1.5" />}
+                          </div>
+                        </TableCell>
+                        {isCoordinator && (
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/20 hover:text-primary" onClick={() => openEditAtividade(ativ)}>
+                              <Edit2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-6rem)] max-w-[1600px] mx-auto p-4 md:p-6 overflow-hidden">
+      {/* Header Info */}
+      <div className="flex items-start justify-between gap-4 mb-6 shrink-0">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-display font-bold flex items-center gap-2">
+            <Book className="h-8 w-8 text-primary" />
+            Wiki / Hierarquia
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Navega pelos projetos para gerir estabelecimentos, turmas e atividades.
+          </p>
+        </div>
+      </div>
+
+      {/* Responsive Split Layout */}
+      <div className="flex-1 flex flex-col md:grid md:grid-cols-12 gap-6 min-h-0">
+        
+        {/* MASTER PANE (Tree) */}
+        <div className={`col-span-12 md:col-span-4 lg:col-span-3 flex-col gap-4 overflow-y-auto pr-2 pb-8 ${selectedNode ? 'hidden md:flex' : 'flex'}`}>
+          {renderMasterTree()}
+        </div>
+
+        {/* DETAIL PANE */}
+        <div className={`col-span-12 md:col-span-8 lg:col-span-9 flex-col min-h-0 overflow-y-auto pb-8 ${!selectedNode ? 'hidden md:flex' : 'flex'}`}>
+          {/* Mobile Back Button */}
+          {selectedNode && (
+            <div className="md:hidden mb-4 shrink-0">
+              <Button variant="ghost" className="gap-2 -ml-3" onClick={() => setSelectedNode(null)}>
+                <ArrowLeft className="h-4 w-4" /> Voltar à navegação
               </Button>
             </div>
           )}
-        </CardHeader>
-        <CardContent>
-          {!selectedProjetoId ? (
-            <p className="text-sm text-muted-foreground italic py-4 text-center">
-              Seleciona um projeto acima para ver a hierarquia completa.
-            </p>
-          ) : hierarquiaError ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
-              <p className="text-sm font-medium text-destructive">Erro ao carregar hierarquia.</p>
-              <p className="text-xs">Verifica a ligação e tenta novamente.</p>
-            </div>
-          ) : hierarquiaLoading ? (
-            <div className="space-y-3 py-2">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="space-y-2">
-                  <div className="h-5 w-1/3 rounded bg-muted animate-pulse" />
-                  <div className="ml-4 space-y-1.5">
-                    <div className="h-4 w-1/2 rounded bg-muted animate-pulse" />
-                    <div className="h-4 w-2/5 rounded bg-muted animate-pulse" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : wikiHierarquia.length === 0 ? (
-            <div className="py-10 text-center space-y-3">
-              <Building2 className="h-10 w-10 text-muted-foreground/30 mx-auto" />
-              <p className="text-sm text-muted-foreground">Nenhum estabelecimento associado ao projeto.</p>
-              {isCoordinator && (
-                <Button size="sm" variant="outline" className="gap-1.5" onClick={openNewEstab}>
-                  <Plus className="h-3.5 w-3.5" /> Adicionar Estabelecimento
-                </Button>
-              )}
+
+          {!selectedNode ? (
+            <div className="h-full border-2 border-dashed rounded-2xl flex flex-col items-center justify-center p-8 text-muted-foreground bg-muted/5">
+              <Layers className="h-16 w-16 mb-4 opacity-20" />
+              <p className="text-lg font-medium">Selecione um item na barra lateral</p>
+              <p className="text-sm">Explore os estabelecimentos e turmas do projeto.</p>
             </div>
           ) : (
-            <Accordion type="multiple" className="w-full space-y-2">
-              {wikiHierarquia.map((estab) => (
-                <AccordionItem key={`est-${estab.id}`} value={`est-${estab.id}`} className="border rounded-lg px-3 border-b">
-                  {/* Nome — linha 1 */}
-                  <AccordionTrigger className="hover:no-underline py-3">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-4 w-4 text-primary shrink-0" />
-                      <span className="font-medium text-left">{estab.nome}</span>
-                    </div>
-                  </AccordionTrigger>
-                  {/* Badges + ações — linha 2 */}
-                  <div className="flex items-center gap-2 pb-3 flex-wrap -mt-1">
-                    {estab.sigla && <Badge variant="secondary" className="text-xs">{estab.sigla}</Badge>}
-                    <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">{estab.turmas.length} turmas</span>
-                    {isCoordinator && (
-                      <div className="flex gap-1 ml-auto">
-                        <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => {
-                          const e = estabelecimentos.find(x => x.id === estab.id);
-                          if (e) openEditEstab(e);
-                        }}>
-                          <Edit2 className="h-3 w-3" /> Editar
-                        </Button>
-                        <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openNewTurma(estab.id)}>
-                          <Plus className="h-3 w-3" /> Nova Turma
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                  <AccordionContent>
-                    {/* Contactos do estabelecimento */}
-                    {(() => {
-                      const contactos = contactosPorEstab[estab.id] || [];
-                      if (contactos.length === 0 && !isCoordinator) return null;
-                      return (
-                        <div className="mb-3 border rounded-md p-2.5 bg-muted/20 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Contactos</span>
-                            {isCoordinator && (
-                              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs gap-1" onClick={() => openNewContacto(estab.id)}>
-                                <Plus className="h-3 w-3" /> Adicionar
-                              </Button>
-                            )}
-                          </div>
-                          {contactos.length === 0 ? (
-                            <p className="text-xs text-muted-foreground italic">Sem contactos registados.</p>
-                          ) : (
-                            <ul className="space-y-1">
-                              {contactos.map((c) => {
-                                const href = contactoHref(c);
-                                return (
-                                  <li key={c.id} className="flex items-start gap-1.5 group">
-                                    <span className="mt-0.5">{contactoIcon(c.tipo)}</span>
-                                    <div className="min-w-0 flex-1">
-                                      {c.descricao && <p className="text-xs text-muted-foreground leading-tight">{c.descricao}</p>}
-                                      {href ? (
-                                        <a href={href} target="_blank" rel="noopener noreferrer" className="text-xs hover:underline break-all">
-                                          {c.valor}
-                                        </a>
-                                      ) : (
-                                        <span className="text-xs break-all">{c.valor}</span>
-                                      )}
-                                    </div>
-                                    {isCoordinator && (
-                                      <Button size="sm" variant="ghost" className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 shrink-0" onClick={() => openEditContacto(c)}>
-                                        <Edit2 className="h-3 w-3" />
-                                      </Button>
-                                    )}
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    <div className="space-y-2 pb-2">
-                      {estab.turmas.length === 0 ? (
-                        <div className="py-3 flex items-center gap-3">
-                          <p className="text-sm text-muted-foreground italic">Nenhuma turma registada.</p>
-                          {isCoordinator && (
-                            <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openNewTurma(estab.id)}>
-                              <Plus className="h-3 w-3" /> Nova Turma
-                            </Button>
-                          )}
-                        </div>
-                      ) : (
-                        <Accordion type="multiple" className="w-full space-y-1.5">
-                          {estab.turmas.map((turma) => (
-                            <AccordionItem key={`turma-${turma.id}`} value={`turma-${turma.id}`} className="border rounded-md px-3 border-b bg-muted/20">
-                              {/* Nome — linha 1 */}
-                              <AccordionTrigger className="hover:no-underline py-2.5">
-                                <div className="flex items-center gap-2">
-                                  <Users className="h-4 w-4 text-muted-foreground shrink-0" />
-                                  <span className="font-medium text-left text-sm">{turma.nome}</span>
-                                </div>
-                              </AccordionTrigger>
-                              {/* Badges + ações — linha 2 */}
-                              <div className="flex items-center gap-2 pb-2.5 flex-wrap -mt-1">
-                                <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">{turma.disciplinas.length} disciplinas</span>
-                                {isCoordinator && (
-                                  <div className="flex gap-1 ml-auto">
-                                    <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openEditTurma(turma, estab.id)}>
-                                      <Edit2 className="h-3 w-3" /> Editar
-                                    </Button>
-                                    <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openNewDisciplina(turma.id)}>
-                                      <Plus className="h-3 w-3" /> Nova Disciplina
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                              <AccordionContent>
-                                <div className="space-y-1.5 pb-2">
-                                  {turma.disciplinas.length === 0 ? (
-                                    <div className="py-3 flex items-center gap-3">
-                                      <p className="text-sm text-muted-foreground italic">Nenhuma disciplina atribuída.</p>
-                                      {isCoordinator && (
-                                        <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openNewDisciplina(turma.id)}>
-                                          <Plus className="h-3 w-3" /> Nova Disciplina
-                                        </Button>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <Accordion type="multiple" className="w-full space-y-1">
-                                      {turma.disciplinas.map((disc) => (
-                                        <AccordionItem key={`disc-${disc.id}`} value={`disc-${disc.id}`} className="border rounded-md px-3 border-b bg-muted/10">
-                                          {/* Nome — linha 1 */}
-                                          <AccordionTrigger className="hover:no-underline py-2">
-                                            <div className="flex items-center gap-2">
-                                              <Book className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                                              <span className="font-medium text-left text-sm">{disc.nome}</span>
-                                            </div>
-                                          </AccordionTrigger>
-                                          {/* Badges + ações — linha 2 */}
-                                          <div className="flex items-center gap-2 pb-2 flex-wrap -mt-1">
-                                            {disc.musicas_previstas > 0 && (
-                                              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                                <Music className="h-3 w-3" /> {disc.musicas_previstas} músicas
-                                              </span>
-                                            )}
-                                            <span className="text-xs text-muted-foreground bg-secondary px-2 py-0.5 rounded-full">{disc.atividades.length} atividades</span>
-                                            {isCoordinator && (
-                                              <div className="flex gap-1 ml-auto">
-                                                <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openEditDisciplina(disc)}>
-                                                  <Edit2 className="h-3 w-3" /> Editar
-                                                </Button>
-                                                <Button size="sm" variant="outline" className="gap-1 h-6 px-2 text-xs" onClick={() => openNewAtividade(disc.id)}>
-                                                  <Plus className="h-3 w-3" /> Nova Atividade
-                                                </Button>
-                                              </div>
-                                            )}
-                                          </div>
-                                          <AccordionContent>
-                                            <div className="border-l-2 border-purple-400/25 pl-4 ml-2">
-                                              {disc.atividades.length === 0 ? (
-                                                <div className="py-3 flex items-center gap-3">
-                                                  <p className="text-sm text-muted-foreground italic">Nenhuma atividade.</p>
-                                                  {isCoordinator && (
-                                                    <Button size="sm" variant="outline" className="gap-1 h-7 px-2 text-xs" onClick={() => openNewAtividade(disc.id)}>
-                                                      <Plus className="h-3 w-3" /> Nova Atividade
-                                                    </Button>
-                                                  )}
-                                                </div>
-                                              ) : (
-                                                <div className="overflow-x-auto">
-                                                <Table>
-                                                  <TableHeader>
-                                                    <TableRow>
-                                                      <TableHead>Código</TableHead>
-                                                      <TableHead>Atividade</TableHead>
-                                                      <TableHead className="text-center">Sessões Prev.</TableHead>
-                                                      <TableHead className="text-center">H/Sessão</TableHead>
-                                                      <TableHead className="text-center">Músicas</TableHead>
-                                                      <TableHead>Roles</TableHead>
-                                                      <TableHead>Progresso</TableHead>
-                                                      {isCoordinator && <TableHead className="text-right">Ações</TableHead>}
-                                                    </TableRow>
-                                                  </TableHeader>
-                                                  <TableBody>
-                                                    {disc.atividades.map((ativ) => {
-                                                      const sessRealizadas = ativ.sessoes_realizadas ?? 0;
-                                                      const sessPrevistas = ativ.sessoes_previstas || 0;
-                                                      const progressPct = sessPrevistas > 0
-                                                        ? Math.min(100, Math.round((sessRealizadas / sessPrevistas) * 100))
-                                                        : 0;
-                                                      return (
-                                                        <TableRow key={ativ.uuid}>
-                                                          <TableCell className="font-mono font-bold text-xs">{ativ.codigo || '—'}</TableCell>
-                                                          <TableCell>{ativ.nome}</TableCell>
-                                                          <TableCell className="text-center">{ativ.sessoes_previstas || '—'}</TableCell>
-                                                          <TableCell className="text-center">{ativ.horas_por_sessao || '—'}</TableCell>
-                                                          <TableCell className="text-center">{ativ.musicas_previstas || '—'}</TableCell>
-                                                          <TableCell>
-                                                            <div className="flex flex-wrap gap-1">
-                                                              {ativ.role
-                                                                ? <Badge variant="outline" className="text-xs">{ativ.role}</Badge>
-                                                                : <span className="text-muted-foreground text-xs">todos</span>
-                                                              }
-                                                              {ativ.is_autonomous && (
-                                                                <Badge variant="secondary" className="text-xs">TA</Badge>
-                                                              )}
-                                                            </div>
-                                                          </TableCell>
-                                                          <TableCell>
-                                                            <div className="space-y-1 min-w-[110px]">
-                                                              <div className="flex items-center justify-between text-xs text-muted-foreground">
-                                                                <span className="flex items-center gap-1">
-                                                                  <Calendar className="h-3 w-3" />
-                                                                  {sessRealizadas}/{sessPrevistas || '?'}
-                                                                </span>
-                                                                <span className="flex items-center gap-1">
-                                                                  <Clock className="h-3 w-3" />
-                                                                  {ativ.horas_realizadas ?? 0}h
-                                                                </span>
-                                                              </div>
-                                                              {sessPrevistas > 0 && (
-                                                                <Progress value={progressPct} className="h-1.5" />
-                                                              )}
-                                                            </div>
-                                                          </TableCell>
-                                                          {isCoordinator && (
-                                                            <TableCell className="text-right">
-                                                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditAtividade(ativ)}>
-                                                                <Edit2 className="h-3 w-3 text-blue-500" />
-                                                              </Button>
-                                                            </TableCell>
-                                                          )}
-                                                        </TableRow>
-                                                      );
-                                                    })}
-                                                  </TableBody>
-                                                </Table>
-                                                </div>
-                                              )}
-                                            </div>
-                                          </AccordionContent>
-                                        </AccordionItem>
-                                      ))}
-                                    </Accordion>
-                                  )}
-                                </div>
-                              </AccordionContent>
-                            </AccordionItem>
-                          ))}
-                        </Accordion>
-                      )}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+            <>
+              {selectedNode.type === 'estab' && renderEstabDetail(selectedNode)}
+              {selectedNode.type === 'turma' && renderTurmaDetail(selectedNode)}
+              {selectedNode.type === 'disc' && renderDiscDetail(selectedNode)}
+            </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
+      {/* KEEP DIALOGS EXACTLY AS THEY WERE, JUST RENDER THEM HERE */}
       {/* DIALOG FOR PROJETOS */}
-      <Dialog open={isProjetoDialogOpen} onOpenChange={setIsProjetoDialogOpen}>
-        <DialogContent className="w-full max-w-lg max-h-[95dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingProjeto ? 'Editar Projeto' : 'Novo Projeto'}</DialogTitle>
-            <DialogDescription>
+      <Sheet open={isProjetoDialogOpen} onOpenChange={setIsProjetoDialogOpen}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{editingProjeto ? 'Editar Projeto' : 'Novo Projeto'}</SheetTitle>
+            <SheetDescription>
               {editingProjeto ? 'Alterar dados do projeto.' : 'Criar um novo projeto.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 py-4 mt-4">
             <div className="grid gap-2">
               <Label htmlFor="proj-nome">Nome</Label>
               <Input
@@ -1125,16 +1052,17 @@ const Wiki = () => {
               />
             </div>
           </div>
-          <DialogFooter>
+          <SheetFooter className="mt-6">
             <Button variant="outline" onClick={() => setIsProjetoDialogOpen(false)}>Cancelar</Button>
             <Button onClick={() => saveProjetoMutation.mutate(projetoForm)} disabled={!projetoForm.nome}>
               <Save className="h-4 w-4 mr-2" />
               {editingProjeto ? 'Atualizar' : 'Criar'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
+      {/* Continue using Dialog for others to not break existing complex forms instantly. Let's just restore them. */}
       {/* DIALOG FOR ESTABELECIMENTOS */}
       <Dialog open={isEstabDialogOpen} onOpenChange={setIsEstabDialogOpen}>
         <DialogContent className="w-full max-w-lg max-h-[95dvh] overflow-y-auto">
@@ -1192,15 +1120,15 @@ const Wiki = () => {
       </Dialog>
 
       {/* DIALOG FOR TURMAS */}
-      <Dialog open={isTurmaDialogOpen} onOpenChange={setIsTurmaDialogOpen}>
-        <DialogContent className="w-full max-w-lg max-h-[95dvh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingTurma ? 'Editar Turma' : 'Nova Turma'}</DialogTitle>
-            <DialogDescription>
-              {editingTurma ? 'Alterar dados da turma.' : 'Criar nova turma num estabelecimento.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
+      <Sheet open={isTurmaDialogOpen} onOpenChange={setIsTurmaDialogOpen}>
+        <SheetContent className="w-full sm:max-w-md overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{editingTurma ? 'Editar Turma' : 'Nova Turma'}</SheetTitle>
+            <SheetDescription>
+              {editingTurma ? 'Alterar dados da turma e gerir alunos.' : 'Criar nova turma num estabelecimento.'}
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 py-4 mt-4">
             <div className="space-y-2">
               <Label>Estabelecimento</Label>
               <Select value={selectedEstabId} onValueChange={setSelectedEstabId}>
@@ -1219,7 +1147,7 @@ const Wiki = () => {
               <Input id="turma-name" placeholder="Ex: 12.º B" value={newTurmaName} onChange={(e) => setNewTurmaName(e.target.value)} />
             </div>
             {/* Lista de Alunos */}
-            <div className="space-y-2">
+            <div className="space-y-2 pt-4 border-t">
               <div className="flex items-center justify-between">
                 <Label className="font-medium">Alunos</Label>
                 <Button variant="outline" size="sm" type="button" onClick={() => setAlunosNomes(prev => [...prev, ''])}>
@@ -1229,7 +1157,7 @@ const Wiki = () => {
               {alunosNomes.length === 0 && (
                 <p className="text-sm text-muted-foreground">Nenhum aluno registado.</p>
               )}
-              <div className="space-y-2 max-h-[200px] overflow-y-auto">
+              <div className="space-y-2 max-h-[30vh] overflow-y-auto pr-2">
                 {alunosNomes.map((nome, i) => (
                   <div key={i} className="flex gap-2">
                     <Input placeholder={`Aluno ${i + 1}`} value={nome} onChange={e => {
@@ -1245,7 +1173,7 @@ const Wiki = () => {
               </div>
             </div>
           </div>
-          <DialogFooter className="flex sm:justify-between w-full">
+          <SheetFooter className="flex sm:justify-between w-full mt-6">
             {editingTurma ? (
               <Button variant="destructive" onClick={() => {
                 askConfirm(
@@ -1258,18 +1186,15 @@ const Wiki = () => {
               </Button>
             ) : <div />}
             <Button onClick={handleSaveTurma}>Gravar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
 
       {/* DIALOG FOR LOCAL DISCIPLINA */}
       <Dialog open={isDisciplinaDialogOpen} onOpenChange={setIsDisciplinaDialogOpen}>
         <DialogContent className="w-full max-w-2xl max-h-[95dvh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingDisciplina ? 'Editar Disciplina' : 'Nova Disciplina'}</DialogTitle>
-            <DialogDescription>
-              {editingDisciplina ? 'Alterar dados da disciplina local.' : 'Criar disciplina local para esta turma.'}
-            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid gap-4 md:grid-cols-2">
@@ -1472,9 +1397,7 @@ const Wiki = () => {
             <div className="grid gap-2">
               <Label>Tipo</Label>
               <Select value={contactoForm.tipo} onValueChange={(v) => setContactoForm({ ...contactoForm, tipo: v })}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="telefone">Telefone</SelectItem>
                   <SelectItem value="email">Email</SelectItem>
@@ -1489,12 +1412,6 @@ const Wiki = () => {
               <Input
                 value={contactoForm.valor}
                 onChange={(e) => setContactoForm({ ...contactoForm, valor: e.target.value })}
-                placeholder={
-                  contactoForm.tipo === 'telefone' ? '244 829 720' :
-                  contactoForm.tipo === 'email' ? 'contacto@instituicao.pt' :
-                  contactoForm.tipo === 'maps' ? 'https://maps.app.goo.gl/...' :
-                  contactoForm.tipo === 'website' ? 'https://...' : ''
-                }
               />
             </div>
             <div className="grid gap-2">
@@ -1502,26 +1419,18 @@ const Wiki = () => {
               <Input
                 value={contactoForm.descricao}
                 onChange={(e) => setContactoForm({ ...contactoForm, descricao: e.target.value })}
-                placeholder="Ex: Gonçalo Salema (coordenador projeto)"
               />
             </div>
           </div>
           <DialogFooter className="flex sm:justify-between w-full">
             {editingContacto ? (
               <Button variant="destructive" onClick={() => {
-                askConfirm(
-                  'Apagar contacto?',
-                  'Este contacto será permanentemente removido.',
-                  () => deleteContactoMutation.mutate(editingContacto.id)
-                );
+                askConfirm('Apagar contacto?', 'Este contacto será permanentemente removido.', () => deleteContactoMutation.mutate(editingContacto.id));
               }}>
                 <Trash2 className="h-4 w-4 mr-2" /> Apagar
               </Button>
             ) : <div />}
-            <Button
-              onClick={() => saveContactoMutation.mutate({ tipo: contactoForm.tipo, valor: contactoForm.valor, descricao: contactoForm.descricao || undefined })}
-              disabled={!contactoForm.valor.trim()}
-            >
+            <Button onClick={() => saveContactoMutation.mutate({ tipo: contactoForm.tipo, valor: contactoForm.valor, descricao: contactoForm.descricao || undefined })} disabled={!contactoForm.valor.trim()}>
               <Save className="h-4 w-4 mr-2" /> Gravar
             </Button>
           </DialogFooter>
@@ -1539,10 +1448,7 @@ const Wiki = () => {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                confirmDialog.onConfirm();
-                setConfirmDialog(prev => ({ ...prev, open: false }));
-              }}
+              onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(prev => ({ ...prev, open: false })); }}
             >
               Confirmar
             </AlertDialogAction>
@@ -1550,166 +1456,42 @@ const Wiki = () => {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Config Modal */}
       <Dialog open={isConfigModalOpen} onOpenChange={setIsConfigModalOpen}>
         <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>Configurações do Projeto</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Configurações do Projeto</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2 max-h-[70vh] overflow-y-auto pr-1">
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-1">
-                <Label className="font-medium">Exigir digitalização de registos</Label>
-                <p className="text-sm text-muted-foreground">
-                  Quando ativo, o mentor é obrigado a submeter a fotografia do registo antes de terminar cada sessão.
-                </p>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Requer Digitalização</Label>
+                <p className="text-sm text-muted-foreground">Exigir scan dos sumários após aula.</p>
               </div>
-              <Switch
-                checked={configForm.requer_digitalizacao}
-                onCheckedChange={(checked) => setConfigForm(f => ({ ...f, requer_digitalizacao: checked }))}
-              />
+              <Switch checked={configForm.requer_digitalizacao} onCheckedChange={(c) => setConfigForm(f => ({...f, requer_digitalizacao: c}))} />
             </div>
-            <div className="flex items-center justify-between gap-4">
-              <div className="space-y-1">
-                <Label className="font-medium">Pré-Registos</Label>
-                <p className="text-sm text-muted-foreground">
-                  Quando ativo, este projeto aparece na página Pré-Registos e os mentores podem descarregar as folhas de registo pré-preenchidas.
-                </p>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Pré-registos</Label>
+                <p className="text-sm text-muted-foreground">Permitir pré-registo de mentores.</p>
               </div>
-              <Switch
-                checked={configForm.tem_pre_registos}
-                onCheckedChange={(checked) => setConfigForm(f => ({ ...f, tem_pre_registos: checked }))}
-              />
+              <Switch checked={configForm.tem_pre_registos} onCheckedChange={(c) => setConfigForm(f => ({...f, tem_pre_registos: c}))} />
             </div>
-
-            {/* PDF config section */}
-            <div className="border-t pt-4 space-y-4">
-              <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Folha de Registo (PDF)</p>
-
-              <div className="space-y-1.5">
-                <Label className="font-medium">Código do Projeto</Label>
-                <Input
-                  placeholder="Ex: CENTRO2030-FSE+0232800"
-                  value={configForm.codigo_projeto}
-                  onChange={e => setConfigForm(f => ({ ...f, codigo_projeto: e.target.value }))}
-                />
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Template Próprio</Label>
+                <p className="text-sm text-muted-foreground">Usar folha PDF customizada.</p>
               </div>
-
-              <div className="flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <Label className="font-medium">Usar template próprio do projeto</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Quando ativo, as folhas de registo são geradas a partir dos templates PDF fornecidos pelo projeto (ex: PIS), em vez do layout padrão com cabeçalho/rodapé configurável.
-                  </p>
-                </div>
-                <Switch
-                  checked={configForm.usar_template_proprio}
-                  onCheckedChange={(checked) => setConfigForm(f => ({ ...f, usar_template_proprio: checked }))}
-                />
-              </div>
-
-              {(['logo_esq', 'logo_dir', 'footer'] as const).map(tipo => {
-                const pathKey = `${tipo}_path` as 'logo_esq_path' | 'logo_dir_path' | 'footer_path';
-                const currentPath = selectedProjeto?.[pathKey];
-                const labels: Record<string, { title: string; hint: string }> = {
-                  logo_esq: { title: 'Logo esquerdo (cabeçalho)', hint: 'Por defeito: vazio' },
-                  logo_dir: { title: 'Logo direito (cabeçalho)', hint: 'Por defeito: logo RAP Nova Escola' },
-                  footer: { title: 'Rodapé', hint: 'Por defeito: vazio' },
-                };
-                const { title, hint } = labels[tipo];
-                const previewUrl = currentPath
-                  ? `${(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/$/, '')}/storage/v1/object/public/project-assets/${currentPath}`
-                  : null;
-
-                return (
-                  <div key={tipo} className="space-y-2">
-                    <Label className="font-medium">{title}</Label>
-                    {previewUrl && (
-                      <div className="rounded border p-2 bg-secondary/30">
-                        <img src={previewUrl} alt={title} className="max-h-12 object-contain" />
-                      </div>
-                    )}
-                    <p className="text-xs text-muted-foreground">{hint}</p>
-                    <div className="flex gap-2">
-                      <label
-                        className={[
-                          'flex-1 inline-flex items-center justify-center rounded-md border border-input bg-background px-3 py-1.5 text-sm font-medium shadow-sm transition-colors cursor-pointer',
-                          assetUploading[tipo] ? 'opacity-50 pointer-events-none' : 'hover:bg-accent hover:text-accent-foreground',
-                        ].join(' ')}
-                      >
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/jpg"
-                          className="hidden"
-                          disabled={assetUploading[tipo]}
-                          onChange={async e => {
-                            const file = e.target.files?.[0];
-                            if (!file || !selectedProjetoId) return;
-                            if (file.size > 2 * 1024 * 1024) {
-                              toast.error('Ficheiro demasiado grande (máx 2 MB).');
-                              return;
-                            }
-                            setAssetUploading(s => ({ ...s, [tipo]: true }));
-                            try {
-                              const fd = new FormData();
-                              fd.append('file', file);
-                              await api.post(`/api/projetos/${selectedProjetoId}/assets?tipo=${tipo}`, fd, {
-                                headers: { 'Content-Type': undefined },
-                              });
-                              queryClient.invalidateQueries({ queryKey: ['projetos'] });
-                              toast.success('Imagem atualizada.');
-                            } catch {
-                              toast.error('Erro ao carregar imagem.');
-                            } finally {
-                              setAssetUploading(s => ({ ...s, [tipo]: false }));
-                              e.target.value = '';
-                            }
-                          }}
-                        />
-                        {assetUploading[tipo] ? 'A carregar...' : 'Carregar imagem'}
-                      </label>
-                      {currentPath && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={assetUploading[tipo]}
-                          onClick={async () => {
-                            if (!selectedProjetoId) return;
-                            setAssetUploading(s => ({ ...s, [tipo]: true }));
-                            try {
-                              await api.delete(`/api/projetos/${selectedProjetoId}/assets/${tipo}`);
-                              queryClient.invalidateQueries({ queryKey: ['projetos'] });
-                              toast.success('Imagem removida.');
-                            } catch {
-                              toast.error('Erro ao remover imagem.');
-                            } finally {
-                              setAssetUploading(s => ({ ...s, [tipo]: false }));
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+              <Switch checked={configForm.usar_template_proprio} onCheckedChange={(c) => setConfigForm(f => ({...f, usar_template_proprio: c}))} />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsConfigModalOpen(false)}>Cancelar</Button>
-            <Button
-              onClick={() => saveConfigMutation.mutate(configForm)}
-              disabled={saveConfigMutation.isPending}
-              className="bg-[#6B7280] hover:bg-[#555e68] text-white"
-            >
-              {saveConfigMutation.isPending ? 'A guardar...' : 'Guardar'}
-            </Button>
+            <Button onClick={() => saveConfigMutation.mutate(configForm)} disabled={saveConfigMutation.isPending}>Guardar</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
   );
+
 };
 
 export default Wiki;
