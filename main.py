@@ -232,11 +232,20 @@ def _require_root_or_role(user: dict, allowed_roles: set):
         raise HTTPException(status_code=403, detail="Acesso negado.")
 
 
-def _require_coordenacao(user: dict):
-    """Levanta 403 se o utilizador não tiver acesso de coordenação (is_root ou is_coordenacao)."""
+def _require_direcao(user: dict):
+    """Levanta 403 se o utilizador não tiver acesso de direção (is_root ou is_direcao)."""
     user_id = user.get("sub")
     perms = _perm_svc.get_user_permissions(user_id)
-    if perms["is_root"] or perms["is_coordenacao"]:
+    if perms["is_root"] or perms["is_direcao"]:
+        return
+    raise HTTPException(status_code=403, detail="Acesso negado.")
+
+
+def _require_coordenacao(user: dict):
+    """Levanta 403 se o utilizador não tiver acesso de coordenação (is_root, is_direcao ou is_coordenacao)."""
+    user_id = user.get("sub")
+    perms = _perm_svc.get_user_permissions(user_id)
+    if perms["is_root"] or perms["is_direcao"] or perms["is_coordenacao"]:
         return
     raise HTTPException(status_code=403, detail="Acesso negado.")
 
@@ -361,8 +370,8 @@ def _check_session_permission(user: dict, aula_info: dict):
     Coordenadores podem alterar todas. Outros users só as atribuídas a eles."""
     user_id = user.get("sub")
     perms = _perm_svc.get_user_permissions(user_id)
-    # Root e utilizadores com acesso de coordenação têm acesso total
-    if perms["is_root"] or perms["is_coordenacao"]:
+    # Root, direção e coordenação têm acesso total a sessões
+    if perms["is_root"] or perms["is_direcao"] or perms["is_coordenacao"]:
         return True
     # Sessão regular: apenas o mentor atribuído pode agir
     if not aula_info.get("is_autonomous"):
@@ -769,7 +778,7 @@ async def export_aula_registos(
     data_fim: Optional[str] = None,
     user=Depends(get_current_user_required),
 ):
-    _require_root_or_role(user, {"direcao", "it_support"})
+    _require_direcao(user)
     zip_bytes = aula_registo_service.exportar_registos_zip(projeto_id, data_inicio, data_fim)
     from fastapi.responses import Response
     return Response(
@@ -845,7 +854,7 @@ async def get_equipa(user=Depends(get_current_user_required)):
 @app.delete("/api/equipa/{user_id}", tags=["Core"])
 async def delete_equipa_member(user_id: str, user=Depends(get_current_user_required)):
     """Apaga permanentemente um membro da equipa (apenas direção)."""
-    _require_root_or_role(user, {"direcao", "it_support"})
+    _require_direcao(user)
     caller_id = user.get("sub")
     perfis = profile_service.listar_perfis()
     if user_id == caller_id:
@@ -871,7 +880,7 @@ class ProducaoColsUpdate(BaseModel):
 @app.patch("/api/equipa/{user_id}", tags=["Core"])
 async def update_equipa_member(user_id: str, payload: EquipaMembroUpdate, user=Depends(get_current_user_required)):
     """Atualiza role, nome e avatar de um membro (apenas direção/it_support)."""
-    _require_root_or_role(user, {"direcao", "it_support"})
+    _require_direcao(user)
     caller_id = user.get("sub")
     perfis = profile_service.listar_perfis()
     if user_id == caller_id:
@@ -893,7 +902,7 @@ async def update_equipa_member(user_id: str, payload: EquipaMembroUpdate, user=D
 @app.patch("/api/equipa/{user_id}/producao-cols", tags=["Core"])
 async def update_producao_cols(user_id: str, payload: ProducaoColsUpdate, user=Depends(get_current_user_required)):
     """Define colunas visíveis da produção para um utilizador (apenas admins)."""
-    _require_root_or_role(user, {"direcao", "it_support"})
+    _require_direcao(user)
     sucesso = profile_service.atualizar_producao_cols(user_id, payload.cols)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao guardar configuração.")
@@ -1265,7 +1274,7 @@ async def aceitar_tarefa_musica(musica_id: int, user=Depends(get_current_user_re
 async def reset_timer_musica(musica_id: int, user=Depends(get_current_user_required)):
     """Repõe o timer de uma música (apenas direção/it_support)."""
     perms = _perm_svc.get_user_permissions(user.get("sub"))
-    if not perms["is_root"] and perms["role"] not in ("direcao", "it_support"):
+    if not perms["is_root"] and not perms["is_direcao"]:
         raise HTTPException(status_code=403, detail="Apenas admins podem repor timers.")
     sucesso, mensagem = musica_service.reset_timer(musica_id)
     if not sucesso:
@@ -1975,8 +1984,6 @@ async def chatbot_sync(user=Depends(get_current_user_required)):
 # -----------------------------------------------------------------------------
 from services import atalho_service
 
-ATALHO_EDITOR_ROLES = {"direcao", "it_support"}
-
 class AtalhoCreate(BaseModel):
     titulo: str
     descricao: Optional[str] = None
@@ -1999,7 +2006,7 @@ async def get_atalhos(user=Depends(get_current_user_required)):
 @app.post("/api/atalhos", tags=["Atalhos"])
 async def post_atalho(payload: AtalhoCreate, user=Depends(get_current_user_required)):
     """Cria um novo atalho. Apenas direcao e it_support."""
-    _require_root_or_role(user, ATALHO_EDITOR_ROLES)
+    _require_direcao(user)
     resultado = atalho_service.criar_atalho(payload.dict())
     if not resultado:
         raise HTTPException(status_code=500, detail="Erro ao criar atalho.")
@@ -2008,7 +2015,7 @@ async def post_atalho(payload: AtalhoCreate, user=Depends(get_current_user_requi
 @app.put("/api/atalhos/{atalho_id}", tags=["Atalhos"])
 async def put_atalho(atalho_id: int, payload: AtalhoUpdate, user=Depends(get_current_user_required)):
     """Atualiza um atalho existente. Apenas direcao e it_support."""
-    _require_root_or_role(user, ATALHO_EDITOR_ROLES)
+    _require_direcao(user)
     resultado = atalho_service.atualizar_atalho(atalho_id, payload.dict())
     if not resultado:
         raise HTTPException(status_code=404, detail="Atalho não encontrado.")
@@ -2017,7 +2024,7 @@ async def put_atalho(atalho_id: int, payload: AtalhoUpdate, user=Depends(get_cur
 @app.delete("/api/atalhos/{atalho_id}", tags=["Atalhos"])
 async def delete_atalho(atalho_id: int, user=Depends(get_current_user_required)):
     """Apaga um atalho. Apenas direcao e it_support."""
-    _require_root_or_role(user, ATALHO_EDITOR_ROLES)
+    _require_direcao(user)
     sucesso = atalho_service.apagar_atalho(atalho_id)
     if not sucesso:
         raise HTTPException(status_code=404, detail="Atalho não encontrado.")
@@ -2113,13 +2120,12 @@ async def shutdown_event():
 # -----------------------------------------------------------------------------
 
 def _require_admin(user: dict):
-    """Levanta 403 se o utilizador não for root nem direcao/it_support."""
+    """Levanta 403 se o utilizador não for root. Gestão de sistema é exclusiva de IT."""
     user_id = user.get("sub")
     perms = _perm_svc.get_user_permissions(user_id)
     if perms["is_root"]:
         return
-    if perms["role"] not in ("direcao", "it_support"):
-        raise HTTPException(status_code=403, detail="Acesso negado.")
+    raise HTTPException(status_code=403, detail="Acesso negado.")
 
 
 @app.get("/api/me/permissions", tags=["Admin"])
@@ -2129,6 +2135,7 @@ async def get_my_permissions(user=Depends(get_current_user_required)):
     perms = _perm_svc.get_user_permissions(user_id)
     return {
         "is_root": perms["is_root"],
+        "is_direcao": perms["is_direcao"],
         "is_coordenacao": perms["is_coordenacao"],
         "role": perms["role"],
         "allowed_pages": list(perms["allowed_pages"]),
@@ -2184,6 +2191,7 @@ class AdminCreateUserPayload(BaseModel):
     page_overrides: dict = {}
     project_ids: List[int] = []
     is_root: bool = False
+    is_direcao: bool = False
     is_coordenacao: bool = False
 
 
@@ -2200,6 +2208,7 @@ async def admin_criar_utilizador(payload: AdminCreateUserPayload, user=Depends(g
             page_overrides=payload.page_overrides,
             project_ids=payload.project_ids,
             is_root=payload.is_root,
+            is_direcao=payload.is_direcao,
             is_coordenacao=payload.is_coordenacao,
         )
     except Exception as e:
@@ -2221,6 +2230,7 @@ class AdminUpdatePermissionsPayload(BaseModel):
     page_overrides: dict = {}
     project_ids: List[int] = []
     is_root: bool = False
+    is_direcao: bool = False
     is_coordenacao: bool = False
 
 
@@ -2238,6 +2248,7 @@ async def admin_atualizar_permissoes(user_id: str, payload: AdminUpdatePermissio
             page_overrides=payload.page_overrides,
             project_ids=payload.project_ids,
             is_root=payload.is_root,
+            is_direcao=payload.is_direcao,
             is_coordenacao=payload.is_coordenacao,
         )
         return {"ok": True}

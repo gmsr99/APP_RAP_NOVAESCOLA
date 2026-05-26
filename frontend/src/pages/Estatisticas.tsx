@@ -88,9 +88,9 @@ interface FeedbackItem {
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function Estatisticas() {
-  const { profile } = useProfile();
-  const canExport = profile === 'direcao' || profile === 'it_support';
-  const canExportMedia = canExport || profile === 'coordenador';
+  const { profile, isDirecao, isCoordenacao } = useProfile();
+  const canExport = isDirecao;
+  const canExportMedia = isCoordenacao;
 
   const [selectedProjetoId, setSelectedProjetoId] = useState<string>('');
   const [mentorFilter, setMentorFilter] = useState('all');

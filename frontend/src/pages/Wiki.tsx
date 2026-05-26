@@ -67,6 +67,7 @@ import {
 } from "lucide-react";
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from '@/contexts/ProfileContext';
 
 // Types
 interface Estabelecimento {
@@ -140,7 +141,8 @@ interface ContactoEstabelecimento {
 const Wiki = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const isCoordinator = user?.role === 'coordenador' || user?.role === 'direcao' || user?.role === 'it_support';
+  const { isCoordenacao } = useProfile();
+  const isCoordinator = isCoordenacao;
 
   // State for Projetos
   const [selectedProjetoId, setSelectedProjetoId] = useState<number | null>(null);

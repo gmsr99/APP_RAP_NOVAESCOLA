@@ -62,8 +62,8 @@ const statusLabels: Record<string, string> = {
 
 export function CoordinatorDashboard() {
   const queryClient = useQueryClient();
-  const { profile } = useProfile();
-  const canExport = profile === 'direcao' || profile === 'it_support';
+  const { isDirecao } = useProfile();
+  const canExport = isDirecao;
 
   const [isTerminarOpen, setIsTerminarOpen] = useState(false);
   const [terminarSessionId, setTerminarSessionId] = useState<number | null>(null);

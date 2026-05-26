@@ -74,7 +74,6 @@ type ExportRow = {
   duracao_horas?: number | null;
   estado?: string | null;
   is_autonomous?: boolean | null;
-  is_realized?: boolean | null;
   colaborador?: string | null;
   turma_nome?: string | null;
   estabelecimento_nome?: string | null;
@@ -115,7 +114,7 @@ function gerarXLSX(rows: ExportRow[], labelProjetos: string, labelTipo: string, 
 
   const colHeaders = [
     'Código', 'Data', 'Hora Início', 'Hora Fim', 'Duração (h)',
-    'Estado', 'Autónoma?', 'Realizada?', 'Colaborador', 'Turma',
+    'Estado', 'Autónoma?', 'Colaborador', 'Turma',
     'Escola', 'Projeto', 'Atividade', 'Disciplina', 'Local', 'Sumário',
     'Objetivos', 'Avaliação', 'Observações Termino', 'Observações Gerais',
   ];
@@ -128,7 +127,6 @@ function gerarXLSX(rows: ExportRow[], labelProjetos: string, labelTipo: string, 
     r.duracao_horas    ?? '',
     ESTADO_LABELS[r.estado ?? ''] ?? r.estado ?? '',
     r.is_autonomous ? 'Sim' : 'Não',
-    r.is_realized ? 'Sim' : 'Não',
     r.colaborador      ?? '',
     r.turma_nome       ?? '',
     r.estabelecimento_nome ?? '',
@@ -159,7 +157,7 @@ function gerarXLSX(rows: ExportRow[], labelProjetos: string, labelTipo: string, 
 
   ws['!cols'] = [
     { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
-    { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 24 }, { wch: 20 },
+    { wch: 14 }, { wch: 10 }, { wch: 24 }, { wch: 20 },
     { wch: 28 }, { wch: 18 }, { wch: 26 }, { wch: 22 }, { wch: 22 }, { wch: 36 },
     { wch: 36 }, { wch: 12 }, { wch: 40 }, { wch: 40 },
   ];

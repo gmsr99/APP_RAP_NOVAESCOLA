@@ -162,7 +162,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 const Producao = () => {
   const { user } = useAuth();
-  const { profile } = useProfile();
+  const { profile, isCoordenacao, isDirecao } = useProfile();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -182,8 +182,8 @@ const Producao = () => {
   const [colDraft, setColDraft] = useState<Record<string, string[] | null>>({});
   const [prioritizarModal, setPrioritizarModal] = useState<Musica | null>(null);
 
-  const isCoordinator = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
-  const isAdmin = profile === 'direcao' || profile === 'it_support';
+  const isCoordinator = isCoordenacao;
+  const isAdmin = isDirecao;
   const isProdutor = profile === 'produtor' || profile === 'mentor_produtor';
 
   // ─── Queries ─────────────────────────────────────────────────────────────────

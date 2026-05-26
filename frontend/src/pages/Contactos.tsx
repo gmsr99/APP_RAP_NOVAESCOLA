@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { useProfile } from '@/contexts/ProfileContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -65,7 +66,8 @@ function contactoHref(c: Contacto): string | undefined {
 export default function Contactos() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const isCoordinator = user?.role === 'coordenador' || user?.role === 'direcao' || user?.role === 'it_support';
+  const { isCoordenacao } = useProfile();
+  const isCoordinator = isCoordenacao;
 
   // Dialog state
   const [isDialogOpen, setIsDialogOpen] = useState(false);

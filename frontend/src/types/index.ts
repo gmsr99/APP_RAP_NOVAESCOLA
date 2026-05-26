@@ -11,6 +11,7 @@ export interface User {
 
 export interface UserPermissions {
   is_root: boolean;
+  is_direcao: boolean;
   is_coordenacao: boolean;
   role: string;
   allowed_pages: string[];

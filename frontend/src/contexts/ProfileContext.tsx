@@ -18,7 +18,9 @@ interface ProfileContextType {
   isAuthenticated: boolean;
   /** Conjunto de page slugs acessíveis pelo utilizador */
   allowedPages: Set<string>;
-  /** true se o utilizador tem acesso de coordenação (flag independente do role) */
+  /** true se o utilizador tem acesso de direção (is_root ou is_direcao) */
+  isDirecao: boolean;
+  /** true se o utilizador tem acesso de coordenação ou superior (is_root, is_direcao ou is_coordenacao) */
   isCoordenacao: boolean;
 }
 
@@ -66,8 +68,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     return base;
   }, [permissions, profile]);
 
+  const isDirecao = permissions
+    ? (permissions.is_root || permissions.is_direcao)
+    : ['direcao', 'it_support'].includes(profile);
+
   const isCoordenacao = permissions
-    ? (permissions.is_root || permissions.is_coordenacao)
+    ? (permissions.is_root || permissions.is_direcao || permissions.is_coordenacao)
     : ['coordenador', 'direcao', 'it_support'].includes(profile);
 
   // Se estiver autenticado, usar o user da sessão; senão, fallback para mock por perfil
@@ -79,7 +85,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const setProfile = (p: UserProfile) => setManualProfile(p);
 
   return (
-    <ProfileContext.Provider value={{ profile, user, setProfile, isAuthenticated, allowedPages, isCoordenacao }}>
+    <ProfileContext.Provider value={{ profile, user, setProfile, isAuthenticated, allowedPages, isDirecao, isCoordenacao }}>
       {children}
     </ProfileContext.Provider>
   );

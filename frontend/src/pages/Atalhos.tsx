@@ -147,8 +147,8 @@ function AtalhoCard({
 // ─── Main page ────────────────────────────────────────────────────────────────
 
 export default function Atalhos() {
-  const { profile } = useProfile();
-  const isEditor = ['direcao', 'it_support'].includes(profile);
+  const { isDirecao } = useProfile();
+  const isEditor = isDirecao;
   const { toast } = useToast();
   const queryClient = useQueryClient();
 

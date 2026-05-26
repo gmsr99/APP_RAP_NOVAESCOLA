@@ -56,7 +56,7 @@ const ROLE_BADGE: Record<string, string> = {
 };
 
 const Equipa = () => {
-    const { profile, user, allowedPages } = useProfile();
+    const { profile, user, allowedPages, isDirecao } = useProfile();
     const queryClient = useQueryClient();
     const isAdmin = allowedPages.has('admin');
 
@@ -67,6 +67,7 @@ const Equipa = () => {
     // Advanced permissions state
     const [advPerms, setAdvPerms] = useState<{
         is_root: boolean;
+        is_direcao: boolean;
         is_coordenacao: boolean;
         page_overrides: Record<string, boolean>;
         project_ids: number[];
@@ -134,13 +135,14 @@ const Equipa = () => {
                 const found = roles.find(r => r.name === permsData.role);
                 setAdvPerms({
                     is_root: permsData.is_root,
+                    is_direcao: permsData.is_direcao ?? false,
                     is_coordenacao: permsData.is_coordenacao ?? false,
                     page_overrides: permsData.page_overrides || {},
                     project_ids: permsData.project_ids || [],
                     role_pages: found ? found.pages : [],
                 });
             } catch {
-                setAdvPerms({ is_root: false, is_coordenacao: false, page_overrides: {}, project_ids: [], role_pages: [] });
+                setAdvPerms({ is_root: false, is_direcao: false, is_coordenacao: false, page_overrides: {}, project_ids: [], role_pages: [] });
             }
         }
     };
@@ -168,6 +170,7 @@ const Equipa = () => {
                     page_overrides: advPerms.page_overrides,
                     project_ids: advPerms.project_ids,
                     is_root: advPerms.is_root,
+                    is_direcao: advPerms.is_direcao,
                     is_coordenacao: advPerms.is_coordenacao,
                 },
             });
@@ -207,8 +210,6 @@ const Equipa = () => {
             setAdvPerms(prev => prev ? { ...prev, role_pages: found ? found.pages : [], page_overrides: {} } : prev);
         }
     };
-
-    const isDirecao = profile === 'direcao' || profile === 'it_support';
 
     if (isLoading) {
         return (
@@ -418,6 +419,18 @@ const Equipa = () => {
                                     <Switch
                                         checked={advPerms.is_coordenacao}
                                         onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_coordenacao: v } : prev)}
+                                        disabled={advPerms.is_direcao || advPerms.is_root}
+                                    />
+                                </div>
+
+                                <div className="flex items-center justify-between pt-2 border-t">
+                                    <div>
+                                        <p className="text-sm font-semibold">Acesso de Direção</p>
+                                        <p className="text-xs text-muted-foreground">Acesso total à app exceto painel de administração de sistema.</p>
+                                    </div>
+                                    <Switch
+                                        checked={advPerms.is_direcao}
+                                        onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_direcao: v } : prev)}
                                         disabled={advPerms.is_root}
                                     />
                                 </div>

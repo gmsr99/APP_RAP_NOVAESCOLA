@@ -161,8 +161,8 @@ function StatCard({
 export default function Tarefas() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
-  const { profile } = useProfile();
-  const isCoord = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
+  const { profile, isCoordenacao } = useProfile();
+  const isCoord = isCoordenacao;
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTarefa, setEditingTarefa] = useState<Tarefa | null>(null);

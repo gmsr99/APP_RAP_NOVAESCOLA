@@ -316,7 +316,7 @@ function TodosRegistosAccordion({ registos, onReExport, onEdit }: {
 
 const Registos = () => {
   const { user } = useAuth();
-  const { profile } = useProfile();
+  const { profile, isCoordenacao, isDirecao } = useProfile();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -370,7 +370,7 @@ const Registos = () => {
     },
   });
 
-  const isCoord = profile === 'coordenador' || profile === 'direcao' || profile === 'it_support';
+  const isCoord = isCoordenacao;
 
   const { data: todosRegistos = [] } = useQuery({
     queryKey: ['registos-todos'],
@@ -392,7 +392,6 @@ const Registos = () => {
 
   // ─── Export XLS (Direção) ───────────────────────────────────────────────
 
-  const isDirecao = profile === 'direcao';
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportDataInicio, setExportDataInicio] = useState('');
   const [exportDataFim, setExportDataFim] = useState('');
