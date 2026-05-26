@@ -52,15 +52,6 @@ const ESTADO_OPTIONS = [
   { value: 'rascunho',   label: 'Rascunhos'   },
 ];
 
-const TIPO_LABELS: Record<string, string> = {
-  teorica:           'Teórica',
-  pratica_escrita:   'Prática Escrita',
-  pratica_gravacao:  'Prática Gravação',
-  producao_musical:  'Produção Musical',
-  ensaio:            'Ensaio',
-  showcase:          'Showcase',
-  trabalho_autonomo: 'Trabalho Autónomo',
-};
 
 const ESTADO_LABELS: Record<string, string> = {
   rascunho:  'Rascunho',
@@ -79,13 +70,14 @@ type ExportRow = {
   hora_inicio?: string | null;
   hora_fim?: string | null;
   duracao_horas?: number | null;
-  tipo?: string | null;
   estado?: string | null;
   is_autonomous?: boolean | null;
+  is_realized?: boolean | null;
   colaborador?: string | null;
   turma_nome?: string | null;
   estabelecimento_nome?: string | null;
   projeto_nome?: string | null;
+  local?: string | null;
   tema?: string | null;
   tipo_atividade?: string | null;
   objetivos?: string | null;
@@ -121,8 +113,8 @@ function gerarXLSX(rows: ExportRow[], labelProjetos: string, labelTipo: string, 
 
   const colHeaders = [
     'Código', 'Data', 'Hora Início', 'Hora Fim', 'Duração (h)',
-    'Tipo', 'Estado', 'Autónoma?', 'Colaborador', 'Turma',
-    'Escola', 'Projeto', 'Tema / Atividade', 'Objetivos', 'Sumário',
+    'Estado', 'Autónoma?', 'Realizada?', 'Colaborador', 'Turma',
+    'Escola', 'Projeto', 'Local', 'Tema / Atividade', 'Objetivos', 'Sumário',
     'Avaliação', 'Observações Termino', 'Observações Gerais',
   ];
 
@@ -132,13 +124,14 @@ function gerarXLSX(rows: ExportRow[], labelProjetos: string, labelTipo: string, 
     r.hora_inicio      ?? '',
     r.hora_fim         ?? '',
     r.duracao_horas    ?? '',
-    TIPO_LABELS[r.tipo ?? ''] ?? r.tipo ?? '',
     ESTADO_LABELS[r.estado ?? ''] ?? r.estado ?? '',
     r.is_autonomous ? 'Sim' : 'Não',
+    r.is_realized ? 'Sim' : 'Não',
     r.colaborador      ?? '',
     r.turma_nome       ?? '',
     r.estabelecimento_nome ?? '',
     r.projeto_nome     ?? '',
+    r.local            ?? '',
     r.tema ?? r.tipo_atividade ?? '',
     r.objetivos        ?? '',
     r.sumario          ?? '',
@@ -163,8 +156,8 @@ function gerarXLSX(rows: ExportRow[], labelProjetos: string, labelTipo: string, 
 
   ws['!cols'] = [
     { wch: 14 }, { wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 12 },
-    { wch: 20 }, { wch: 14 }, { wch: 10 }, { wch: 24 }, { wch: 20 },
-    { wch: 28 }, { wch: 20 }, { wch: 30 }, { wch: 36 }, { wch: 36 },
+    { wch: 14 }, { wch: 10 }, { wch: 10 }, { wch: 24 }, { wch: 20 },
+    { wch: 28 }, { wch: 20 }, { wch: 26 }, { wch: 30 }, { wch: 36 }, { wch: 36 },
     { wch: 12 }, { wch: 40 }, { wch: 40 },
   ];
 

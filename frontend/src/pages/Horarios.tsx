@@ -434,7 +434,6 @@ const Horarios = () => {
 
   const [formData, setFormData] = useState<Partial<AulaCreate> & { repetir_semanalmente?: boolean; semanas?: number }>({
     duracao_minutos: 120,
-    tipo: 'ensaio',
     atividade_uuid: null,
     observacoes: ''
   });
@@ -912,7 +911,6 @@ const Horarios = () => {
     setSelectedEstabId(null);
     setFormData({
       duracao_minutos: 120,
-      tipo: 'ensaio',
       atividade_uuid: null,
       observacoes: '',
       repetir_semanalmente: false,
@@ -1114,7 +1112,6 @@ const Horarios = () => {
       mentor_id: formData.mentor_id ? Number(formData.mentor_id) : null,
       local: formData.local,
       tema: formData.tema || '',
-      tipo: formData.tipo || 'plano_aula',
       observacoes: formData.observacoes || '',
       atividade_uuid: formData.atividade_uuid,
       projeto_id: selectedProjetoId,

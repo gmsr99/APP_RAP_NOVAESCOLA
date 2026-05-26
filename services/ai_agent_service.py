@@ -52,7 +52,7 @@ Regras:
 7. Sê conciso e profissional nas respostas.
 8. Quando listares sessões, apresenta-as de forma organizada e legível.
 
-Tipos de sessão disponíveis: teorica, pratica_escrita, pratica_gravacao, producao_musical, ensaio, showcase, trabalho_autonomo.
+Tipos especiais de sessão: outro, trabalho_autonomo, trabalho_interno. Sessões presenciais regulares não têm tipo específico.
 Estados disponíveis: rascunho, pendente, confirmada, recusada, em_curso, concluida, cancelada, terminada.
 Tipos de trabalho autónomo: Produção Musical, Preparação Aulas, Edição/Captura, Reunião, Manutenção.
 """
@@ -91,7 +91,7 @@ FUNCTION_DECLARATIONS = [
             properties={
                 "turma_id": types.Schema(type="INTEGER", description="ID da turma (obrigatório para aulas regulares, null para autónomo)."),
                 "data_hora": types.Schema(type="STRING", description="Data e hora no formato 'YYYY-MM-DD HH:MM'."),
-                "tipo": types.Schema(type="STRING", description="Tipo de aula: teorica, pratica_escrita, pratica_gravacao, producao_musical, ensaio, showcase."),
+                "tipo": types.Schema(type="STRING", description="Tipo especial de sessão: outro, trabalho_interno. Omitir para sessões presenciais regulares."),
                 "duracao_minutos": types.Schema(type="INTEGER", description="Duração em minutos. Default: 90."),
                 "mentor_id": types.Schema(type="INTEGER", description="ID do mentor a atribuir à sessão."),
                 "local": types.Schema(type="STRING", description="Local da sessão."),
@@ -114,10 +114,9 @@ FUNCTION_DECLARATIONS = [
                 "aula_id": types.Schema(type="INTEGER", description="ID da sessão a atualizar."),
                 "dados": types.Schema(
                     type="OBJECT",
-                    description="Campos a atualizar (ex: data_hora, tipo, local, tema, mentor_id, observacoes, estado).",
+                    description="Campos a atualizar (ex: data_hora, local, tema, mentor_id, observacoes, estado).",
                     properties={
                         "data_hora": types.Schema(type="STRING"),
-                        "tipo": types.Schema(type="STRING"),
                         "local": types.Schema(type="STRING"),
                         "tema": types.Schema(type="STRING"),
                         "mentor_id": types.Schema(type="INTEGER"),
@@ -212,7 +211,7 @@ def _executar_ferramenta(nome: str, args: Dict[str, Any]) -> Any:
             resultado = aula_service.criar_aula(
                 turma_id=args.get("turma_id"),
                 data_hora=args.get("data_hora"),
-                tipo=args.get("tipo", "pratica_escrita"),
+                tipo=args.get("tipo"),
                 duracao_minutos=args.get("duracao_minutos", 90),
                 mentor_id=args.get("mentor_id"),
                 local=args.get("local"),

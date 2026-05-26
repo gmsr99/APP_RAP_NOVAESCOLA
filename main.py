@@ -1234,6 +1234,19 @@ async def avancar_fase_musica(musica_id: int, dados: Optional[dict] = None, user
         raise HTTPException(status_code=400, detail=mensagem)
     return {"message": mensagem}
 
+@app.post("/api/musicas/{musica_id}/prioritizar", tags=["Producao"])
+async def prioritizar_musica(musica_id: int, dados: Optional[dict] = None, user=Depends(get_current_user_required)):
+    """Prioriza uma música da fila para mistura (coordenadores/admins)."""
+    role = user.get("role", "")
+    if role not in ("coordenador", "direcao", "it_support") and not user.get("is_root"):
+        raise HTTPException(status_code=403, detail="Sem permissão.")
+    swap_id = (dados or {}).get("swap_id")
+    sucesso, mensagem = musica_service.prioritizar_mistura(musica_id, swap_id)
+    if not sucesso:
+        raise HTTPException(status_code=400, detail=mensagem)
+    return {"message": mensagem}
+
+
 @app.post("/api/musicas/{musica_id}/aceitar", tags=["Producao"])
 async def aceitar_tarefa_musica(musica_id: int, user=Depends(get_current_user_required)):
     """Aceita uma tarefa da pool."""

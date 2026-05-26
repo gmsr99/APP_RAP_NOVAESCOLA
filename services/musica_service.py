@@ -470,6 +470,92 @@ def auto_assign_from_pool(projeto_id: int) -> int:
         if 'conn' in locals() and conn: conn.close()
 
 
+def prioritizar_mistura(fila_id: int, swap_id: int = None) -> tuple:
+    """
+    Coloca uma música de pool_mistura em mistura_wip com prioridade manual.
+    - Se swap_id fornecido: troca com essa música (volta à pool, mantém produtor).
+    - Se slot disponível: atribui ao produtor com menor carga.
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        # Verificar que a música alvo está na pool
+        cur.execute("SELECT titulo, projeto_id FROM musicas WHERE id = %s AND estado = 'pool_mistura' AND arquivado = FALSE", (fila_id,))
+        row = cur.fetchone()
+        if not row:
+            return False, "Música não está na fila de espera."
+        titulo_fila = row[0]
+        projeto_id = row[1]
+
+        if swap_id is not None:
+            # Verificar que a música a trocar está em mistura_wip
+            cur.execute("SELECT responsavel_id, titulo FROM musicas WHERE id = %s AND estado = 'mistura_wip' AND arquivado = FALSE", (swap_id,))
+            swap_row = cur.fetchone()
+            if not swap_row:
+                return False, "Música a trocar não está em mistura."
+            produtor_id = swap_row[0]
+            titulo_swap = swap_row[1]
+
+            # Devolver swap à pool
+            cur.execute("""
+                UPDATE musicas SET estado = 'pool_mistura', responsavel_id = NULL,
+                    mistura_atribuida_em = NULL, fase_deadline = NULL, updated_at = NOW()
+                WHERE id = %s
+            """, (swap_id,))
+
+            # Atribuir fila_id ao mesmo produtor
+            cur.execute("""
+                UPDATE musicas SET estado = 'mistura_wip', responsavel_id = %s,
+                    mistura_atribuida_em = NOW(), fase_deadline = CURRENT_DATE + 2, updated_at = NOW()
+                WHERE id = %s AND estado = 'pool_mistura'
+            """, (produtor_id, fila_id))
+
+            conn.commit()
+            if produtor_id:
+                _notificar_users([str(produtor_id)], 'producao_atribuicao',
+                    'Música priorizada para mistura',
+                    f'"{titulo_fila}" foi atribuída com prioridade para mistura.', '/producao')
+            return True, f'"{titulo_fila}" trocada com "{titulo_swap}".'
+
+        else:
+            # Slot livre: atribuir ao produtor com menor carga
+            cur.execute("""
+                SELECT p.id, COUNT(m.id) AS wip_count
+                FROM profiles p
+                LEFT JOIN musicas m ON m.responsavel_id = p.id AND m.estado = 'mistura_wip' AND m.arquivado = FALSE
+                WHERE p.role IN ('produtor', 'mentor_produtor')
+                  AND (p.is_root = TRUE OR p.project_scoped = FALSE
+                       OR EXISTS (SELECT 1 FROM user_project_access upa WHERE upa.user_id = p.id AND upa.projeto_id = %s))
+                GROUP BY p.id
+                HAVING COUNT(m.id) < 3
+                ORDER BY wip_count ASC, MAX(m.mistura_atribuida_em) ASC NULLS FIRST
+                LIMIT 1
+            """, (projeto_id,))
+            prod_row = cur.fetchone()
+            if not prod_row:
+                return False, "Não há produtores com slot disponível. Usa a troca manual."
+            produtor_id = prod_row[0]
+            cur.execute("""
+                UPDATE musicas SET estado = 'mistura_wip', responsavel_id = %s,
+                    mistura_atribuida_em = NOW(), fase_deadline = CURRENT_DATE + 2, updated_at = NOW()
+                WHERE id = %s AND estado = 'pool_mistura'
+            """, (produtor_id, fila_id))
+            conn.commit()
+            _notificar_users([str(produtor_id)], 'producao_atribuicao',
+                'Música priorizada para mistura',
+                f'"{titulo_fila}" foi atribuída com prioridade para mistura.', '/producao')
+            return True, f'"{titulo_fila}" atribuída com prioridade.'
+
+    except Exception as e:
+        logger.error("Erro em prioritizar_mistura: %s", e)
+        if 'conn' in locals() and conn: conn.rollback()
+        return False, str(e)
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
 def reset_timer(musica_id: int) -> tuple:
     """Repõe o temporizador de uma música em 'edição' (24h) ou 'mistura_wip' (48h)."""
     try:

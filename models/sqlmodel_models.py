@@ -73,7 +73,7 @@ class Aula(SQLModel, table=True):
     projeto_id: Optional[int] = Field(default=None, foreign_key="projetos.id")
     turma_id: Optional[int] = Field(default=None, foreign_key="turmas.id")
     mentor_id: Optional[int] = Field(default=None, foreign_key="mentores.id")
-    tipo: str = "pratica_escrita"
+    tipo: Optional[str] = None
     data_hora: datetime
     duracao_minutos: int = 90
     estado: str = "rascunho"
@@ -149,7 +149,7 @@ class AulaCreate(SQLModel):
     local: Optional[str] = None
     tema: Optional[str] = None
     observacoes: Optional[str] = None
-    tipo: str = "pratica_escrita"
+    tipo: Optional[str] = None
     atividade_uuid: Optional[str] = None
 
     objetivos: Optional[str] = None
@@ -193,7 +193,7 @@ class AulaRead(SQLModel):
     turma_id: Optional[int] = None
     mentor_id: Optional[int] = None
     projeto_id: Optional[int] = None
-    tipo: str
+    tipo: Optional[str] = None
     data_hora: datetime
     duracao_minutos: int
     estado: str
@@ -220,7 +220,7 @@ class AulaRead(SQLModel):
 
 class AulaListItem(SQLModel):
     id: int
-    tipo: str
+    tipo: Optional[str] = None
     data_hora: datetime
     duracao_minutos: int
     estado: str

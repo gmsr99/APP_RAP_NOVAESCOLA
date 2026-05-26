@@ -578,9 +578,8 @@ def listar_aulas_pendentes_mentor(mentor_id):
         cur = conn.cursor()
         
         query = """
-            SELECT 
+            SELECT
                 a.id,
-                a.tipo,
                 a.data_hora,
                 a.duracao_minutos,
                 a.local,
@@ -591,26 +590,25 @@ def listar_aulas_pendentes_mentor(mentor_id):
             FROM aulas a
             JOIN turmas t ON a.turma_id = t.id
             JOIN estabelecimentos e ON t.estabelecimento_id = e.id
-            WHERE a.mentor_id = %s 
+            WHERE a.mentor_id = %s
             AND a.estado = 'pendente'
             ORDER BY a.data_hora ASC;
         """
-        
+
         cur.execute(query, (mentor_id,))
         resultados = cur.fetchall()
-        
+
         aulas = []
         for row in resultados:
             aula = {
                 'id': row[0],
-                'tipo': row[1],
-                'data_hora': row[2],
-                'duracao_minutos': row[3],
-                'local': row[4],
-                'tema': row[5],
-                'turma_nome': row[6],
-                'estabelecimento_nome': row[7],
-                'criado_em': row[8]
+                'data_hora': row[1],
+                'duracao_minutos': row[2],
+                'local': row[3],
+                'tema': row[4],
+                'turma_nome': row[5],
+                'estabelecimento_nome': row[6],
+                'criado_em': row[7]
             }
             aulas.append(aula)
         

@@ -16,7 +16,7 @@ def test_aula_create_defaults_participantes_ids_to_empty():
     aula = AulaCreate(
         data_hora="2026-04-23 10:00",
         duracao_minutos=60,
-        tipo="pratica_escrita",
+        tipo=None,
     )
     assert aula.participantes_ids == []
 

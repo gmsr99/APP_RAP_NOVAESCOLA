@@ -53,14 +53,6 @@ ESTADOS_VALIDOS = [
 # Estados que aguardam confirmação do mentor (tratados como equivalentes)
 ESTADOS_PENDENTES = {ESTADO_AGENDADA, ESTADO_PENDENTE}
 
-TIPOS_AULA = [
-    "teorica",
-    "pratica_escrita",
-    "pratica_gravacao",
-    "producao_musical",
-    "ensaio",
-    "showcase",
-]
 
 
 
@@ -125,7 +117,7 @@ TIPOS_ATIVIDADE_AUTONOMA = [
 def criar_aula(
     turma_id,
     data_hora,
-    tipo="pratica_escrita",
+    tipo=None,
     duracao_minutos=90,
     mentor_id=None,
     local=None,
@@ -155,9 +147,6 @@ def criar_aula(
     if not data_hora:
         logger.error("Erro: data_hora e obrigatoria!")
         return None
-
-    if not is_autonomous and not is_interno and not is_outro and tipo not in TIPOS_AULA:
-        logger.warning("Tipo '%s' nao e padrao. Tipos validos: %s", tipo, TIPOS_AULA)
 
     if is_interno or is_outro:
         estado_inicial = "confirmada"
@@ -1230,7 +1219,6 @@ def listar_aulas_export(
                 a.codigo_sessao,
                 a.data_hora,
                 a.duracao_minutos,
-                a.tipo,
                 a.estado,
                 a.is_autonomous,
                 a.is_realized,

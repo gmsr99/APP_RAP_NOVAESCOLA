@@ -364,6 +364,17 @@ const Producao = () => {
     onError: () => toast({ title: 'Erro', description: 'Falha ao repor timer.', variant: 'destructive' })
   });
 
+  const prioritizarMutation = useMutation({
+    mutationFn: ({ id, swapId }: { id: number; swapId?: number }) =>
+      api.post(`/api/musicas/${id}/prioritizar`, swapId !== undefined ? { swap_id: swapId } : {}),
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['musicas'] });
+      toast({ title: 'Música priorizada', description: 'A faixa foi movida para mistura.' });
+      setPrioritizarModal(null);
+    },
+    onError: (err: any) => toast({ title: 'Erro', description: err?.response?.data?.detail || 'Falha ao priorizar.', variant: 'destructive' })
+  });
+
   const saveColsMutation = useMutation({
     mutationFn: async (draft: Record<string, string[] | null>) => {
       await Promise.all(
