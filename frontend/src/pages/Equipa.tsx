@@ -229,8 +229,8 @@ const Equipa = () => {
         }
     };
 
-    if (isLoading) {
-        
+    if (isLoading) return null;
+
     const filteredProfiles = profiles?.filter(p => {
         const matchesSearch = (p.full_name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) || 
                               (p.email?.toLowerCase() || '').includes(searchQuery.toLowerCase());
