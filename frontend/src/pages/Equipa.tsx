@@ -453,9 +453,9 @@ const Equipa = () => {
                                         <p className="text-sm text-muted-foreground leading-relaxed">Pode gerir e ver todas as sessões, turmas e exportar dados gerais, independentemente do cargo oficial atribuído no perfil.</p>
                                     </div>
 
-                                    <div className="flex flex-col gap-1.5 p-4 rounded-xl border border-orange-200/50 bg-orange-50/30 dark:bg-orange-950/20">
+                                    <div className="flex flex-col gap-1.5 p-4 rounded-xl border bg-muted/10">
                                         <div className="flex items-center justify-between">
-                                            <Label className="text-base font-semibold text-orange-700 dark:text-orange-400">Acesso de Direção</Label>
+                                            <Label className="text-base font-semibold">Acesso de Direção</Label>
                                             <Switch
                                                 checked={advPerms.is_direcao}
                                                 onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_direcao: v } : prev)}
@@ -465,7 +465,7 @@ const Equipa = () => {
                                         <p className="text-sm text-muted-foreground leading-relaxed">Privilégios quase totais na app. Apenas o painel "Admin" de sistema lhe está vedado.</p>
                                     </div>
 
-                                    <div className="flex flex-col gap-1.5 p-4 rounded-xl border border-destructive/20 bg-destructive/5">
+                                    <div className="flex flex-col gap-1.5 p-4 rounded-xl border bg-muted/10">
                                         <div className="flex items-center justify-between">
                                             <Label className="text-base font-semibold text-destructive">Acesso Root</Label>
                                             <Switch
