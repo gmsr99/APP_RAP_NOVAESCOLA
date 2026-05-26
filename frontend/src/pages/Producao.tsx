@@ -57,7 +57,9 @@ import {
   RotateCcw,
   Settings,
   ArrowUpCircle,
+  FileDown,
 } from 'lucide-react';
+import { ExportMusicasModal } from '@/components/ExportMusicasModal';
 import { cn } from '@/lib/utils';
 import { format, addMinutes } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
@@ -175,6 +177,7 @@ const Producao = () => {
   const [editValue, setEditValue] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState<Musica | null>(null);
   const [concluidasOpen, setConcluidasOpen] = useState(false);
+  const [exportMusicasOpen, setExportMusicasOpen] = useState(false);
   const [editMusicOpen, setEditMusicOpen] = useState(false);
   const [editMusicTarget, setEditMusicTarget] = useState<Musica | null>(null);
   const [editMusicForm, setEditMusicForm] = useState({ titulo: '', turma_id: '', disciplina_id: '' });
@@ -1136,6 +1139,11 @@ const Producao = () => {
           <Button variant="outline" onClick={() => setConcluidasOpen(true)}>
             <CheckCircle2 className="h-4 w-4 mr-2" /> Concluídas
           </Button>
+          {(isCoordinator || isAdmin) && (
+            <Button variant="outline" onClick={() => setExportMusicasOpen(true)} title="Exportar músicas concluídas">
+              <FileDown className="h-4 w-4 mr-2" /> Exportar
+            </Button>
+          )}
           <Dialog open={isNewMusicOpen} onOpenChange={setIsNewMusicOpen}>
           <DialogTrigger asChild>
             <Button onClick={() => {
@@ -1539,6 +1547,13 @@ const Producao = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ExportMusicasModal
+        open={exportMusicasOpen}
+        onOpenChange={setExportMusicasOpen}
+        projetoId={selectedProjetoId}
+        projetoNome={projetos.find(p => p.id === selectedProjetoId)?.nome}
+      />
     </div>
   );
 };

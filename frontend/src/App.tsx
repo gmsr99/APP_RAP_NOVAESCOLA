@@ -31,6 +31,7 @@ import Atalhos from "./pages/Atalhos";
 import Contactos from "./pages/Contactos";
 import Tarefas from "./pages/Tarefas";
 import Admin from "./pages/Admin";
+import Financeiro from "./pages/Financeiro";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { PushAutoPrompt } from "@/components/PushAutoPrompt";
 
@@ -115,6 +116,7 @@ function AppContent() {
           <Route path="/atalhos" element={<Atalhos />} />
           <Route path="/contactos" element={<Contactos />} />
           <Route path="/tarefas" element={<Tarefas />} />
+          <Route path="/financeiro" element={<Financeiro />} />
         </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>

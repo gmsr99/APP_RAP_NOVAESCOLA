@@ -27,7 +27,11 @@ def listar_perfis():
                 COALESCE(au.raw_user_meta_data->>'avatar_url', p.avatar_url) AS avatar_url,
                 p.created_at,
                 p.updated_at,
-                p.producao_cols
+                p.producao_cols,
+                p.nif,
+                p.morada,
+                p.cod_postal,
+                p.funcao
             FROM profiles p
             JOIN auth.users au ON au.id = p.id
             ORDER BY p.full_name
@@ -107,6 +111,26 @@ def atualizar_producao_cols(user_id: str, cols):
         return True
     except Exception as e:
         logger.error(f"Erro ao atualizar producao_cols de {user_id}: {e}")
+        if 'conn' in locals() and conn: conn.rollback()
+        return False
+
+
+def atualizar_dados_financeiros(user_id: str, nif: str | None, morada: str | None, cod_postal: str | None, funcao: str | None) -> bool:
+    """Atualiza os dados financeiros pessoais de um utilizador."""
+    try:
+        from database.connection import get_db_connection
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE profiles SET nif = %s, morada = %s, cod_postal = %s, funcao = %s, updated_at = NOW() WHERE id = %s",
+            (nif or None, morada or None, cod_postal or None, funcao or None, user_id)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        return True
+    except Exception as e:
+        logger.error(f"Erro ao atualizar dados financeiros de {user_id}: {e}")
         if 'conn' in locals() and conn: conn.rollback()
         return False
 

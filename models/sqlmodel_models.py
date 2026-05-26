@@ -113,6 +113,7 @@ class Musica(SQLModel, table=True):
     turma_id: Optional[int] = Field(default=None, foreign_key="turmas.id")
     disciplina: Optional[str] = None
     arquivado: bool = False
+    arquivado_em: Optional[datetime] = None
     criado_em: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     responsavel_id: Optional[str] = None

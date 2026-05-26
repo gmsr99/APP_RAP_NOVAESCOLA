@@ -43,6 +43,7 @@ const PAGE_LABELS: Record<string, string> = {
   equipamento: 'Material',
   estatisticas: 'Estatísticas',
   formacao: 'Formação',
+  financeiro: 'Financeiro',
   admin: 'Admin',
 };
 const ALL_SLUGS = Object.keys(PAGE_LABELS);

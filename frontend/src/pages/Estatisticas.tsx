@@ -20,6 +20,7 @@ import { pt } from 'date-fns/locale';
 import { Bar, BarChart, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Cell, Tooltip, Legend } from 'recharts';
 import { useProfile } from '@/contexts/ProfileContext';
 import { ExportAtividadesModal } from '@/components/ExportAtividadesModal';
+import { ExportMusicasModal } from '@/components/ExportMusicasModal';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -101,6 +102,8 @@ export default function Estatisticas() {
   const [exportRegistosOpen, setExportRegistosOpen] = useState(false);
   const [exportEvidenciasOpen, setExportEvidenciasOpen] = useState(false);
   const [exportFeedbackOpen, setExportFeedbackOpen] = useState(false);
+  const [exportMusicasOpen, setExportMusicasOpen] = useState(false);
+  const canExportMusicas = isDirecao || isCoordenacao;
   const [registosFilter, setRegistosFilter] = useState({ data_inicio: '', data_fim: '' });
   const [evidenciasFilter, setEvidenciasFilter] = useState({ data_inicio: '', data_fim: '' });
   const [feedbackFilter, setFeedbackFilter] = useState({ data_inicio: '', data_fim: '' });
@@ -271,7 +274,7 @@ export default function Estatisticas() {
           <BarChart3 className="h-6 w-6" /> Estatísticas
         </h1>
         <div className="flex items-center gap-2 flex-wrap">
-          {canExport && projetoId && (
+          {(canExport || canExportMusicas) && projetoId && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-2 bg-background hover:bg-muted/50 border-muted">
@@ -282,15 +285,25 @@ export default function Estatisticas() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Dados Estatísticos</DropdownMenuLabel>
-                <DropdownMenuItem onClick={() => setExportOpen(true)} className="gap-2 cursor-pointer py-2">
-                  <FileSpreadsheet className="h-4 w-4 text-green-600 dark:text-green-400" />
-                  Base de Dados Geral
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setExportRegistosOpen(true)} className="gap-2 cursor-pointer py-2">
-                  <FileDown className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  Registos de Sessão
-                </DropdownMenuItem>
-                
+                {canExport && (
+                  <>
+                    <DropdownMenuItem onClick={() => setExportOpen(true)} className="gap-2 cursor-pointer py-2">
+                      <FileSpreadsheet className="h-4 w-4 text-green-600 dark:text-green-400" />
+                      Base de Dados Geral
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setExportRegistosOpen(true)} className="gap-2 cursor-pointer py-2">
+                      <FileDown className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      Registos de Sessão
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {canExportMusicas && (
+                  <DropdownMenuItem onClick={() => setExportMusicasOpen(true)} className="gap-2 cursor-pointer py-2">
+                    <Music className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                    Músicas Concluídas
+                  </DropdownMenuItem>
+                )}
+
                 {canExportMedia && (
                   <>
                     <DropdownMenuSeparator />
@@ -317,6 +330,16 @@ export default function Estatisticas() {
         <ExportAtividadesModal
           open={exportOpen}
           onOpenChange={setExportOpen}
+        />
+      )}
+
+      {/* Modal de Export Músicas */}
+      {canExportMusicas && (
+        <ExportMusicasModal
+          open={exportMusicasOpen}
+          onOpenChange={setExportMusicasOpen}
+          projetoId={projetoId}
+          projetoNome={projetos.find(p => p.id === projetoId)?.nome}
         />
       )}
 

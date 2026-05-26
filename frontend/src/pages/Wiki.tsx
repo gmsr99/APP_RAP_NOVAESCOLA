@@ -220,11 +220,22 @@ const Wiki = () => {
 
   // State for Config modal
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-  const [configForm, setConfigForm] = useState({ requer_digitalizacao: false, tem_pre_registos: false, codigo_projeto: '', usar_template_proprio: false });
+  const [configForm, setConfigForm] = useState({
+    requer_digitalizacao: false,
+    tem_pre_registos: false,
+    codigo_projeto: '',
+    usar_template_proprio: false,
+    usa_template_pis: false,
+    honorario_entidade: '',
+    honorario_morada: '',
+    honorario_cod_postal: '',
+    honorario_nipc: '',
+    honorario_designacao: '',
+  });
   const [assetUploading, setAssetUploading] = useState<Record<string, boolean>>({});
 
   // --- QUERIES ---
-  interface Projeto { id: number; nome: string; descricao?: string; estado?: string; requer_digitalizacao?: boolean; tem_pre_registos?: boolean; codigo_projeto?: string | null; logo_esq_path?: string | null; logo_dir_path?: string | null; footer_path?: string | null; usar_template_proprio?: boolean; }
+  interface Projeto { id: number; nome: string; descricao?: string; estado?: string; requer_digitalizacao?: boolean; tem_pre_registos?: boolean; codigo_projeto?: string | null; logo_esq_path?: string | null; logo_dir_path?: string | null; footer_path?: string | null; usar_template_proprio?: boolean; usa_template_pis?: boolean; honorario_entidade?: string | null; honorario_morada?: string | null; honorario_cod_postal?: string | null; honorario_nipc?: string | null; honorario_designacao?: string | null; }
 
   const { data: projetos = [] } = useQuery({
     queryKey: ['projetos'],
@@ -322,7 +333,7 @@ const Wiki = () => {
   });
 
   const saveConfigMutation = useMutation({
-    mutationFn: (data: { requer_digitalizacao: boolean; tem_pre_registos: boolean; codigo_projeto?: string; usar_template_proprio?: boolean }) =>
+    mutationFn: (data: object) =>
       api.patch(`/api/projetos/${selectedProjetoId}/config`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projetos'] });
@@ -672,7 +683,18 @@ const Wiki = () => {
                 if (p) { setEditingProjeto(p); setProjetoForm({ nome: p.nome, descricao: p.descricao || '' }); setIsProjetoDialogOpen(true); }
               }}>Editar</Button>
               <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => {
-                setConfigForm({ requer_digitalizacao: selectedProjeto?.requer_digitalizacao ?? false, tem_pre_registos: selectedProjeto?.tem_pre_registos ?? false, codigo_projeto: selectedProjeto?.codigo_projeto ?? '', usar_template_proprio: selectedProjeto?.usar_template_proprio ?? false });
+                setConfigForm({
+                  requer_digitalizacao: selectedProjeto?.requer_digitalizacao ?? false,
+                  tem_pre_registos: selectedProjeto?.tem_pre_registos ?? false,
+                  codigo_projeto: selectedProjeto?.codigo_projeto ?? '',
+                  usar_template_proprio: selectedProjeto?.usar_template_proprio ?? false,
+                  usa_template_pis: selectedProjeto?.usa_template_pis ?? false,
+                  honorario_entidade: selectedProjeto?.honorario_entidade ?? '',
+                  honorario_morada: selectedProjeto?.honorario_morada ?? '',
+                  honorario_cod_postal: selectedProjeto?.honorario_cod_postal ?? '',
+                  honorario_nipc: selectedProjeto?.honorario_nipc ?? '',
+                  honorario_designacao: selectedProjeto?.honorario_designacao ?? '',
+                });
                 setIsConfigModalOpen(true);
               }}>Configs</Button>
             </div>
@@ -1481,6 +1503,43 @@ const Wiki = () => {
                 <p className="text-sm text-muted-foreground">Usar folha PDF customizada.</p>
               </div>
               <Switch checked={configForm.usar_template_proprio} onCheckedChange={(c) => setConfigForm(f => ({...f, usar_template_proprio: c}))} />
+            </div>
+
+            <div className="border-t pt-4 mt-2">
+              <p className="text-sm font-medium mb-3">Nota de Honorários</p>
+              <div className="flex items-center justify-between mb-3">
+                <div className="space-y-0.5">
+                  <Label>Usar Template PIS</Label>
+                  <p className="text-xs text-muted-foreground">Template fixo ATB (não editável).</p>
+                </div>
+                <Switch checked={configForm.usa_template_pis} onCheckedChange={(c) => setConfigForm(f => ({...f, usa_template_pis: c}))} />
+              </div>
+              {!configForm.usa_template_pis && (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Entidade (cabeçalho)</Label>
+                    <Input value={configForm.honorario_entidade} onChange={e => setConfigForm(f => ({...f, honorario_entidade: e.target.value}))} placeholder="Ex: Associação Easy Going" className="h-8 text-sm" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Morada da entidade</Label>
+                    <Input value={configForm.honorario_morada} onChange={e => setConfigForm(f => ({...f, honorario_morada: e.target.value}))} placeholder="Rua..." className="h-8 text-sm" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Cód. Postal entidade</Label>
+                      <Input value={configForm.honorario_cod_postal} onChange={e => setConfigForm(f => ({...f, honorario_cod_postal: e.target.value}))} placeholder="0000-000" className="h-8 text-sm" />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">NIF/NIPC entidade</Label>
+                      <Input value={configForm.honorario_nipc} onChange={e => setConfigForm(f => ({...f, honorario_nipc: e.target.value}))} placeholder="XXXXXXXXX" className="h-8 text-sm" />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Designação do projeto (nota)</Label>
+                    <Input value={configForm.honorario_designacao} onChange={e => setConfigForm(f => ({...f, honorario_designacao: e.target.value}))} placeholder="Deixar vazio para usar o nome do projeto" className="h-8 text-sm" />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>

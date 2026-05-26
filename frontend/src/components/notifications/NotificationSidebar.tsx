@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Check, Trash2, Bell, BellOff, Info, CheckCircle, XCircle, Calendar, MessageCircle, Share, Plus } from 'lucide-react';
+import { Check, Trash2, Bell, BellOff, Info, CheckCircle, XCircle, Calendar, MessageCircle } from 'lucide-react';
+import { IOSInstallDialog } from '@/components/PushAutoPrompt';
 import { cn } from '@/lib/utils';
 import { Notification } from '@/types';
 import { useProfile } from '@/contexts/ProfileContext';
@@ -30,6 +31,7 @@ export function NotificationSidebar({ open, onOpenChange }: NotificationSidebarP
     const { user } = useProfile();
     const navigate = useNavigate();
     const { isSupported, isIOS, isStandalone, isSubscribed, isLoading: pushLoading, permission, subscribe, unsubscribe } = usePushNotifications();
+    const [iosDialogOpen, setIosDialogOpen] = useState(false);
 
     const { data: notifications = [] } = useQuery<Notification[]>({
         queryKey: ['notifications', 'current-user'],
@@ -123,14 +125,21 @@ export function NotificationSidebar({ open, onOpenChange }: NotificationSidebarP
 
                 {/* Banner iOS: instruções para adicionar ao ecrã principal */}
                 {isIOS && !isStandalone && (
-                    <div className="mx-0 mt-3 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 p-3 text-sm text-blue-800 dark:text-blue-300">
-                        <p className="font-medium mb-1">Ativa notificações no iPhone/iPad</p>
-                        <p className="text-xs text-blue-700 dark:text-blue-400 leading-relaxed">
-                            Para receber notificações, instala esta app:
-                            toca em <Share className="inline h-3.5 w-3.5 mx-0.5" /> e depois em{' '}
-                            <strong>"Adicionar ao Ecrã Principal"</strong> <Plus className="inline h-3.5 w-3.5 mx-0.5" />.
-                        </p>
-                    </div>
+                    <>
+                        <div className="mx-0 mt-3 rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 p-3 text-sm text-blue-800 dark:text-blue-300">
+                            <p className="font-medium mb-1">Ativa notificações no iPhone/iPad</p>
+                            <p className="text-xs text-blue-700 dark:text-blue-400 leading-relaxed">
+                                Para receber notificações, instala a app no ecrã principal.{' '}
+                                <button
+                                    onClick={() => setIosDialogOpen(true)}
+                                    className="underline font-medium hover:no-underline"
+                                >
+                                    Ver como instalar →
+                                </button>
+                            </p>
+                        </div>
+                        <IOSInstallDialog open={iosDialogOpen} onOpenChange={setIosDialogOpen} />
+                    </>
                 )}
 
                 {/* Toggle de push notifications */}

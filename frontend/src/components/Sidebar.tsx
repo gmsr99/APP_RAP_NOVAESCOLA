@@ -21,6 +21,7 @@ import {
   Phone,
   CheckSquare,
   Shield,
+  Receipt,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -50,6 +51,7 @@ const navigation: SidebarItem[] = [
   { name: 'Estatísticas',href: '/estatisticas',icon: BarChart3,       pageSlug: 'estatisticas' },
   { name: 'Wiki',        href: '/wiki',        icon: Database,        pageSlug: 'wiki' },
   { separator: true },
+  { name: 'Financeiro',  href: '/financeiro',  icon: Receipt,         pageSlug: 'financeiro' },
   { name: 'Atalhos',     href: '/atalhos',     icon: Link2,           pageSlug: 'atalhos' },
   { name: 'Contactos',   href: '/contactos',   icon: Phone,           pageSlug: 'contactos' },
   { name: 'Admin',       href: '/admin',       icon: Shield,          pageSlug: 'admin' },

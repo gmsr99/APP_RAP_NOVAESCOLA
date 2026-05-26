@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 const ALL_PAGE_SLUGS = new Set([
   'dashboard', 'horarios', 'producao', 'tarefas', 'estudio', 'chat',
   'equipa', 'wiki', 'contactos', 'atalhos', 'registos', 'equipamento',
-  'estatisticas', 'formacao', 'admin',
+  'estatisticas', 'formacao', 'admin', 'financeiro',
 ]);
 
 interface ProfileContextType {

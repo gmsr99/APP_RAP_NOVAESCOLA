@@ -678,6 +678,12 @@ class ProjetoConfigPayload(BaseModel):
     tem_pre_registos: Optional[bool] = None
     codigo_projeto: Optional[str] = None
     usar_template_proprio: Optional[bool] = None
+    usa_template_pis: Optional[bool] = None
+    honorario_entidade: Optional[str] = None
+    honorario_morada: Optional[str] = None
+    honorario_cod_postal: Optional[str] = None
+    honorario_nipc: Optional[str] = None
+    honorario_designacao: Optional[str] = None
 
 class PreRegistoPdfPayload(BaseModel):
     aula_id: int
@@ -697,7 +703,9 @@ class PreRegistoPdfPayload(BaseModel):
 async def update_projeto_config(id: int, data: ProjetoConfigPayload, user=Depends(get_current_user_required)):
     _require_coordenacao(user)
     sucesso = projeto_service.atualizar_config_projeto(
-        id, data.requer_digitalizacao, data.tem_pre_registos, data.codigo_projeto, data.usar_template_proprio
+        id, data.requer_digitalizacao, data.tem_pre_registos, data.codigo_projeto, data.usar_template_proprio,
+        data.usa_template_pis, data.honorario_entidade, data.honorario_morada,
+        data.honorario_cod_postal, data.honorario_nipc, data.honorario_designacao,
     )
     if not sucesso:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")
@@ -933,6 +941,101 @@ async def update_avatar(payload: AvatarPayload, user=Depends(get_current_user_re
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         conn.close()
+
+
+# --- Rotas para Honorários ---
+from services import honorario_service as _hon_svc
+
+class HonorarioRequest(BaseModel):
+    projeto_id: int
+    mes: int
+    ano: int
+    target_user_id: Optional[str] = None
+    data_emissao: Optional[str] = None
+
+class UserRateUpsert(BaseModel):
+    valor_hora: float
+
+class DadosFinanceirosUpdate(BaseModel):
+    nif: Optional[str] = None
+    morada: Optional[str] = None
+    cod_postal: Optional[str] = None
+    funcao: Optional[str] = None
+
+@app.post("/api/honorarios/gerar", tags=["Financeiro"])
+async def gerar_honorario(payload: HonorarioRequest, user=Depends(get_current_user_required)):
+    """Gera nota de honorários em XLSX. Próprio utilizador ou coordenação para outro."""
+    import datetime
+    from fastapi.responses import Response as _Resp
+
+    user_id = user.get("sub")
+    target = payload.target_user_id or user_id
+    if target != user_id:
+        _require_coordenacao(user)
+
+    data_emissao = payload.data_emissao or datetime.date.today().isoformat()
+    try:
+        xlsx_bytes = _hon_svc.gerar_honorario(user_id, target, payload.projeto_id, payload.mes, payload.ano, data_emissao)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    mes_str = str(payload.mes).zfill(2)
+    filename = f"honorario_{mes_str}_{payload.ano}.xlsx"
+    return _Resp(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/honorarios/preview", tags=["Financeiro"])
+async def preview_honorario(
+    projeto_id: int,
+    mes: int,
+    ano: int,
+    target_user_id: Optional[str] = None,
+    user=Depends(get_current_user_required),
+):
+    """Devolve JSON com grupos de sessões para pré-visualização sem gerar o XLSX."""
+    user_id = user.get("sub")
+    target = target_user_id or user_id
+    if target != user_id:
+        _require_coordenacao(user)
+    try:
+        return _hon_svc.obter_preview_honorario(target, projeto_id, mes, ano)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/honorarios/my-rate/{projeto_id}", tags=["Financeiro"])
+async def get_my_rate(projeto_id: int, user=Depends(get_current_user_required)):
+    """Devolve valor_hora do utilizador autenticado neste projeto."""
+    return _hon_svc.obter_rate(user.get("sub"), projeto_id)
+
+
+@app.put("/api/honorarios/rates/{projeto_id}/{target_user_id}", tags=["Financeiro"])
+async def upsert_user_rate(projeto_id: int, target_user_id: str, payload: UserRateUpsert, user=Depends(get_current_user_required)):
+    """Define/atualiza valor_hora de um utilizador num projeto (coordenação)."""
+    _require_coordenacao(user)
+    return _hon_svc.upsert_rate(target_user_id, projeto_id, payload.valor_hora)
+
+
+@app.get("/api/honorarios/rates/{projeto_id}", tags=["Financeiro"])
+async def get_rates_projeto(projeto_id: int, user=Depends(get_current_user_required)):
+    """Lista rates de todos os utilizadores num projeto (coordenação)."""
+    _require_coordenacao(user)
+    return _hon_svc.listar_rates_projeto(projeto_id)
+
+
+@app.patch("/api/profile/financeiro", tags=["Financeiro"])
+async def update_dados_financeiros(payload: DadosFinanceirosUpdate, user=Depends(get_current_user_required)):
+    """Atualiza dados financeiros pessoais do utilizador autenticado."""
+    sucesso = profile_service.atualizar_dados_financeiros(
+        user.get("sub"), payload.nif, payload.morada, payload.cod_postal, payload.funcao
+    )
+    if not sucesso:
+        raise HTTPException(status_code=500, detail="Erro ao guardar dados financeiros.")
+    return {"ok": True}
 
 
 # --- Rotas para Equipamento ---
@@ -1288,6 +1391,16 @@ async def arquivar_musica(musica_id: int):
     if not sucesso:
         raise HTTPException(status_code=400, detail=mensagem)
     return {"message": mensagem}
+
+@app.get("/api/musicas/export", tags=["Producao"])
+async def export_musicas(
+    projeto_id: Optional[int] = None,
+    data_inicio: Optional[str] = None,
+    data_fim: Optional[str] = None,
+    _user=Depends(get_current_user_required),
+):
+    """Exporta músicas arquivadas filtradas por projeto e/ou janela temporal."""
+    return musica_service.exportar_musicas(projeto_id, data_inicio, data_fim)
 
 # -----------------------------------------------------------------------------
 # Endpoints de Registos de Sessão

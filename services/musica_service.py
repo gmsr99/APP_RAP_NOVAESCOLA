@@ -170,6 +170,89 @@ def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None, a
         if 'cur' in locals() and cur: cur.close()
         if 'conn' in locals() and conn: conn.close()
 
+def exportar_musicas(projeto_id=None, data_inicio=None, data_fim=None):
+    """
+    Exporta músicas arquivadas com todos os campos relevantes.
+    Filtra por projeto e/ou janela temporal (baseada em arquivado_em).
+    """
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+
+        conditions = ["m.arquivado = TRUE"]
+        params = []
+
+        if projeto_id:
+            conditions.append("m.projeto_id = %s")
+            params.append(projeto_id)
+
+        if data_inicio:
+            conditions.append("m.arquivado_em >= %s")
+            params.append(data_inicio)
+
+        if data_fim:
+            conditions.append("m.arquivado_em <= %s")
+            params.append(data_fim + " 23:59:59")
+
+        query = f"""
+            SELECT
+                m.id, m.titulo, m.estado,
+                COALESCE(NULLIF(m.disciplina, ''), disc.nome) as disciplina,
+                m.criado_em, m.arquivado_em, m.deadline,
+                t.nome as turma_nome,
+                e.nome as estabelecimento_nome,
+                pr.nome as projeto_nome,
+                p_criador.full_name as criador_nome,
+                p_mist.full_name as misturado_por_nome,
+                p_rev.full_name as revisto_por_nome,
+                p_fin.full_name as finalizado_por_nome,
+                m.notas, m.feedback
+            FROM musicas m
+            LEFT JOIN turmas t ON m.turma_id = t.id
+            LEFT JOIN estabelecimentos e ON t.estabelecimento_id = e.id
+            LEFT JOIN turma_disciplinas disc ON disc.id = m.disciplina_id
+            LEFT JOIN projetos pr ON m.projeto_id = pr.id
+            LEFT JOIN profiles p_criador ON m.criador_id = p_criador.id
+            LEFT JOIN profiles p_mist ON m.misturado_por_id = p_mist.id
+            LEFT JOIN profiles p_rev ON m.revisto_por_id = p_rev.id
+            LEFT JOIN profiles p_fin ON m.finalizado_por_id = p_fin.id
+            WHERE {" AND ".join(conditions)}
+            ORDER BY m.arquivado_em DESC
+        """
+
+        cur.execute(query, params)
+        rows = cur.fetchall()
+
+        resultado = []
+        for row in rows:
+            resultado.append({
+                'id': row[0],
+                'titulo': row[1],
+                'estado': row[2],
+                'disciplina': row[3],
+                'criado_em': row[4].isoformat() if row[4] else None,
+                'arquivado_em': row[5].isoformat() if row[5] else None,
+                'deadline': row[6].isoformat() if row[6] else None,
+                'turma_nome': row[7],
+                'estabelecimento_nome': row[8],
+                'projeto_nome': row[9],
+                'criador_nome': row[10],
+                'misturado_por_nome': row[11],
+                'revisto_por_nome': row[12],
+                'finalizado_por_nome': row[13],
+                'notas': row[14],
+                'feedback': row[15],
+            })
+
+        return resultado
+    except Exception as e:
+        logger.error(f"Erro ao exportar músicas: {e}")
+        return []
+    finally:
+        if 'cur' in locals() and cur: cur.close()
+        if 'conn' in locals() and conn: conn.close()
+
+
 def criar_musica(dados, criador_id, criador_role=None):
     """
     Cria uma nova música.
@@ -710,7 +793,7 @@ def arquivar_musica(musica_id):
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
-            "UPDATE musicas SET arquivado = TRUE, updated_at = NOW() WHERE id = %s RETURNING id",
+            "UPDATE musicas SET arquivado = TRUE, arquivado_em = NOW(), updated_at = NOW() WHERE id = %s RETURNING id",
             (musica_id,)
         )
         updated = cur.fetchone()

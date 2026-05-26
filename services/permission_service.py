@@ -14,7 +14,7 @@ supabase = create_client(supabase_url, supabase_key)
 ALL_PAGE_SLUGS = {
     "dashboard", "horarios", "producao", "tarefas", "estudio", "chat",
     "equipa", "wiki", "contactos", "atalhos", "registos", "equipamento",
-    "estatisticas", "formacao", "admin",
+    "estatisticas", "formacao", "admin", "financeiro",
 }
 
 # --- Simple TTL cache ---

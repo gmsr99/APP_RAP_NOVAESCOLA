@@ -4,6 +4,7 @@ import { Sidebar, MobileSidebar, BottomNav } from '@/components/Sidebar';
 import { Header } from '@/components/Header';
 import { MapPin, X } from 'lucide-react';
 import { api } from '@/lib/api';
+import { PushBanner } from '@/components/PushBanner';
 
 export function Layout() {
   const navigate = useNavigate();
@@ -71,6 +72,8 @@ export function Layout() {
             </button>
           </div>
         )}
+
+        <PushBanner />
 
         {/* Main content — extra bottom padding on mobile for bottom nav */}
         <main className="flex-1 overflow-auto p-3 sm:p-6 pb-24 md:pb-6 scrollbar-thin">
