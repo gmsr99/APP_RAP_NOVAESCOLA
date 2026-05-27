@@ -658,7 +658,7 @@ const Producao = () => {
               m.estado === 'feedback_wip' ? (
                 <FeedbackDialog music={m} />
               ) : (
-                <Button size="sm" variant="outline" className="h-7 text-xs flex-1 px-2" onClick={() => handleAdvance(m)} disabled={isPending}>
+                <Button size="sm" variant="outline" className="h-7 text-xs flex-1 min-w-0 overflow-hidden px-2" onClick={() => handleAdvance(m)} disabled={isPending}>
                   <PlayCircle className="w-3 h-3 mr-1 shrink-0" />
                   <span className="truncate">{ACTION_LABELS[m.estado] || 'Avançar'}</span>
                 </Button>
