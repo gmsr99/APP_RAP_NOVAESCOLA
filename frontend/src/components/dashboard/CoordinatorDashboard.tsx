@@ -30,7 +30,7 @@ import { OutrasTarefasWidget } from './OutrasTarefasWidget';
 import { useProfile } from '@/contexts/ProfileContext';
 import { ExportAtividadesModal } from '@/components/ExportAtividadesModal';
 import { cn } from '@/lib/utils';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { pt } from 'date-fns/locale';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -38,18 +38,20 @@ import { api } from '@/lib/api';
 
 const statusBorderColors: Record<string, string> = {
   rascunho: 'border-l-muted-foreground/30',
-  pendente: 'border-l-[#4ac9d7]',
-  confirmada: 'border-l-green-500',
-  recusada: 'border-l-red-500',
-  terminada: 'border-l-gray-400',
+  agendada: 'border-l-[#d99426]',
+  pendente: 'border-l-[#d99426]',
+  confirmada: 'border-l-[#3399ce]',
+  recusada: 'border-l-[#A35339]',
+  terminada: 'border-l-[#4ea381]',
 };
 
 const statusColors: Record<string, string> = {
   rascunho: 'bg-muted text-muted-foreground',
-  pendente: 'bg-[#4ac9d7]/15 text-[#4ac9d7] border-[#4ac9d7]/40',
-  confirmada: 'bg-green-500/15 text-green-600 dark:text-green-400 border-green-200 dark:border-green-900',
-  recusada: 'bg-red-500/15 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900',
-  terminada: 'bg-[#06bede] text-white border-[#06bede]',
+  agendada: 'bg-[#d99426] text-white border-[#d99426]',
+  pendente: 'bg-[#d99426] text-white border-[#d99426]',
+  confirmada: 'bg-[#3399ce] text-white border-[#3399ce]',
+  recusada: 'bg-[#A35339] text-white border-[#A35339]',
+  terminada: 'bg-[#4ea381] text-white border-[#4ea381]',
 };
 
 const statusLabels: Record<string, string> = {
@@ -62,8 +64,10 @@ const statusLabels: Record<string, string> = {
 
 export function CoordinatorDashboard() {
   const queryClient = useQueryClient();
-  const { isDirecao } = useProfile();
+  const navigate = useNavigate();
+  const { isDirecao, isCoordenacao } = useProfile();
   const canExport = isDirecao;
+  const canCreate = isCoordenacao;
 
   const [isTerminarOpen, setIsTerminarOpen] = useState(false);
   const [terminarSessionId, setTerminarSessionId] = useState<number | null>(null);
@@ -183,11 +187,12 @@ export function CoordinatorDashboard() {
               <span className="hidden sm:inline">Exportar Dados</span>
             </Button>
           )}
-          <Button asChild className="shrink-0">
-            <Link to="/horarios">
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Sessão
-            </Link>
+          <Button
+            className="shrink-0"
+            onClick={() => navigate('/horarios', canCreate ? { state: { openCreate: true } } : undefined)}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Sessão
           </Button>
         </div>
       </div>
@@ -282,10 +287,8 @@ export function CoordinatorDashboard() {
             <h2 className="font-semibold">Sessões de Hoje</h2>
             <p className="text-xs text-muted-foreground mt-0.5">{todaySessions.length} {todaySessions.length === 1 ? 'sessão' : 'sessões'} agendada{todaySessions.length !== 1 ? 's' : ''}</p>
           </div>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/horarios">
-              Ver todas <ArrowRight className="h-4 w-4 ml-1" />
-            </Link>
+          <Button variant="ghost" size="sm" onClick={() => navigate('/horarios', { state: { viewToday: true } })}>
+            Ver todas <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
         </div>
         <CardContent className="pt-0">

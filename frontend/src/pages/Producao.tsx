@@ -180,7 +180,7 @@ const Producao = () => {
   const [exportMusicasOpen, setExportMusicasOpen] = useState(false);
   const [editMusicOpen, setEditMusicOpen] = useState(false);
   const [editMusicTarget, setEditMusicTarget] = useState<Musica | null>(null);
-  const [editMusicForm, setEditMusicForm] = useState({ titulo: '', turma_id: '', disciplina_id: '' });
+  const [editMusicForm, setEditMusicForm] = useState({ titulo: '', turma_id: '', disciplina_id: '', link_demo: '', notas: '' });
   const [colSettingsOpen, setColSettingsOpen] = useState(false);
   const [colDraft, setColDraft] = useState<Record<string, string[] | null>>({});
   const [prioritizarModal, setPrioritizarModal] = useState<Musica | null>(null);
@@ -482,6 +482,8 @@ const Producao = () => {
       titulo: m.titulo,
       turma_id: m.turma ? String(m.turma.id) : '',
       disciplina_id: m.disciplina_id ? String(m.disciplina_id) : '',
+      link_demo: m.link_demo || '',
+      notas: m.notas || '',
     });
     setEditMusicOpen(true);
   };
@@ -497,6 +499,8 @@ const Producao = () => {
         titulo: editMusicForm.titulo.trim(),
         turma_id: parseInt(editMusicForm.turma_id),
         ...(editMusicForm.disciplina_id ? { disciplina_id: parseInt(editMusicForm.disciplina_id) } : {}),
+        ...(editMusicForm.link_demo !== undefined ? { link_demo: editMusicForm.link_demo || null } : {}),
+        ...(editMusicForm.notas !== undefined ? { notas: editMusicForm.notas || null } : {}),
       },
     });
   };
@@ -675,7 +679,7 @@ const Producao = () => {
                 <RotateCcw className="w-3 h-3" />
               </Button>
             )}
-            {(isCoordinator || m.criador?.id === user?.id) && (
+            {(isCoordinator || m.criador?.id === user?.id || m.responsavel?.id === user?.id) && (
               <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground" onClick={() => openEditMusic(m)}>
                 <Pencil className="w-3 h-3" />
               </Button>
@@ -1473,6 +1477,23 @@ const Producao = () => {
                   {editTurmaDisciplinas.map((d: any) => <SelectItem key={d.id} value={String(d.id)}>{d.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Link da demo / ficheiro</Label>
+              <Input
+                value={editMusicForm.link_demo}
+                onChange={(e) => setEditMusicForm({ ...editMusicForm, link_demo: e.target.value })}
+                placeholder="https://drive.google.com/... ou link da cloud"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Notas internas</Label>
+              <Textarea
+                value={editMusicForm.notas}
+                onChange={(e) => setEditMusicForm({ ...editMusicForm, notas: e.target.value })}
+                placeholder="Notas de produção, referências, contexto..."
+                rows={3}
+              />
             </div>
           </div>
           <DialogFooter>

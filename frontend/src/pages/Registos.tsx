@@ -566,7 +566,7 @@ const Registos = () => {
       data: format(start, 'dd/MM/yyyy'),
       local: session.is_autonomous
         ? (session.local || '')
-        : `${session.estabelecimento_sigla || session.estabelecimento_nome || ''} ${session.local ? `- ${session.local}` : ''}`.trim(),
+        : `${session.estabelecimento_nome || ''} ${session.local ? `- ${session.local}` : ''}`.trim(),
       horario: buildHorario(session.data_hora, session.duracao_minutos),
       tecnicos: session.mentor_nome || user?.name || '',
       objetivos_gerais: session.objetivos || '',
@@ -675,7 +675,7 @@ const Registos = () => {
       || (reg.is_autonomous ? (reg.tipo_atividade || 'Trabalho Autónomo') : `Sessão ${reg.turma_nome || ''}`.trim());
     const data = reg.data_registo || format(start, 'dd/MM/yyyy');
     const local = reg.local_registo
-      || (reg.is_autonomous ? (reg.local || '') : `${reg.estabelecimento_sigla || reg.estabelecimento_nome || ''}${reg.local ? ` - ${reg.local}` : ''}`.trim());
+      || (reg.is_autonomous ? (reg.local || '') : `${reg.estabelecimento_nome || ''}${reg.local ? ` - ${reg.local}` : ''}`.trim());
     const safeName = atividade.replace(/[^a-zA-Z0-9À-ú ]/g, '').trim();
     const filename = `Registo_${safeName}_${data.replace(/\//g, '-')}.pdf`;
     const projetoId = reg.projeto_id ?? selectedProjetoId;
@@ -731,7 +731,7 @@ const Registos = () => {
       data: reg.data_registo || format(parseISO(reg.data_hora), 'dd/MM/yyyy'),
       local: reg.local_registo || (reg.is_autonomous
         ? (reg.local || '')
-        : `${reg.estabelecimento_sigla || reg.estabelecimento_nome || ''}${reg.local ? ` - ${reg.local}` : ''}`.trim()),
+        : `${reg.estabelecimento_nome || ''}${reg.local ? ` - ${reg.local}` : ''}`.trim()),
       horario: reg.horario || buildHorario(reg.data_hora, reg.duracao_minutos),
       tecnicos: reg.tecnicos || reg.mentor_nome || '',
       objetivos_gerais: reg.objetivos_gerais || '',

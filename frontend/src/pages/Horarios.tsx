@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import AIAgentChat from '@/components/AIAgentChat';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -253,9 +254,11 @@ const Horarios = () => {
   const { profile, isCoordenacao } = useProfile();
   const isAdmin = isCoordenacao;
   const { user } = useAuth(); // Get current user
-  const [filterMode, setFilterMode] = useState<'all' | 'mine'>(profile === 'mentor' ? 'mine' : 'all');
+  const location = useLocation();
+  const [filterMode, setFilterMode] = useState<'all' | 'mine'>(isAdmin ? 'all' : 'mine');
   const [filterProjectId, setFilterProjectId] = useState<number | null>(null);
   const [filterMemberId, setFilterMemberId] = useState<string | null>(null);
+  const [filterEstabId, setFilterEstabId] = useState<number | null>(null);
   const [currentWeek, setCurrentWeek] = useState(new Date());
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [viewMode, setViewMode] = useState<'week' | 'month' | 'list'>('week');
@@ -264,6 +267,23 @@ const Horarios = () => {
   const [editingSession, setEditingSession] = useState<AulaAPI | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [viewSession, setViewSession] = useState<AulaAPI | null>(null);
+
+  const [listTodayOnly, setListTodayOnly] = useState(false);
+
+  // Handle navigation state from other pages (B2: auto-open create, B4: today-only list)
+  useEffect(() => {
+    const state = location.state as { openCreate?: boolean; viewToday?: boolean } | null;
+    if (state?.openCreate && isAdmin) {
+      setIsDialogOpen(true);
+      window.history.replaceState({}, '', location.pathname);
+    }
+    if (state?.viewToday) {
+      setViewMode('list');
+      setCurrentWeek(new Date());
+      setListTodayOnly(true);
+      window.history.replaceState({}, '', location.pathname);
+    }
+  }, [location.state, isAdmin, location.pathname]);
 
   // TI detail modal
   const [isTIDetailOpen, setIsTIDetailOpen] = useState(false);
@@ -436,10 +456,13 @@ const Horarios = () => {
     enabled: !!selectedEstabId,
   });
 
-  const [formData, setFormData] = useState<Partial<AulaCreate> & { repetir_semanalmente?: boolean; semanas?: number }>({
+  const [formData, setFormData] = useState<Partial<AulaCreate> & { repetir_semanalmente?: boolean; semanas?: number; date?: string; hora_inicio?: string; hora_fim?: string }>({
     duracao_minutos: 120,
     atividade_uuid: null,
-    observacoes: ''
+    observacoes: '',
+    date: '',
+    hora_inicio: '',
+    hora_fim: '',
   });
 
   // Estado do formulário de Trabalho Autónomo
@@ -695,6 +718,15 @@ const Horarios = () => {
         return a.projeto_id === filterProjectId;
       });
     }
+    if (filterEstabId !== null) {
+      out = out.filter(a => {
+        if (a.turma_id) {
+          const turma = turmas?.find(t => t.id === a.turma_id);
+          return turma?.estabelecimento_id === filterEstabId;
+        }
+        return false;
+      });
+    }
     return out;
   };
 
@@ -918,6 +950,9 @@ const Horarios = () => {
       observacoes: '',
       repetir_semanalmente: false,
       semanas: 4,
+      date: '',
+      hora_inicio: '',
+      hora_fim: '',
     });
     setAutonomousForm({
       responsavel_user_id: '',
@@ -967,6 +1002,7 @@ const Horarios = () => {
       setSelectedEstabId(null);
     }
 
+    const sessionDate = new Date(session.data_hora);
     setFormData({
       turma_id: session.turma_id,
       duracao_minutos: session.duracao_minutos,
@@ -979,6 +1015,9 @@ const Horarios = () => {
       objetivos: session.objetivos || null,
       sumario: session.sumario || null,
       codigo_sessao: session.codigo_sessao || null,
+      date: format(sessionDate, 'yyyy-MM-dd'),
+      hora_inicio: format(sessionDate, 'HH:mm'),
+      hora_fim: format(addMinutes(sessionDate, session.duracao_minutos), 'HH:mm'),
     });
 
     // Find discipline for the activity to populate dropdown (uses UUID from local model)
@@ -1083,9 +1122,9 @@ const Horarios = () => {
     }
 
     // Aba "Aula / Evento"
-    const dateStr = (document.getElementById('date') as HTMLInputElement)?.value;
-    const timeStr = (document.getElementById('time') as HTMLInputElement)?.value;
-    const timeEndStr = (document.getElementById('time-end') as HTMLInputElement)?.value;
+    const dateStr = formData.date || '';
+    const timeStr = formData.hora_inicio || '';
+    const timeEndStr = formData.hora_fim || '';
 
     if (!dateStr || !timeStr || !timeEndStr) {
       toast.error("Data, Hora de início e Hora de fim são obrigatórios");
@@ -1405,16 +1444,29 @@ const Horarios = () => {
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="date">Data</Label>
-                          <Input id="date" type="date" />
+                          <Input
+                            id="date"
+                            type="date"
+                            value={formData.date || ''}
+                            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                          />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label>Hora de início</Label>
-                            <TimePicker5Min id="time" />
+                            <TimePicker5Min
+                              id="time"
+                              value={formData.hora_inicio || ''}
+                              onChange={(v) => setFormData({ ...formData, hora_inicio: v })}
+                            />
                           </div>
                           <div className="space-y-2">
                             <Label>Hora de fim</Label>
-                            <TimePicker5Min id="time-end" />
+                            <TimePicker5Min
+                              id="time-end"
+                              value={formData.hora_fim || ''}
+                              onChange={(v) => setFormData({ ...formData, hora_fim: v })}
+                            />
                           </div>
                         </div>
                         <div className="space-y-2">
@@ -2053,24 +2105,25 @@ const Horarios = () => {
                       <Input
                         id="date"
                         type="date"
-                        defaultValue={format(new Date(editingSession.data_hora), 'yyyy-MM-dd')}
+                        value={formData.date || ''}
+                        onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Hora de início</Label>
                         <TimePicker5Min
-                          key={`edit-start-${editingSession.id}`}
                           id="time"
-                          defaultValue={format(new Date(editingSession.data_hora), 'HH:mm')}
+                          value={formData.hora_inicio || ''}
+                          onChange={(v) => setFormData({ ...formData, hora_inicio: v })}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label>Hora de fim</Label>
                         <TimePicker5Min
-                          key={`edit-end-${editingSession.id}`}
                           id="time-end"
-                          defaultValue={format(addMinutes(new Date(editingSession.data_hora), editingSession.duracao_minutos), 'HH:mm')}
+                          value={formData.hora_fim || ''}
+                          onChange={(v) => setFormData({ ...formData, hora_fim: v })}
                         />
                       </div>
                     </div>
@@ -2375,29 +2428,31 @@ const Horarios = () => {
           <Filter className="h-4 w-4" />
           Filtro:
         </span>
-        {/* Todas / Minhas */}
-        <div className="flex items-center rounded-md border border-input bg-transparent p-1 shrink-0">
-          <Button
-            variant={filterMode === 'all' && !filterMemberId ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => { setFilterMode('all'); setFilterMemberId(null); }}
-            className="h-7 text-xs"
-          >
-            Todas as Aulas
-          </Button>
-          <Button
-            variant={filterMode === 'mine' ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => { setFilterMode('mine'); setFilterMemberId(null); }}
-            className="h-7 text-xs"
-          >
-            Minhas Aulas
-          </Button>
-        </div>
+        {/* Todas / Minhas — apenas para admins */}
+        {isAdmin && (
+          <div className="flex items-center rounded-md border border-input bg-transparent p-1 shrink-0">
+            <Button
+              variant={filterMode === 'all' && !filterMemberId ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => { setFilterMode('all'); setFilterMemberId(null); }}
+              className="h-7 text-xs"
+            >
+              Todas as Aulas
+            </Button>
+            <Button
+              variant={filterMode === 'mine' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => { setFilterMode('mine'); setFilterMemberId(null); }}
+              className="h-7 text-xs"
+            >
+              Minhas Aulas
+            </Button>
+          </div>
+        )}
         {/* Projeto */}
         <Select
           value={filterProjectId !== null ? String(filterProjectId) : 'all'}
-          onValueChange={(v) => setFilterProjectId(v === 'all' ? null : Number(v))}
+          onValueChange={(v) => { setFilterProjectId(v === 'all' ? null : Number(v)); setFilterEstabId(null); }}
         >
           <SelectTrigger className="h-8 text-xs w-auto min-w-[150px] max-w-[200px]">
             <SelectValue placeholder="Todos os Projetos" />
@@ -2409,28 +2464,47 @@ const Horarios = () => {
             ))}
           </SelectContent>
         </Select>
-        {/* Membro da Equipa */}
-        <Select
-          value={filterMemberId ?? 'all'}
-          onValueChange={(v) => {
-            if (v === 'all') {
-              setFilterMemberId(null);
-            } else {
-              setFilterMemberId(v);
-              setFilterMode('all');
-            }
-          }}
-        >
-          <SelectTrigger className="h-8 text-xs w-auto min-w-[150px] max-w-[200px]">
-            <SelectValue placeholder="Todos os Membros" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os Membros</SelectItem>
-            {equipa?.map((p) => (
-              <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Entidade — apenas para admins */}
+        {isAdmin && (
+          <Select
+            value={filterEstabId !== null ? String(filterEstabId) : 'all'}
+            onValueChange={(v) => setFilterEstabId(v === 'all' ? null : Number(v))}
+          >
+            <SelectTrigger className="h-8 text-xs w-auto min-w-[150px] max-w-[200px]">
+              <SelectValue placeholder="Todas as Entidades" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas as Entidades</SelectItem>
+              {(filterProjectId ? filterProjetoEstabs : estabelecimentos)?.map((e) => (
+                <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {/* Membro da Equipa — apenas para admins */}
+        {isAdmin && (
+          <Select
+            value={filterMemberId ?? 'all'}
+            onValueChange={(v) => {
+              if (v === 'all') {
+                setFilterMemberId(null);
+              } else {
+                setFilterMemberId(v);
+                setFilterMode('all');
+              }
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs w-auto min-w-[150px] max-w-[200px]">
+              <SelectValue placeholder="Todos os Membros" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Membros</SelectItem>
+              {equipa?.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       {/* View Controls */}
@@ -2771,9 +2845,18 @@ const Horarios = () => {
       {
         viewMode === 'list' && (
           <div className="space-y-3">
+            {listTodayOnly && (
+              <div className="flex items-center justify-between px-1">
+                <p className="text-sm text-muted-foreground">A mostrar apenas as sessões de hoje.</p>
+                <Button variant="ghost" size="sm" onClick={() => setListTodayOnly(false)}>Ver semana toda</Button>
+              </div>
+            )}
             {aulasApi && Array.isArray(aulasApi) && applyActiveFilters(aulasApi)
               .filter(a => {
                 const d = new Date(a.data_hora);
+                if (listTodayOnly) {
+                  return format(d, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd');
+                }
                 return d >= weekStart && d <= weekEnd;
               })
               .sort((a, b) => new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime())
