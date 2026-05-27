@@ -140,14 +140,31 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
   // ──────────────────── Step 3: gravação ────────────────────
 
   async function handleStartRecording() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error('O teu browser não suporta gravação de áudio. A página precisa de ser acedida via HTTPS.');
+      return;
+    }
     try {
       const session = await startRecording();
       sessionRef.current = session;
       setRecordingState('recording');
       setCountdown(30);
       session.onTick((remaining) => setCountdown(remaining));
-    } catch {
-      toast.error('Sem acesso ao microfone. Verifica as permissões.');
+    } catch (err) {
+      if (err instanceof DOMException) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          toast.error('Permissão de microfone negada. Nas definições do browser, permite o acesso ao microfone para este site.');
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          toast.error('Nenhum microfone encontrado. Verifica se está ligado e tenta novamente.');
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          toast.error('O microfone está a ser usado por outra aplicação. Fecha-a e tenta novamente.');
+        } else {
+          toast.error(`Erro ao aceder ao microfone: ${err.name} — ${err.message}`);
+        }
+      } else {
+        const msg = err instanceof Error ? err.message : String(err);
+        toast.error(`Erro ao iniciar gravação: ${msg}`);
+      }
     }
   }
 
