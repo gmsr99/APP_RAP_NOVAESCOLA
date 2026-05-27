@@ -83,7 +83,7 @@ function PatentesTab() {
       api.put(`/api/admin/patentes/${id}`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-patentes'] });
-      toast.success('Patente actualizada.');
+      toast.success('Privilégio actualizado.');
       setEditing(null);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -93,7 +93,7 @@ function PatentesTab() {
     mutationFn: (id: number) => api.delete(`/api/admin/patentes/${id}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-patentes'] });
-      toast.success('Patente apagada.');
+      toast.success('Privilégio apagado.');
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -102,7 +102,7 @@ function PatentesTab() {
     mutationFn: (data: object) => api.post('/api/admin/patentes', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-patentes'] });
-      toast.success('Patente criada.');
+      toast.success('Privilégio criado.');
       setCreating(false);
       setNewPatente({ name: '', label: '', level_order: 10, allowed_pages: [], allowed_actions: {}, color: '#6b7280' });
     },
@@ -151,7 +151,7 @@ function PatentesTab() {
         </p>
         {isRoot && (
           <Button size="sm" onClick={() => setCreating(true)}>
-            <Plus className="h-4 w-4 mr-1" /> Nova Patente
+            <Plus className="h-4 w-4 mr-1" /> Novo Privilégio
           </Button>
         )}
       </div>
@@ -195,7 +195,7 @@ function PatentesTab() {
       <Dialog open={!!editing} onOpenChange={v => !v && setEditing(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar Patente — {editing?.label}</DialogTitle>
+            <DialogTitle>Editar Privilégio — {editing?.label}</DialogTitle>
           </DialogHeader>
           <div className="space-y-5 py-2">
             <div className="grid grid-cols-2 gap-3">
@@ -287,7 +287,7 @@ function PatentesTab() {
       <Dialog open={creating} onOpenChange={v => !v && setCreating(false)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nova Patente</DialogTitle>
+            <DialogTitle>Novo Privilégio</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
@@ -369,7 +369,7 @@ function PatentesTab() {
             <Button
               onClick={() => createMutation.mutate(newPatente)}
               disabled={!newPatente.name || !newPatente.label || createMutation.isPending}>
-              <Plus className="h-4 w-4 mr-1" /> Criar Patente
+              <Plus className="h-4 w-4 mr-1" /> Criar Privilégio
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -465,7 +465,7 @@ function RolesTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Roles são etiquetas de nomenclatura. Associa uma patente padrão para definir as permissões.
+          Roles são etiquetas de nomenclatura. Associa privilégios padrão para definir as permissões.
         </p>
         <Button size="sm" onClick={() => setCreating(true)}>
           <Plus className="h-4 w-4 mr-1" /> Novo Role
@@ -507,15 +507,15 @@ function RolesTab() {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div>
-              <Label className="mb-2 block">Patente Padrão</Label>
+              <Label className="mb-2 block">Privilégios Padrão</Label>
               <Select
                 value={editedPatente?.toString() ?? '__none__'}
                 onValueChange={v => setEditedPatente(v === '__none__' ? null : parseInt(v))}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sem patente padrão" />
+                  <SelectValue placeholder="Sem privilégios padrão" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Sem patente padrão</SelectItem>
+                  <SelectItem value="__none__">Sem privilégios padrão</SelectItem>
                   {patentes.map(p => (
                     <SelectItem key={p.id} value={p.id.toString()}>
                       <div className="flex items-center gap-2">
@@ -606,14 +606,14 @@ function RolesTab() {
               </div>
             </div>
             <div>
-              <Label className="mb-2 block">Patente Padrão</Label>
+              <Label className="mb-2 block">Privilégios Padrão</Label>
               <Select value={newPatente?.toString() ?? '__none__'}
                 onValueChange={v => setNewPatente(v === '__none__' ? null : parseInt(v))}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Sem patente padrão" />
+                  <SelectValue placeholder="Sem privilégios padrão" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Sem patente padrão</SelectItem>
+                  <SelectItem value="__none__">Sem privilégios padrão</SelectItem>
                   {patentes.map(p => (
                     <SelectItem key={p.id} value={p.id.toString()}>
                       <div className="flex items-center gap-2">
@@ -815,14 +815,14 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
               </Select>
             </div>
             <div>
-              <Label>Patente</Label>
+              <Label>Privilégios</Label>
               <Select value={selectedPatente?.toString() ?? '__none__'}
                 onValueChange={v => setSelectedPatente(v === '__none__' ? null : parseInt(v))}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Patente…" />
+                  <SelectValue placeholder="Privilégios…" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none__">Sem patente</SelectItem>
+                  <SelectItem value="__none__">Sem privilégios</SelectItem>
                   {patentes.map(p => (
                     <SelectItem key={p.id} value={p.id.toString()}>
                       <div className="flex items-center gap-2">
@@ -1091,7 +1091,7 @@ export default function Admin() {
       <Tabs defaultValue="patentes">
         <TabsList>
           <TabsTrigger value="patentes">
-            <Award className="h-4 w-4 mr-1" /> Patentes
+            <Award className="h-4 w-4 mr-1" /> Privilégios
           </TabsTrigger>
           <TabsTrigger value="roles">
             <BookOpen className="h-4 w-4 mr-1" /> Roles
@@ -1107,7 +1107,7 @@ export default function Admin() {
         <TabsContent value="patentes" className="mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Hierarquia de Patentes</CardTitle>
+              <CardTitle className="text-base">Hierarquia de Privilégios</CardTitle>
             </CardHeader>
             <CardContent>
               <PatentesTab />

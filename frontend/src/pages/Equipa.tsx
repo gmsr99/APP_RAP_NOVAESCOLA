@@ -49,7 +49,7 @@ import {
 } from '@/components/ui/select';
 import { api } from '@/services/api';
 import type { PublicProfile, RoleDefinition, Projeto, PermissionLevel } from '@/types';
-import { Mail, Shield, Trash2, Pencil, Search, UserCircle, Key, Settings2, Award } from 'lucide-react';
+import { Mail, Shield, Trash2, Pencil, Search, UserCircle, Key, Award } from 'lucide-react';
 import { useProfile } from '@/contexts/ProfileContext';
 import { toast } from 'sonner';
 
@@ -57,7 +57,8 @@ const PAGE_LABELS: Record<string, string> = {
     dashboard: 'Dashboard', horarios: 'Horários', producao: 'Produção',
     tarefas: 'Tarefas', estudio: 'Estúdio', chat: 'Chat', equipa: 'Equipa',
     wiki: 'Wiki', contactos: 'Contactos', atalhos: 'Atalhos', registos: 'Registos',
-    equipamento: 'Material', estatisticas: 'Estatísticas', formacao: 'Formação', admin: 'Admin',
+    equipamento: 'Material', estatisticas: 'Estatísticas', formacao: 'Formação',
+    financeiro: 'Financeiro', admin: 'Admin',
 };
 const ALL_SLUGS = Object.keys(PAGE_LABELS);
 
@@ -351,7 +352,7 @@ const Equipa = () => {
                             <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-1'} bg-muted/50`}>
                                 <TabsTrigger value="perfil" className="text-xs sm:text-sm"><UserCircle className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" /> Perfil</TabsTrigger>
                                 {isAdmin && <TabsTrigger value="acessos" className="text-xs sm:text-sm"><Key className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" /> Acessos</TabsTrigger>}
-                                {isAdmin && <TabsTrigger value="avancado" className="text-xs sm:text-sm"><Settings2 className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" /> Avançado</TabsTrigger>}
+                                {isAdmin && <TabsTrigger value="avancado" className="text-xs sm:text-sm"><Award className="h-3.5 w-3.5 mr-1.5 hidden sm:inline" /> Privilégios</TabsTrigger>}
                             </TabsList>
                             
                             <TabsContent value="perfil" className="space-y-6 pt-4 outline-none">
@@ -454,7 +455,7 @@ const Equipa = () => {
                                     <div className="space-y-2">
                                         <Label className="text-sm font-semibold flex items-center gap-2">
                                             <Award className="h-4 w-4 text-muted-foreground" />
-                                            Patente
+                                            Privilégios
                                         </Label>
                                         <p className="text-xs text-muted-foreground">Nível hierárquico de permissões. Define que páginas e ações estão disponíveis para este utilizador.</p>
                                         <Select
@@ -462,11 +463,11 @@ const Equipa = () => {
                                             onValueChange={v => setAdvPerms(prev => prev ? { ...prev, permission_level_id: v === '__none__' ? null : parseInt(v) } : prev)}
                                         >
                                             <SelectTrigger className="bg-background">
-                                                <SelectValue placeholder="Selecionar patente" />
+                                                <SelectValue placeholder="Selecionar privilégios" />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="__none__">
-                                                    <span className="text-muted-foreground">Sem patente (legado)</span>
+                                                    <span className="text-muted-foreground">Sem privilégios (legado)</span>
                                                 </SelectItem>
                                                 {[...patentes].sort((a, b) => a.level_order - b.level_order).map(p => (
                                                     <SelectItem key={p.id} value={p.id.toString()}>
