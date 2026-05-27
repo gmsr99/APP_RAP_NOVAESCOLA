@@ -46,6 +46,7 @@ export interface RoleDefinition {
   is_system: boolean;
   pages: string[];
   default_permission_level_id?: number | null;
+  color?: string | null;
 }
 
 // Sessions / Classes

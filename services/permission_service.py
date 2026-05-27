@@ -259,7 +259,7 @@ def listar_roles() -> list:
     try:
         cur = conn.cursor()
         cur.execute("""
-            SELECT r.id, r.name, r.label, r.is_system, r.default_permission_level_id,
+            SELECT r.id, r.name, r.label, r.is_system, r.default_permission_level_id, r.color,
                    COALESCE(
                        array_agg(rpp.page_slug ORDER BY rpp.page_slug)
                        FILTER (WHERE rpp.page_slug IS NOT NULL),
@@ -267,7 +267,7 @@ def listar_roles() -> list:
                    ) AS pages
             FROM roles r
             LEFT JOIN role_page_permissions rpp ON rpp.role_id = r.id
-            GROUP BY r.id, r.name, r.label, r.is_system, r.default_permission_level_id
+            GROUP BY r.id, r.name, r.label, r.is_system, r.default_permission_level_id, r.color
             ORDER BY r.is_system DESC, r.name
         """)
         cols = [d[0] for d in cur.description]
@@ -281,14 +281,14 @@ def listar_roles() -> list:
         conn.close()
 
 
-def criar_role(name: str, label: str, pages: list[str], default_permission_level_id: Optional[int] = None) -> dict:
+def criar_role(name: str, label: str, pages: list[str], default_permission_level_id: Optional[int] = None, color: Optional[str] = None) -> dict:
     from database.connection import get_db_connection
     conn = get_db_connection()
     try:
         cur = conn.cursor()
         cur.execute(
-            "INSERT INTO roles (name, label, is_system, default_permission_level_id) VALUES (%s, %s, FALSE, %s) RETURNING id",
-            (name, label, default_permission_level_id)
+            "INSERT INTO roles (name, label, is_system, default_permission_level_id, color) VALUES (%s, %s, FALSE, %s, %s) RETURNING id",
+            (name, label, default_permission_level_id, color)
         )
         role_id = cur.fetchone()[0]
         for slug in pages:
@@ -300,7 +300,7 @@ def criar_role(name: str, label: str, pages: list[str], default_permission_level
         conn.commit()
         cur.close()
         return {"id": role_id, "name": name, "label": label, "is_system": False,
-                "pages": pages, "default_permission_level_id": default_permission_level_id}
+                "pages": pages, "default_permission_level_id": default_permission_level_id, "color": color}
     except Exception as e:
         conn.rollback()
         logger.error(f"Erro ao criar role: {e}")
@@ -309,7 +309,7 @@ def criar_role(name: str, label: str, pages: list[str], default_permission_level
         conn.close()
 
 
-def atualizar_role_pages(role_id: int, pages: list[str], default_permission_level_id=_NOT_SET) -> bool:
+def atualizar_role_pages(role_id: int, pages: list[str], default_permission_level_id=_NOT_SET, color=_NOT_SET) -> bool:
     from database.connection import get_db_connection
     conn = get_db_connection()
     try:
@@ -330,6 +330,8 @@ def atualizar_role_pages(role_id: int, pages: list[str], default_permission_leve
                 "UPDATE roles SET default_permission_level_id = %s WHERE id = %s",
                 (default_permission_level_id, role_id)
             )
+        if color is not _NOT_SET:
+            cur.execute("UPDATE roles SET color = %s WHERE id = %s", (color, role_id))
         conn.commit()
         cur.close()
         _CACHE.clear()

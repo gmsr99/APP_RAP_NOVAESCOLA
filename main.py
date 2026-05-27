@@ -2339,6 +2339,7 @@ class RoleCreatePayload(BaseModel):
     label: str
     pages: List[str] = []
     default_permission_level_id: Optional[int] = None
+    color: Optional[str] = None
 
 
 @app.post("/api/admin/roles", tags=["Admin"])
@@ -2346,7 +2347,7 @@ async def admin_criar_role(payload: RoleCreatePayload, user=Depends(get_current_
     """Cria um role custom com as páginas indicadas."""
     _require_admin(user)
     try:
-        result = _perm_svc.criar_role(payload.name, payload.label, payload.pages, payload.default_permission_level_id)
+        result = _perm_svc.criar_role(payload.name, payload.label, payload.pages, payload.default_permission_level_id, payload.color)
         _audit_svc.registar(user.get("sub"), user.get("email"), "role.create", "role", payload.name, {"label": payload.label, "pages": payload.pages})
         return result
     except Exception as e:
@@ -2356,6 +2357,7 @@ async def admin_criar_role(payload: RoleCreatePayload, user=Depends(get_current_
 class RolePagesUpdatePayload(BaseModel):
     pages: List[str]
     default_permission_level_id: Optional[int] = None
+    color: Optional[str] = None
 
 
 @app.put("/api/admin/roles/{role_id}", tags=["Admin"])
@@ -2363,7 +2365,7 @@ async def admin_atualizar_role_pages(role_id: int, payload: RolePagesUpdatePaylo
     """Atualiza as páginas acessíveis e patente padrão de um role."""
     _require_admin(user)
     try:
-        _perm_svc.atualizar_role_pages(role_id, payload.pages, payload.default_permission_level_id)
+        _perm_svc.atualizar_role_pages(role_id, payload.pages, payload.default_permission_level_id, payload.color)
         _audit_svc.registar(user.get("sub"), user.get("email"), "role.update", "role", str(role_id), {"pages": payload.pages})
         return {"ok": True}
     except ValueError as e:

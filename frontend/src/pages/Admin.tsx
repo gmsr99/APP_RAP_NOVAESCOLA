@@ -6,7 +6,7 @@ import type { RoleDefinition, Projeto, SystemSettings, AuditLog, PermissionLevel
 import { toast } from 'sonner';
 import {
   Shield, Plus, Save, Eye, EyeOff, Users, BookOpen, Settings,
-  ClipboardList, Download, Lock, Award,
+  ClipboardList, Download, Lock, Award, X, ChevronDown,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -385,11 +385,16 @@ function RolesTab() {
   const [selected, setSelected] = useState<RoleDefinition | null>(null);
   const [editedPages, setEditedPages] = useState<string[]>([]);
   const [editedPatente, setEditedPatente] = useState<number | null>(null);
+  const [editedColor, setEditedColor] = useState<string | null>(null);
+  const [editPagesOpen, setEditPagesOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newLabel, setNewLabel] = useState('');
   const [newPages, setNewPages] = useState<string[]>([]);
   const [newPatente, setNewPatente] = useState<number | null>(null);
+  const [newColor, setNewColor] = useState('#6b7280');
+  const [createPagesOpen, setCreatePagesOpen] = useState(false);
+  const [slugAutoSync, setSlugAutoSync] = useState(true);
 
   const { data: roles = [], isLoading } = useQuery<RoleDefinition[]>({
     queryKey: ['admin-roles'],
@@ -402,8 +407,8 @@ function RolesTab() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, pages, default_permission_level_id }: { id: number; pages: string[]; default_permission_level_id: number | null }) =>
-      api.put(`/api/admin/roles/${id}`, { pages, default_permission_level_id }),
+    mutationFn: ({ id, pages, default_permission_level_id, color }: { id: number; pages: string[]; default_permission_level_id: number | null; color: string | null }) =>
+      api.put(`/api/admin/roles/${id}`, { pages, default_permission_level_id, color }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-roles'] });
       toast.success('Role actualizado.');
@@ -413,13 +418,14 @@ function RolesTab() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: { name: string; label: string; pages: string[]; default_permission_level_id: number | null }) =>
+    mutationFn: (data: { name: string; label: string; pages: string[]; default_permission_level_id: number | null; color: string | null }) =>
       api.post('/api/admin/roles', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-roles'] });
       toast.success('Role criado.');
       setCreating(false);
       setNewName(''); setNewLabel(''); setNewPages([]); setNewPatente(null);
+      setNewColor('#6b7280'); setSlugAutoSync(true); setCreatePagesOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -427,7 +433,21 @@ function RolesTab() {
   const openEdit = (role: RoleDefinition) => {
     setSelected(role);
     setEditedPages([...role.pages]);
-    setEditedPatente((role as any).default_permission_level_id ?? null);
+    setEditedPatente(role.default_permission_level_id ?? null);
+    setEditedColor(role.color ?? null);
+    setEditPagesOpen(false);
+  };
+
+  const handleNewLabelChange = (val: string) => {
+    setNewLabel(val);
+    if (slugAutoSync) {
+      setNewName(val.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, ''));
+    }
+  };
+
+  const handleNewNameChange = (val: string) => {
+    setNewName(val.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+    setSlugAutoSync(false);
   };
 
   const togglePage = (slug: string, pages: string[], setter: (p: string[]) => void) => {
@@ -435,7 +455,7 @@ function RolesTab() {
   };
 
   const getPatenteForRole = (role: RoleDefinition) => {
-    const id = (role as any).default_permission_level_id;
+    const id = role.default_permission_level_id;
     return patentes.find(p => p.id === id) ?? null;
   };
 
@@ -459,6 +479,7 @@ function RolesTab() {
             <Card key={role.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => openEdit(role)}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
+                  {role.color && <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: role.color }} />}
                   <div>
                     <p className="font-medium">{role.label}</p>
                     <p className="text-xs text-muted-foreground font-mono">{role.name}</p>
@@ -471,7 +492,6 @@ function RolesTab() {
                       {patente.label}
                     </Badge>
                   )}
-                  <p className="text-xs text-muted-foreground">{role.pages.length} páginas</p>
                 </div>
               </CardContent>
             </Card>
@@ -508,23 +528,47 @@ function RolesTab() {
               </Select>
             </div>
             <div>
-              <Label className="mb-2 block">Páginas com acesso (legado)</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {ALL_SLUGS.map(slug => (
-                  <label key={slug} className="flex items-center gap-2 cursor-pointer select-none">
-                    <Checkbox
-                      checked={editedPages.includes(slug)}
-                      onCheckedChange={() => togglePage(slug, editedPages, setEditedPages)}
-                    />
-                    <span className="text-sm">{PAGE_LABELS[slug]}</span>
-                  </label>
-                ))}
+              <Label className="mb-2 block">Cor do role</Label>
+              <div className="flex items-center gap-2">
+                <input type="color" value={editedColor ?? '#6b7280'}
+                  onChange={e => setEditedColor(e.target.value)}
+                  className="w-9 h-9 rounded cursor-pointer border p-0.5 bg-background" />
+                <Input value={editedColor ?? ''}
+                  onChange={e => setEditedColor(e.target.value || null)}
+                  className="h-9" placeholder="#6b7280" />
+                {editedColor && (
+                  <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setEditedColor(null)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
+            </div>
+            <div>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setEditPagesOpen(v => !v)}>
+                <ChevronDown className={`h-4 w-4 transition-transform ${editPagesOpen ? 'rotate-180' : ''}`} />
+                Páginas com acesso (legado) — {editedPages.length} selecionadas
+              </button>
+              {editPagesOpen && (
+                <div className="grid grid-cols-2 gap-2 mt-2 border rounded-lg p-3 bg-muted/20">
+                  {ALL_SLUGS.map(slug => (
+                    <label key={slug} className="flex items-center gap-2 cursor-pointer select-none">
+                      <Checkbox
+                        checked={editedPages.includes(slug)}
+                        onCheckedChange={() => togglePage(slug, editedPages, setEditedPages)}
+                      />
+                      <span className="text-sm">{PAGE_LABELS[slug]}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelected(null)}>Cancelar</Button>
-            <Button onClick={() => updateMutation.mutate({ id: selected!.id, pages: editedPages, default_permission_level_id: editedPatente })}
+            <Button onClick={() => updateMutation.mutate({ id: selected!.id, pages: editedPages, default_permission_level_id: editedPatente, color: editedColor })}
               disabled={updateMutation.isPending}>
               <Save className="h-4 w-4 mr-1" /> Guardar
             </Button>
@@ -533,22 +577,32 @@ function RolesTab() {
       </Dialog>
 
       {/* Create role dialog */}
-      <Dialog open={creating} onOpenChange={v => !v && setCreating(false)}>
+      <Dialog open={creating} onOpenChange={v => { if (!v) { setCreating(false); setSlugAutoSync(true); setCreatePagesOpen(false); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Criar novo role</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Nome interno (slug)</Label>
-                <Input placeholder="ex: editor_conteudo" value={newName}
-                  onChange={e => setNewName(e.target.value.toLowerCase().replace(/\s/g, '_'))} />
-              </div>
-              <div>
-                <Label>Label (visível)</Label>
-                <Input placeholder="ex: Editor de Conteúdo" value={newLabel}
-                  onChange={e => setNewLabel(e.target.value)} />
+            <div>
+              <Label>Label (nome visível)</Label>
+              <Input placeholder="ex: Editor de Conteúdo" value={newLabel}
+                onChange={e => handleNewLabelChange(e.target.value)} />
+            </div>
+            <div>
+              <Label>Slug interno</Label>
+              <Input placeholder="ex: editor_conteudo" value={newName}
+                onChange={e => handleNewNameChange(e.target.value)}
+                className="font-mono text-sm" />
+              <p className="text-xs text-muted-foreground mt-1">Auto-gerado a partir da label. Editável manualmente.</p>
+            </div>
+            <div>
+              <Label className="mb-2 block">Cor do role</Label>
+              <div className="flex items-center gap-2">
+                <input type="color" value={newColor}
+                  onChange={e => setNewColor(e.target.value)}
+                  className="w-9 h-9 rounded cursor-pointer border p-0.5 bg-background" />
+                <Input value={newColor}
+                  onChange={e => setNewColor(e.target.value)} className="h-9" />
               </div>
             </div>
             <div>
@@ -572,24 +626,32 @@ function RolesTab() {
               </Select>
             </div>
             <div>
-              <Label className="mb-2 block">Páginas com acesso (legado)</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {ALL_SLUGS.map(slug => (
-                  <label key={slug} className="flex items-center gap-2 cursor-pointer select-none">
-                    <Checkbox
-                      checked={newPages.includes(slug)}
-                      onCheckedChange={() => togglePage(slug, newPages, setNewPages)}
-                    />
-                    <span className="text-sm">{PAGE_LABELS[slug]}</span>
-                  </label>
-                ))}
-              </div>
+              <button
+                type="button"
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setCreatePagesOpen(v => !v)}>
+                <ChevronDown className={`h-4 w-4 transition-transform ${createPagesOpen ? 'rotate-180' : ''}`} />
+                Páginas com acesso (legado, opcional) — {newPages.length} selecionadas
+              </button>
+              {createPagesOpen && (
+                <div className="grid grid-cols-2 gap-2 mt-2 border rounded-lg p-3 bg-muted/20">
+                  {ALL_SLUGS.map(slug => (
+                    <label key={slug} className="flex items-center gap-2 cursor-pointer select-none">
+                      <Checkbox
+                        checked={newPages.includes(slug)}
+                        onCheckedChange={() => togglePage(slug, newPages, setNewPages)}
+                      />
+                      <span className="text-sm">{PAGE_LABELS[slug]}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreating(false)}>Cancelar</Button>
             <Button
-              onClick={() => createMutation.mutate({ name: newName, label: newLabel, pages: newPages, default_permission_level_id: newPatente })}
+              onClick={() => createMutation.mutate({ name: newName, label: newLabel, pages: newPages, default_permission_level_id: newPatente, color: newColor })}
               disabled={!newName || !newLabel || createMutation.isPending}>
               <Plus className="h-4 w-4 mr-1" /> Criar Role
             </Button>
