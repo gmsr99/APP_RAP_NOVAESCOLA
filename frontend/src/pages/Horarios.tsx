@@ -207,8 +207,12 @@ function TimePicker5Min({
 
   const handleHour = (h: string) => {
     setHour(h);
-    const m = minute || '00';
-    onChange?.(`${h}:${m}`);
+    if (minute === '') {
+      setMinute('00');
+      onChange?.(`${h}:00`);
+    } else {
+      onChange?.(`${h}:${minute}`);
+    }
   };
 
   const handleMinute = (m: string) => {
