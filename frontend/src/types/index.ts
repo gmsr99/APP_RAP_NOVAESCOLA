@@ -314,3 +314,12 @@ export interface ChatChannelWithMeta extends ChatChannel {
   unread_count: number;
   dm_partner?: PublicProfile;
 }
+
+export interface SystemSetting {
+  value: boolean | string | number | null;
+  label: string | null;
+  description: string | null;
+  updated_at: string | null;
+}
+
+export type SystemSettings = Record<string, SystemSetting>;

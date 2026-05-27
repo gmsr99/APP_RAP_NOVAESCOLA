@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import type { RoleDefinition, Projeto } from '@/types';
+import type { RoleDefinition, Projeto, SystemSettings } from '@/types';
 import { toast } from 'sonner';
-import { Shield, Plus, Save, Eye, EyeOff, Users, BookOpen } from 'lucide-react';
+import { Shield, Plus, Save, Eye, EyeOff, Users, BookOpen, Settings } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -487,6 +487,68 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
 
 // ── Main Admin Page ────────────────────────────────────────────────────────
 
+// ── Settings Tab ──────────────────────────────────────────────────────────
+
+function SettingsTab() {
+  const queryClient = useQueryClient();
+  const { permissions } = useAuth();
+  const isRoot = permissions?.is_root ?? false;
+
+  const { data: settings, isLoading } = useQuery<SystemSettings>({
+    queryKey: ['admin-settings'],
+    queryFn: () => api.get('/api/admin/settings'),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ key, value }: { key: string; value: unknown }) =>
+      api.patch(`/api/admin/settings/${key}`, { value }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
+      toast.success('Configuração guardada.');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (isLoading) {
+    return <p className="text-muted-foreground py-4 text-sm">A carregar configurações…</p>;
+  }
+
+  if (!settings || Object.keys(settings).length === 0) {
+    return <p className="text-muted-foreground py-4 text-sm">Nenhuma configuração disponível.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {Object.entries(settings).map(([key, setting]) => (
+        <div key={key} className="flex items-center justify-between p-4 border rounded-lg">
+          <div className="flex-1 mr-4">
+            <p className="font-medium text-sm">{setting.label ?? key}</p>
+            {setting.description && (
+              <p className="text-xs text-muted-foreground mt-0.5">{setting.description}</p>
+            )}
+          </div>
+          {typeof setting.value === 'boolean' ? (
+            <Switch
+              checked={setting.value}
+              onCheckedChange={(v) => updateMutation.mutate({ key, value: v })}
+              disabled={!isRoot || updateMutation.isPending}
+            />
+          ) : (
+            <span className="text-sm font-mono text-muted-foreground">
+              {String(setting.value)}
+            </span>
+          )}
+        </div>
+      ))}
+      {!isRoot && (
+        <p className="text-xs text-muted-foreground mt-2">
+          Apenas utilizadores root podem alterar estas configurações.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function Admin() {
   const [creatingUser, setCreatingUser] = useState(false);
 
@@ -517,6 +579,9 @@ export default function Admin() {
           <TabsTrigger value="roles">
             <BookOpen className="h-4 w-4 mr-1" /> Roles
           </TabsTrigger>
+          <TabsTrigger value="configuracoes">
+            <Settings className="h-4 w-4 mr-1" /> Configurações
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="roles" className="mt-4">
@@ -526,6 +591,17 @@ export default function Admin() {
             </CardHeader>
             <CardContent>
               <RolesTab />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="configuracoes" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Configurações do Sistema</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SettingsTab />
             </CardContent>
           </Card>
         </TabsContent>

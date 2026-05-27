@@ -728,7 +728,7 @@ def obter_aula_por_id(aula_id):
         return None
 
 
-def listar_todas_aulas(limite=2000, allowed_project_ids=None):
+def listar_todas_aulas(limite=2000, allowed_project_ids=None, hide_direcao_sessions=False):
     try:
         with Session(engine) as session:
             # outerjoin em Turma/Estabelecimento para suportar sessões autónomas (sem turma_id)
@@ -767,6 +767,15 @@ def listar_todas_aulas(limite=2000, allowed_project_ids=None):
                     conn.close()
 
         uuid_map = _resolver_atividades_uuid_bulk([a.atividade_uuid for a, *_ in rows])
+
+        # Fetch direcao user ids once if filtering is needed
+        direcao_user_ids: set = set()
+        if hide_direcao_sessions:
+            try:
+                from services import settings_service as _settings_svc
+                direcao_user_ids = _settings_svc.obter_direcao_user_ids()
+            except Exception as e:
+                logger.warning("Erro ao buscar direcao_user_ids para filtro: %s", e)
 
         aulas: List[Dict[str, Any]] = []
         for aula, turma, estabelecimento, mentor in rows:
@@ -807,6 +816,11 @@ def listar_todas_aulas(limite=2000, allowed_project_ids=None):
                 "tarefa_id": aula.tarefa_id,
                 "participantes_ids": participantes_map.get(aula.id, []),
             }
+            if hide_direcao_sessions and direcao_user_ids:
+                mentor_uid = payload.get("mentor_user_id")
+                resp_uid = str(payload.get("responsavel_user_id") or "")
+                if mentor_uid in direcao_user_ids or resp_uid in direcao_user_ids:
+                    continue
             aulas.append(AulaListItem.model_validate(payload).model_dump())
 
         return aulas

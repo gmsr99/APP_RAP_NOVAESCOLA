@@ -17,7 +17,7 @@ Versão: 2.0
 
 # Importações de bibliotecas
 import uvicorn
-from typing import List, Optional
+from typing import Any, List, Optional
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -30,6 +30,7 @@ load_dotenv()
 # Importações dos nossos módulos de serviço
 from services import aula_service
 from services import permission_service as _perm_svc
+from services import settings_service as _settings_svc
 from auth import get_current_user_optional, get_current_user_required
 
 # -----------------------------------------------------------------------------
@@ -140,8 +141,17 @@ async def get_todas_aulas(user=Depends(get_current_user_required)):
     Chama o serviço correspondente e retorna os dados.
     """
     try:
-        project_filter = _perm_svc.get_project_filter(user.get("sub"))
-        aulas = aula_service.listar_todas_aulas(allowed_project_ids=project_filter)
+        user_id = user.get("sub")
+        project_filter = _perm_svc.get_project_filter(user_id)
+        hide_direcao = False
+        if _settings_svc.ocultar_sessoes_direcao():
+            perms = _perm_svc.get_user_permissions(user_id)
+            if not perms["is_root"] and not perms["is_direcao"]:
+                hide_direcao = True
+        aulas = aula_service.listar_todas_aulas(
+            allowed_project_ids=project_filter,
+            hide_direcao_sessions=hide_direcao,
+        )
         return aulas
     except Exception as e:
         return {"error": str(e)}
@@ -213,6 +223,15 @@ async def get_aula_by_id(aula_id: int, user=Depends(get_current_user_required)):
     try:
         aula = aula_service.obter_aula_por_id(aula_id)
         if aula:
+            if _settings_svc.ocultar_sessoes_direcao():
+                user_id = user.get("sub")
+                perms = _perm_svc.get_user_permissions(user_id)
+                if not perms["is_root"] and not perms["is_direcao"]:
+                    direcao_ids = _settings_svc.obter_direcao_user_ids()
+                    mentor_uid = aula.get("mentor_user_id") if isinstance(aula, dict) else getattr(aula, "mentor_user_id", None)
+                    resp_uid = str((aula.get("responsavel_user_id") if isinstance(aula, dict) else getattr(aula, "responsavel_user_id", None)) or "")
+                    if mentor_uid in direcao_ids or resp_uid in direcao_ids:
+                        return {"message": "Aula não encontrada"}
             return aula
         return {"message": "Aula não encontrada"}
     except Exception as e:
@@ -2239,6 +2258,27 @@ def _require_admin(user: dict):
     if perms["is_root"]:
         return
     raise HTTPException(status_code=403, detail="Acesso negado.")
+
+
+@app.get("/api/admin/settings", tags=["Admin"])
+async def admin_listar_settings(user=Depends(get_current_user_required)):
+    """Lista todas as configurações do sistema. Leitura: direção e root."""
+    _require_direcao(user)
+    return _settings_svc.obter_todas()
+
+
+class SettingUpdatePayload(BaseModel):
+    value: Any
+
+
+@app.patch("/api/admin/settings/{key}", tags=["Admin"])
+async def admin_atualizar_setting(key: str, payload: SettingUpdatePayload, user=Depends(get_current_user_required)):
+    """Actualiza o valor de uma configuração do sistema. Escrita: root apenas."""
+    _require_admin(user)
+    ok = _settings_svc.definir(key, payload.value, user.get("sub"))
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"Setting '{key}' não encontrada.")
+    return {"ok": True, "key": key, "value": payload.value}
 
 
 @app.get("/api/me/permissions", tags=["Admin"])
