@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Switch } from '@/components/ui/switch';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -49,8 +48,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { api } from '@/services/api';
-import type { PublicProfile, RoleDefinition, Projeto } from '@/types';
-import { Mail, Shield, Trash2, Pencil, Search, UserCircle, Key, Settings2 } from 'lucide-react';
+import type { PublicProfile, RoleDefinition, Projeto, PermissionLevel } from '@/types';
+import { Mail, Shield, Trash2, Pencil, Search, UserCircle, Key, Settings2, Award } from 'lucide-react';
 import { useProfile } from '@/contexts/ProfileContext';
 import { toast } from 'sonner';
 
@@ -84,6 +83,7 @@ const Equipa = () => {
 
     // Advanced permissions state
     const [advPerms, setAdvPerms] = useState<{
+        permission_level_id: number | null;
         is_root: boolean;
         is_direcao: boolean;
         is_coordenacao: boolean;
@@ -105,6 +105,12 @@ const Equipa = () => {
     const { data: projetos = [] } = useQuery<Projeto[]>({
         queryKey: ['projetos'],
         queryFn: () => api.get('/api/projetos'),
+        enabled: isAdmin,
+    });
+
+    const { data: patentes = [] } = useQuery<PermissionLevel[]>({
+        queryKey: ['admin-patentes'],
+        queryFn: () => api.get('/api/admin/patentes'),
         enabled: isAdmin,
     });
 
@@ -152,6 +158,7 @@ const Equipa = () => {
                 const permsData: any = await api.get(`/api/admin/users/${p.id}/permissions`);
                 const found = roles.find(r => r.name === permsData.role);
                 setAdvPerms({
+                    permission_level_id: permsData.permission_level_id ?? null,
                     is_root: permsData.is_root,
                     is_direcao: permsData.is_direcao ?? false,
                     is_coordenacao: permsData.is_coordenacao ?? false,
@@ -160,7 +167,7 @@ const Equipa = () => {
                     role_pages: found ? found.pages : [],
                 });
             } catch {
-                setAdvPerms({ is_root: false, is_direcao: false, is_coordenacao: false, page_overrides: {}, project_ids: [], role_pages: [] });
+                setAdvPerms({ permission_level_id: null, is_root: false, is_direcao: false, is_coordenacao: false, page_overrides: {}, project_ids: [], role_pages: [] });
             }
         }
     };
@@ -187,9 +194,7 @@ const Equipa = () => {
                     role: editForm.role,
                     page_overrides: advPerms.page_overrides,
                     project_ids: advPerms.project_ids,
-                    is_root: advPerms.is_root,
-                    is_direcao: advPerms.is_direcao,
-                    is_coordenacao: advPerms.is_coordenacao,
+                    permission_level_id: advPerms.permission_level_id,
                 },
             });
         } else {
@@ -225,7 +230,12 @@ const Equipa = () => {
         setEditForm(f => ({ ...f, role: val }));
         if (advPerms) {
             const found = roles.find(r => r.name === val);
-            setAdvPerms(prev => prev ? { ...prev, role_pages: found ? found.pages : [], page_overrides: {} } : prev);
+            setAdvPerms(prev => prev ? {
+                ...prev,
+                role_pages: found ? found.pages : [],
+                page_overrides: {},
+                permission_level_id: found?.default_permission_level_id ?? prev.permission_level_id,
+            } : prev);
         }
     };
 
@@ -441,41 +451,49 @@ const Equipa = () => {
 
                             {isAdmin && advPerms && (
                                 <TabsContent value="avancado" className="space-y-4 pt-4 outline-none">
-                                    <div className="flex flex-col gap-1.5 p-4 rounded-xl border bg-muted/10">
-                                        <div className="flex items-center justify-between">
-                                            <Label className="text-base font-semibold">Acesso de Coordenação</Label>
-                                            <Switch
-                                                checked={advPerms.is_coordenacao}
-                                                onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_coordenacao: v } : prev)}
-                                                disabled={advPerms.is_direcao || advPerms.is_root}
-                                            />
-                                        </div>
-                                        <p className="text-sm text-muted-foreground leading-relaxed">Pode gerir e ver todas as sessões, turmas e exportar dados gerais, independentemente do cargo oficial atribuído no perfil.</p>
+                                    <div className="space-y-2">
+                                        <Label className="text-sm font-semibold flex items-center gap-2">
+                                            <Award className="h-4 w-4 text-muted-foreground" />
+                                            Patente
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground">Nível hierárquico de permissões. Define que páginas e ações estão disponíveis para este utilizador.</p>
+                                        <Select
+                                            value={advPerms.permission_level_id?.toString() ?? '__none__'}
+                                            onValueChange={v => setAdvPerms(prev => prev ? { ...prev, permission_level_id: v === '__none__' ? null : parseInt(v) } : prev)}
+                                        >
+                                            <SelectTrigger className="bg-background">
+                                                <SelectValue placeholder="Selecionar patente" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="__none__">
+                                                    <span className="text-muted-foreground">Sem patente (legado)</span>
+                                                </SelectItem>
+                                                {[...patentes].sort((a, b) => a.level_order - b.level_order).map(p => (
+                                                    <SelectItem key={p.id} value={p.id.toString()}>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: p.color ?? '#6b7280' }} />
+                                                            <span>{p.label}</span>
+                                                            <span className="text-xs text-muted-foreground">nível {p.level_order}</span>
+                                                        </div>
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
                                     </div>
 
-                                    <div className="flex flex-col gap-1.5 p-4 rounded-xl border bg-muted/10">
-                                        <div className="flex items-center justify-between">
-                                            <Label className="text-base font-semibold">Acesso de Direção</Label>
-                                            <Switch
-                                                checked={advPerms.is_direcao}
-                                                onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_direcao: v } : prev)}
-                                                disabled={advPerms.is_root}
-                                            />
-                                        </div>
-                                        <p className="text-sm text-muted-foreground leading-relaxed">Privilégios quase totais na app. Apenas o painel "Admin" de sistema lhe está vedado.</p>
-                                    </div>
-
-                                    <div className="flex flex-col gap-1.5 p-4 rounded-xl border bg-muted/10">
-                                        <div className="flex items-center justify-between">
-                                            <Label className="text-base font-semibold text-destructive">Acesso Root</Label>
-                                            <Switch
-                                                checked={advPerms.is_root}
-                                                onCheckedChange={v => setAdvPerms(prev => prev ? { ...prev, is_root: v } : prev)}
-                                                className="data-[state=checked]:bg-destructive"
-                                            />
-                                        </div>
-                                        <p className="text-sm text-muted-foreground leading-relaxed">Contorna e ignora todas as regras de acesso. Cuidado ao atribuir esta permissão.</p>
-                                    </div>
+                                    {advPerms.permission_level_id && (() => {
+                                        const pat = patentes.find(p => p.id === advPerms.permission_level_id);
+                                        if (!pat) return null;
+                                        return (
+                                            <div className="p-3 rounded-lg border bg-muted/20 text-sm text-muted-foreground space-y-1">
+                                                <p className="font-medium text-foreground flex items-center gap-2">
+                                                    <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: pat.color ?? '#6b7280' }} />
+                                                    {pat.label}
+                                                </p>
+                                                <p>{pat.allowed_pages.length} páginas · {Object.values(pat.allowed_actions).filter(Boolean).length} ações permitidas</p>
+                                            </div>
+                                        );
+                                    })()}
                                 </TabsContent>
                             )}
                         </Tabs>

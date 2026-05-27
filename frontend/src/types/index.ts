@@ -9,12 +9,32 @@ export interface User {
   avatar?: string;
 }
 
+export interface PermissionLevel {
+  id: number;
+  name: string;
+  label: string;
+  level_order: number;
+  allowed_pages: string[];
+  allowed_actions: Record<string, boolean>;
+  is_system: boolean;
+  color: string | null;
+  created_at?: string;
+}
+
+export interface ActionKey {
+  key: string;
+  label: string;
+  category: string;
+}
+
 export interface UserPermissions {
   is_root: boolean;
   is_direcao: boolean;
   is_coordenacao: boolean;
   role: string;
   allowed_pages: string[];
+  allowed_actions: Record<string, boolean>;
+  permission_level: Pick<PermissionLevel, 'id' | 'name' | 'label' | 'level_order' | 'color'> | null;
   project_scoped: boolean;
   allowed_project_ids: number[];
 }
@@ -25,6 +45,7 @@ export interface RoleDefinition {
   label: string;
   is_system: boolean;
   pages: string[];
+  default_permission_level_id?: number | null;
 }
 
 // Sessions / Classes
@@ -323,3 +344,15 @@ export interface SystemSetting {
 }
 
 export type SystemSettings = Record<string, SystemSetting>;
+
+export interface AuditLog {
+  id: number;
+  user_id: string | null;
+  user_email: string | null;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  details: Record<string, unknown> | null;
+  ip_address: string | null;
+  created_at: string;
+}

@@ -18,10 +18,16 @@ interface ProfileContextType {
   isAuthenticated: boolean;
   /** Conjunto de page slugs acessíveis pelo utilizador */
   allowedPages: Set<string>;
+  /** true se o utilizador é root (level_order >= 5) */
+  isRoot: boolean;
   /** true se o utilizador tem acesso de direção (is_root ou is_direcao) */
   isDirecao: boolean;
-  /** true se o utilizador tem acesso de coordenação ou superior (is_root, is_direcao ou is_coordenacao) */
+  /** true se o utilizador tem acesso de coordenação ou superior */
   isCoordenacao: boolean;
+  /** Dicionário de action keys → bool da patente do utilizador */
+  allowedActions: Record<string, boolean>;
+  /** Retorna true se a patente do utilizador permite a action key (root sempre true) */
+  canDo: (actionKey: string) => boolean;
 }
 
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
@@ -68,6 +74,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     return base;
   }, [permissions, profile]);
 
+  const isRoot = permissions ? permissions.is_root : false;
+
   const isDirecao = permissions
     ? (permissions.is_root || permissions.is_direcao)
     : ['direcao', 'it_support'].includes(profile);
@@ -75,6 +83,19 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const isCoordenacao = permissions
     ? (permissions.is_root || permissions.is_direcao || permissions.is_coordenacao)
     : ['coordenador', 'direcao', 'it_support'].includes(profile);
+
+  const allowedActions: Record<string, boolean> = useMemo(
+    () => permissions?.allowed_actions ?? {},
+    [permissions]
+  );
+
+  const canDo = useMemo(
+    () => (actionKey: string): boolean => {
+      if (isRoot) return true;
+      return allowedActions[actionKey] === true;
+    },
+    [isRoot, allowedActions]
+  );
 
   // Se estiver autenticado, usar o user da sessão; senão, fallback para mock por perfil
   const user: User = authUser
@@ -85,7 +106,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const setProfile = (p: UserProfile) => setManualProfile(p);
 
   return (
-    <ProfileContext.Provider value={{ profile, user, setProfile, isAuthenticated, allowedPages, isDirecao, isCoordenacao }}>
+    <ProfileContext.Provider value={{ profile, user, setProfile, isAuthenticated, allowedPages, isRoot, isDirecao, isCoordenacao, allowedActions, canDo }}>
       {children}
     </ProfileContext.Provider>
   );

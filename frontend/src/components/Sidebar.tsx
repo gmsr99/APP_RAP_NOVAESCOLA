@@ -1,7 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useProfile } from '@/contexts/ProfileContext';
+import { useAppIdentity } from '@/contexts/AppIdentityContext';
 import { cn } from '@/lib/utils';
-const logo = '/logo2.png';
+const DEFAULT_LOGO = '/logo2.png';
 import {
   LayoutDashboard,
   Calendar,
@@ -103,6 +104,8 @@ function NavItemLink({ item, collapsed, onClick }: { item: NavItem; collapsed: b
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const { allowedPages } = useProfile();
+  const { appName, logoUrl } = useAppIdentity();
+  const logo = logoUrl || DEFAULT_LOGO;
 
   const filteredNavigation = navigation.filter(item =>
     'separator' in item || ('pageSlug' in item && allowedPages.has(item.pageSlug))
@@ -126,12 +129,12 @@ export function Sidebar() {
       <div className="flex items-center justify-between h-20 px-4 border-b border-sidebar-border">
         {!collapsed && (
           <Link to="/" className="flex items-center gap-3">
-            <img src={logo} alt="RAP Nova Escola" className="h-12 w-auto" />
+            <img src={logo} alt={appName} className="h-12 w-auto" />
           </Link>
         )}
         {collapsed && (
           <Link to="/" className="mx-auto">
-            <img src={logo} alt="RAP Nova Escola" className="h-8 w-auto max-w-[40px] object-contain" />
+            <img src={logo} alt={appName} className="h-8 w-auto max-w-[40px] object-contain" />
           </Link>
         )}
       </div>
@@ -172,6 +175,8 @@ export function Sidebar() {
 
 export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { allowedPages } = useProfile();
+  const { appName, logoUrl } = useAppIdentity();
+  const logo = logoUrl || DEFAULT_LOGO;
 
   const filteredNavigation = navigation.filter(item =>
     'separator' in item || ('pageSlug' in item && allowedPages.has(item.pageSlug))
@@ -189,7 +194,7 @@ export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () =>
         {/* Logo + close */}
         <div className="flex items-center justify-between h-20 px-4 border-b border-sidebar-border shrink-0">
           <Link to="/" onClick={onClose}>
-            <img src={logo} alt="RAP Nova Escola" className="h-12 w-auto" />
+            <img src={logo} alt={appName} className="h-12 w-auto" />
           </Link>
           <Button variant="ghost" size="icon" onClick={onClose} className="text-sidebar-foreground hover:bg-sidebar-accent/50">
             <X className="h-5 w-5" />

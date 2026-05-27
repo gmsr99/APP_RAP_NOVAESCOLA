@@ -164,7 +164,7 @@ const ACTION_LABELS: Record<string, string> = {
 
 const Producao = () => {
   const { user } = useAuth();
-  const { profile, isCoordenacao, isDirecao } = useProfile();
+  const { isCoordenacao, isDirecao, canDo } = useProfile();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -187,7 +187,7 @@ const Producao = () => {
 
   const isCoordinator = isCoordenacao;
   const isAdmin = isDirecao;
-  const isProdutor = profile === 'produtor' || profile === 'mentor_produtor';
+  const isProdutor = canDo('production.lab');
 
   // ─── Queries ─────────────────────────────────────────────────────────────────
 

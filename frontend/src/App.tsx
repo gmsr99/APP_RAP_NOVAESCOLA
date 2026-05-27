@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-ro
 import { api } from '@/lib/api';
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProfileProvider } from "@/contexts/ProfileContext";
+import { AppIdentityProvider } from "@/contexts/AppIdentityContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Layout } from "@/components/Layout";
 import { Preloader } from "@/components/Preloader";
@@ -128,11 +129,13 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <BrowserRouter>
-        <AuthProvider>
-          <ProfileProvider>
-            <AppContent />
-          </ProfileProvider>
-        </AuthProvider>
+        <AppIdentityProvider>
+          <AuthProvider>
+            <ProfileProvider>
+              <AppContent />
+            </ProfileProvider>
+          </AuthProvider>
+        </AppIdentityProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

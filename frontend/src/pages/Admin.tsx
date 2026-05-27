@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import type { RoleDefinition, Projeto, SystemSettings } from '@/types';
+import type { RoleDefinition, Projeto, SystemSettings, AuditLog, PermissionLevel, ActionKey } from '@/types';
 import { toast } from 'sonner';
-import { Shield, Plus, Save, Eye, EyeOff, Users, BookOpen, Settings } from 'lucide-react';
+import {
+  Shield, Plus, Save, Eye, EyeOff, Users, BookOpen, Settings,
+  ClipboardList, Download, Lock, Award,
+} from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -48,41 +51,375 @@ const PAGE_LABELS: Record<string, string> = {
 };
 const ALL_SLUGS = Object.keys(PAGE_LABELS);
 
+// ── Patentes Tab ───────────────────────────────────────────────────────────
+
+function PatentesTab() {
+  const { permissions } = useAuth();
+  const isRoot = permissions?.is_root ?? false;
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState<PermissionLevel | null>(null);
+  const [editState, setEditState] = useState<Partial<PermissionLevel>>({});
+  const [creating, setCreating] = useState(false);
+  const [newPatente, setNewPatente] = useState({
+    name: '', label: '', level_order: 10,
+    allowed_pages: [] as string[],
+    allowed_actions: {} as Record<string, boolean>,
+    color: '#6b7280',
+  });
+
+  const { data: patentes = [], isLoading } = useQuery<PermissionLevel[]>({
+    queryKey: ['admin-patentes'],
+    queryFn: () => api.get('/api/admin/patentes'),
+  });
+
+  const { data: actionKeys = [] } = useQuery<ActionKey[]>({
+    queryKey: ['admin-action-keys'],
+    queryFn: () => api.get('/api/admin/action-keys'),
+    enabled: isRoot,
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: object }) =>
+      api.put(`/api/admin/patentes/${id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-patentes'] });
+      toast.success('Patente actualizada.');
+      setEditing(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/api/admin/patentes/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-patentes'] });
+      toast.success('Patente apagada.');
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (data: object) => api.post('/api/admin/patentes', data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-patentes'] });
+      toast.success('Patente criada.');
+      setCreating(false);
+      setNewPatente({ name: '', label: '', level_order: 10, allowed_pages: [], allowed_actions: {}, color: '#6b7280' });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const openEdit = (p: PermissionLevel) => {
+    if (!isRoot) return;
+    setEditing(p);
+    setEditState({
+      label: p.label,
+      color: p.color ?? '#6b7280',
+      allowed_pages: [...p.allowed_pages],
+      allowed_actions: { ...p.allowed_actions },
+      level_order: p.level_order,
+    });
+  };
+
+  const toggleEditPage = (slug: string) => {
+    setEditState(s => {
+      const pages = s.allowed_pages ?? [];
+      return { ...s, allowed_pages: pages.includes(slug) ? pages.filter(p => p !== slug) : [...pages, slug] };
+    });
+  };
+
+  const toggleEditAction = (key: string) => {
+    setEditState(s => ({
+      ...s,
+      allowed_actions: { ...(s.allowed_actions ?? {}), [key]: !((s.allowed_actions ?? {})[key]) },
+    }));
+  };
+
+  const groupedActions = actionKeys.reduce<Record<string, ActionKey[]>>((acc, ak) => {
+    if (!acc[ak.category]) acc[ak.category] = [];
+    acc[ak.category].push(ak);
+    return acc;
+  }, {});
+
+  if (isLoading) return <p className="text-muted-foreground py-4 text-sm">A carregar patentes…</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Patentes definem as páginas e ações acessíveis. As 5 patentes base (cadeado) não podem ser eliminadas.
+        </p>
+        {isRoot && (
+          <Button size="sm" onClick={() => setCreating(true)}>
+            <Plus className="h-4 w-4 mr-1" /> Nova Patente
+          </Button>
+        )}
+      </div>
+
+      <div className="grid gap-3">
+        {patentes.map(p => (
+          <Card key={p.id}
+            className={`transition-colors ${isRoot ? 'cursor-pointer hover:border-primary/50' : ''}`}
+            onClick={() => openEdit(p)}>
+            <CardContent className="p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: p.color ?? '#6b7280' }} />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{p.label}</span>
+                    {p.is_system && <Lock className="h-3 w-3 text-muted-foreground" />}
+                  </div>
+                  <p className="text-xs text-muted-foreground font-mono">{p.name} · nível {p.level_order}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span>{p.allowed_pages.length} págs</span>
+                <span>{Object.values(p.allowed_actions).filter(Boolean).length} ações</span>
+                {isRoot && !p.is_system && (
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive hover:text-destructive"
+                    onClick={e => { e.stopPropagation(); deleteMutation.mutate(p.id); }}>
+                    Apagar
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {!isRoot && (
+        <p className="text-xs text-muted-foreground">Apenas utilizadores root podem editar patentes.</p>
+      )}
+
+      {/* Edit patente dialog */}
+      <Dialog open={!!editing} onOpenChange={v => !v && setEditing(null)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Patente — {editing?.label}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Label</Label>
+                <Input value={editState.label ?? ''}
+                  onChange={e => setEditState(s => ({ ...s, label: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Cor</Label>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={editState.color ?? '#6b7280'}
+                    onChange={e => setEditState(s => ({ ...s, color: e.target.value }))}
+                    className="h-9 w-12 rounded border cursor-pointer p-0.5" />
+                  <Input value={editState.color ?? ''}
+                    onChange={e => setEditState(s => ({ ...s, color: e.target.value }))} className="h-9" />
+                </div>
+              </div>
+              {editing && !editing.is_system && (
+                <div>
+                  <Label>Nível (order)</Label>
+                  <Input type="number" min={1} value={editState.level_order ?? ''}
+                    onChange={e => setEditState(s => ({ ...s, level_order: parseInt(e.target.value) || s.level_order }))} />
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label className="mb-2 block">Páginas acessíveis</Label>
+              <div className="grid grid-cols-3 gap-2 p-3 border rounded-md">
+                {ALL_SLUGS.map(slug => (
+                  <label key={slug} className="flex items-center gap-2 cursor-pointer select-none">
+                    <Checkbox
+                      checked={(editState.allowed_pages ?? []).includes(slug)}
+                      onCheckedChange={() => toggleEditPage(slug)}
+                    />
+                    <span className="text-sm">{PAGE_LABELS[slug]}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label className="mb-2 block">Ações permitidas</Label>
+              <div className="space-y-4">
+                {Object.entries(groupedActions).map(([category, keys]) => (
+                  <div key={category}>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{category}</p>
+                    <div className="space-y-1">
+                      {keys.map(ak => (
+                        <div key={ak.key} className="flex items-center justify-between py-1.5 px-3 border rounded-md">
+                          <div>
+                            <p className="text-sm">{ak.label}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{ak.key}</p>
+                          </div>
+                          <Switch
+                            checked={(editState.allowed_actions ?? {})[ak.key] === true}
+                            onCheckedChange={() => toggleEditAction(ak.key)}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)}>Cancelar</Button>
+            <Button
+              onClick={() => updateMutation.mutate({
+                id: editing!.id,
+                data: {
+                  label: editState.label,
+                  color: editState.color,
+                  allowed_pages: editState.allowed_pages ?? [],
+                  allowed_actions: editState.allowed_actions ?? {},
+                  level_order: editState.level_order,
+                },
+              })}
+              disabled={updateMutation.isPending}>
+              <Save className="h-4 w-4 mr-1" /> Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create patente dialog */}
+      <Dialog open={creating} onOpenChange={v => !v && setCreating(false)}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nova Patente</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Nome interno (slug)</Label>
+                <Input placeholder="ex: tech_lead" value={newPatente.name}
+                  onChange={e => setNewPatente(p => ({ ...p, name: e.target.value.toLowerCase().replace(/\s/g, '_') }))} />
+              </div>
+              <div>
+                <Label>Label (visível)</Label>
+                <Input placeholder="ex: Tech Lead" value={newPatente.label}
+                  onChange={e => setNewPatente(p => ({ ...p, label: e.target.value }))} />
+              </div>
+              <div>
+                <Label>Nível (order)</Label>
+                <Input type="number" min={1} value={newPatente.level_order}
+                  onChange={e => setNewPatente(p => ({ ...p, level_order: parseInt(e.target.value) || 10 }))} />
+              </div>
+              <div>
+                <Label>Cor</Label>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={newPatente.color}
+                    onChange={e => setNewPatente(p => ({ ...p, color: e.target.value }))}
+                    className="h-9 w-12 rounded border cursor-pointer p-0.5" />
+                  <Input value={newPatente.color}
+                    onChange={e => setNewPatente(p => ({ ...p, color: e.target.value }))} className="h-9" />
+                </div>
+              </div>
+            </div>
+            <div>
+              <Label className="mb-2 block">Páginas acessíveis</Label>
+              <div className="grid grid-cols-3 gap-2 p-3 border rounded-md">
+                {ALL_SLUGS.map(slug => (
+                  <label key={slug} className="flex items-center gap-2 cursor-pointer select-none">
+                    <Checkbox
+                      checked={newPatente.allowed_pages.includes(slug)}
+                      onCheckedChange={() => setNewPatente(p => ({
+                        ...p,
+                        allowed_pages: p.allowed_pages.includes(slug)
+                          ? p.allowed_pages.filter(s => s !== slug)
+                          : [...p.allowed_pages, slug],
+                      }))}
+                    />
+                    <span className="text-sm">{PAGE_LABELS[slug]}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label className="mb-2 block">Ações permitidas</Label>
+              <div className="space-y-4">
+                {Object.entries(groupedActions).map(([category, keys]) => (
+                  <div key={category}>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{category}</p>
+                    <div className="space-y-1">
+                      {keys.map(ak => (
+                        <div key={ak.key} className="flex items-center justify-between py-1.5 px-3 border rounded-md">
+                          <div>
+                            <p className="text-sm">{ak.label}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{ak.key}</p>
+                          </div>
+                          <Switch
+                            checked={newPatente.allowed_actions[ak.key] === true}
+                            onCheckedChange={() => setNewPatente(p => ({
+                              ...p,
+                              allowed_actions: { ...p.allowed_actions, [ak.key]: !p.allowed_actions[ak.key] },
+                            }))}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreating(false)}>Cancelar</Button>
+            <Button
+              onClick={() => createMutation.mutate(newPatente)}
+              disabled={!newPatente.name || !newPatente.label || createMutation.isPending}>
+              <Plus className="h-4 w-4 mr-1" /> Criar Patente
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ── Roles Tab ─────────────────────────────────────────────────────────────
 
 function RolesTab() {
   const queryClient = useQueryClient();
   const [selected, setSelected] = useState<RoleDefinition | null>(null);
   const [editedPages, setEditedPages] = useState<string[]>([]);
+  const [editedPatente, setEditedPatente] = useState<number | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newLabel, setNewLabel] = useState('');
   const [newPages, setNewPages] = useState<string[]>([]);
+  const [newPatente, setNewPatente] = useState<number | null>(null);
 
   const { data: roles = [], isLoading } = useQuery<RoleDefinition[]>({
     queryKey: ['admin-roles'],
     queryFn: () => api.get('/api/admin/roles'),
   });
 
+  const { data: patentes = [] } = useQuery<PermissionLevel[]>({
+    queryKey: ['admin-patentes'],
+    queryFn: () => api.get('/api/admin/patentes'),
+  });
+
   const updateMutation = useMutation({
-    mutationFn: ({ id, pages }: { id: number; pages: string[] }) =>
-      api.put(`/api/admin/roles/${id}`, { pages }),
+    mutationFn: ({ id, pages, default_permission_level_id }: { id: number; pages: string[]; default_permission_level_id: number | null }) =>
+      api.put(`/api/admin/roles/${id}`, { pages, default_permission_level_id }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-roles'] });
-      toast.success('Permissões de páginas actualizadas.');
+      toast.success('Role actualizado.');
       setSelected(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: { name: string; label: string; pages: string[] }) =>
+    mutationFn: (data: { name: string; label: string; pages: string[]; default_permission_level_id: number | null }) =>
       api.post('/api/admin/roles', data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-roles'] });
       toast.success('Role criado.');
       setCreating(false);
-      setNewName(''); setNewLabel(''); setNewPages([]);
+      setNewName(''); setNewLabel(''); setNewPages([]); setNewPatente(null);
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -90,10 +427,16 @@ function RolesTab() {
   const openEdit = (role: RoleDefinition) => {
     setSelected(role);
     setEditedPages([...role.pages]);
+    setEditedPatente((role as any).default_permission_level_id ?? null);
   };
 
   const togglePage = (slug: string, pages: string[], setter: (p: string[]) => void) => {
     setter(pages.includes(slug) ? pages.filter(p => p !== slug) : [...pages, slug]);
+  };
+
+  const getPatenteForRole = (role: RoleDefinition) => {
+    const id = (role as any).default_permission_level_id;
+    return patentes.find(p => p.id === id) ?? null;
   };
 
   if (isLoading) return <p className="text-muted-foreground py-4">A carregar roles…</p>;
@@ -102,7 +445,7 @@ function RolesTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          Roles de sistema são protegidos (não podem ser apagados). Podes editar as páginas de qualquer role.
+          Roles são etiquetas de nomenclatura. Associa uma patente padrão para definir as permissões.
         </p>
         <Button size="sm" onClick={() => setCreating(true)}>
           <Plus className="h-4 w-4 mr-1" /> Novo Role
@@ -110,42 +453,78 @@ function RolesTab() {
       </div>
 
       <div className="grid gap-3">
-        {roles.map(role => (
-          <Card key={role.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => openEdit(role)}>
-            <CardContent className="p-4 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div>
-                  <p className="font-medium">{role.label}</p>
-                  <p className="text-xs text-muted-foreground font-mono">{role.name}</p>
+        {roles.map(role => {
+          const patente = getPatenteForRole(role);
+          return (
+            <Card key={role.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => openEdit(role)}>
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <p className="font-medium">{role.label}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{role.name}</p>
+                  </div>
+                  {role.is_system && <Badge variant="outline" className="text-xs">Sistema</Badge>}
                 </div>
-                {role.is_system && <Badge variant="outline" className="text-xs">Sistema</Badge>}
-              </div>
-              <p className="text-xs text-muted-foreground">{role.pages.length} páginas</p>
-            </CardContent>
-          </Card>
-        ))}
+                <div className="flex items-center gap-2">
+                  {patente && (
+                    <Badge style={{ backgroundColor: patente.color ?? '#6b7280', color: '#fff' }} className="text-xs border-0">
+                      {patente.label}
+                    </Badge>
+                  )}
+                  <p className="text-xs text-muted-foreground">{role.pages.length} páginas</p>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
-      {/* Edit role pages dialog */}
+      {/* Edit role dialog */}
       <Dialog open={!!selected} onOpenChange={v => !v && setSelected(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Páginas — {selected?.label}</DialogTitle>
+            <DialogTitle>Editar Role — {selected?.label}</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-2 py-2">
-            {ALL_SLUGS.map(slug => (
-              <label key={slug} className="flex items-center gap-2 cursor-pointer select-none">
-                <Checkbox
-                  checked={editedPages.includes(slug)}
-                  onCheckedChange={() => togglePage(slug, editedPages, setEditedPages)}
-                />
-                <span className="text-sm">{PAGE_LABELS[slug]}</span>
-              </label>
-            ))}
+          <div className="space-y-4 py-2">
+            <div>
+              <Label className="mb-2 block">Patente Padrão</Label>
+              <Select
+                value={editedPatente?.toString() ?? '__none__'}
+                onValueChange={v => setEditedPatente(v === '__none__' ? null : parseInt(v))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sem patente padrão" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sem patente padrão</SelectItem>
+                  {patentes.map(p => (
+                    <SelectItem key={p.id} value={p.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color ?? '#6b7280' }} />
+                        {p.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="mb-2 block">Páginas com acesso (legado)</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {ALL_SLUGS.map(slug => (
+                  <label key={slug} className="flex items-center gap-2 cursor-pointer select-none">
+                    <Checkbox
+                      checked={editedPages.includes(slug)}
+                      onCheckedChange={() => togglePage(slug, editedPages, setEditedPages)}
+                    />
+                    <span className="text-sm">{PAGE_LABELS[slug]}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelected(null)}>Cancelar</Button>
-            <Button onClick={() => updateMutation.mutate({ id: selected!.id, pages: editedPages })}
+            <Button onClick={() => updateMutation.mutate({ id: selected!.id, pages: editedPages, default_permission_level_id: editedPatente })}
               disabled={updateMutation.isPending}>
               <Save className="h-4 w-4 mr-1" /> Guardar
             </Button>
@@ -173,7 +552,27 @@ function RolesTab() {
               </div>
             </div>
             <div>
-              <Label className="mb-2 block">Páginas com acesso</Label>
+              <Label className="mb-2 block">Patente Padrão</Label>
+              <Select value={newPatente?.toString() ?? '__none__'}
+                onValueChange={v => setNewPatente(v === '__none__' ? null : parseInt(v))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sem patente padrão" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sem patente padrão</SelectItem>
+                  {patentes.map(p => (
+                    <SelectItem key={p.id} value={p.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color ?? '#6b7280' }} />
+                        {p.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="mb-2 block">Páginas com acesso (legado)</Label>
               <div className="grid grid-cols-2 gap-2">
                 {ALL_SLUGS.map(slug => (
                   <label key={slug} className="flex items-center gap-2 cursor-pointer select-none">
@@ -190,7 +589,7 @@ function RolesTab() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreating(false)}>Cancelar</Button>
             <Button
-              onClick={() => createMutation.mutate({ name: newName, label: newLabel, pages: newPages })}
+              onClick={() => createMutation.mutate({ name: newName, label: newLabel, pages: newPages, default_permission_level_id: newPatente })}
               disabled={!newName || !newLabel || createMutation.isPending}>
               <Plus className="h-4 w-4 mr-1" /> Criar Role
             </Button>
@@ -215,9 +614,7 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
   const { refreshPermissions } = useAuth();
   const [form, setForm] = useState({
     email: '', password: '', full_name: '', role: '',
-    is_root: false,
-    is_direcao: false,
-    is_coordenacao: false,
+    is_root: false, is_direcao: false, is_coordenacao: false,
   });
   const [customRoleName, setCustomRoleName] = useState('');
   const [customRoleLabel, setCustomRoleLabel] = useState('');
@@ -226,6 +623,13 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
   const [selectedProjects, setSelectedProjects] = useState<number[]>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [rolePages, setRolePages] = useState<string[]>([]);
+  const [selectedPatente, setSelectedPatente] = useState<number | null>(null);
+
+  const { data: patentes = [] } = useQuery<PermissionLevel[]>({
+    queryKey: ['admin-patentes'],
+    queryFn: () => api.get('/api/admin/patentes'),
+    enabled: open,
+  });
 
   const createMutation = useMutation({
     mutationFn: async (data: object) => api.post('/api/admin/users', data),
@@ -241,7 +645,7 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
   const resetForm = () => {
     setForm({ email: '', password: '', full_name: '', role: '', is_root: false, is_direcao: false, is_coordenacao: false });
     setCustomRoleName(''); setCustomRoleLabel(''); setIsCustomRole(false);
-    setPageOverrides({}); setSelectedProjects([]); setRolePages([]);
+    setPageOverrides({}); setSelectedProjects([]); setRolePages([]); setSelectedPatente(null);
   };
 
   const handleRoleChange = (value: string) => {
@@ -249,6 +653,7 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
       setIsCustomRole(true);
       setForm(f => ({ ...f, role: '' }));
       setRolePages([]);
+      setSelectedPatente(null);
     } else {
       setIsCustomRole(false);
       setForm(f => ({
@@ -257,23 +662,23 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
         is_direcao: ['direcao', 'it_support'].includes(value),
         is_coordenacao: ['coordenador'].includes(value),
       }));
-      const found = roles.find(r => r.name === value);
+      const found = roles.find(r => r.name === value) as any;
       setRolePages(found ? found.pages : []);
       setPageOverrides({});
+      // Auto-select the default patente for this role
+      if (found?.default_permission_level_id) {
+        setSelectedPatente(found.default_permission_level_id);
+      }
     }
   };
 
   const togglePage = (slug: string) => {
-    const currentAccess = pageOverrides[slug] !== undefined
-      ? pageOverrides[slug]
-      : rolePages.includes(slug);
+    const currentAccess = pageOverrides[slug] !== undefined ? pageOverrides[slug] : rolePages.includes(slug);
     setPageOverrides(prev => ({ ...prev, [slug]: !currentAccess }));
   };
 
   const toggleProject = (id: number) => {
-    setSelectedProjects(prev =>
-      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
-    );
+    setSelectedProjects(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
   };
 
   const getPageAccess = (slug: string): boolean => {
@@ -287,28 +692,18 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
       toast.error('Preenche todos os campos obrigatórios.');
       return;
     }
-
-    // Build page_overrides: only include differences from role defaults
     const overrides: Record<string, boolean> = {};
     ALL_SLUGS.forEach(slug => {
       if (pageOverrides[slug] !== undefined) {
         const roleDefault = (isCustomRole ? [] : rolePages).includes(slug);
-        if (pageOverrides[slug] !== roleDefault) {
-          overrides[slug] = pageOverrides[slug];
-        }
+        if (pageOverrides[slug] !== roleDefault) overrides[slug] = pageOverrides[slug];
       }
     });
-
     createMutation.mutate({
-      email: form.email,
-      password: form.password,
-      full_name: form.full_name,
-      role: roleName,
-      is_root: form.is_root,
-      is_direcao: form.is_direcao,
-      is_coordenacao: form.is_coordenacao,
-      page_overrides: overrides,
-      project_ids: selectedProjects,
+      email: form.email, password: form.password, full_name: form.full_name,
+      role: roleName, is_root: form.is_root, is_direcao: form.is_direcao,
+      is_coordenacao: form.is_coordenacao, page_overrides: overrides,
+      project_ids: selectedProjects, permission_level_id: selectedPatente,
     });
   };
 
@@ -320,7 +715,6 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
         </DialogHeader>
 
         <div className="space-y-5 py-2">
-          {/* Basic info */}
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2">
               <Label>Nome completo *</Label>
@@ -333,12 +727,8 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
             <div>
               <Label>Password *</Label>
               <div className="relative">
-                <Input
-                  type={showPassword ? 'text' : 'password'}
-                  value={form.password}
-                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  className="pr-10"
-                />
+                <Input type={showPassword ? 'text' : 'password'} value={form.password}
+                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))} className="pr-10" />
                 <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
                   onClick={() => setShowPassword(v => !v)}>
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -347,130 +737,84 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
             </div>
           </div>
 
-          {/* Role */}
-          <div className="space-y-3">
-            <Label>Role *</Label>
-            <Select onValueChange={handleRoleChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Seleccionar role…" />
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map(r => (
-                  <SelectItem key={r.name} value={r.name}>{r.label}</SelectItem>
-                ))}
-                <SelectItem value="__custom__">+ Novo role personalizado</SelectItem>
-              </SelectContent>
-            </Select>
-            {isCustomRole && (
-              <div className="grid grid-cols-2 gap-3 p-3 border rounded-md bg-muted/30">
-                <div>
-                  <Label>Slug (interno)</Label>
-                  <Input placeholder="ex: gestor_area" value={customRoleName}
-                    onChange={e => setCustomRoleName(e.target.value.toLowerCase().replace(/\s/g, '_'))} />
-                </div>
-                <div>
-                  <Label>Label (visível)</Label>
-                  <Input placeholder="ex: Gestor de Área" value={customRoleLabel}
-                    onChange={e => setCustomRoleLabel(e.target.value)} />
-                </div>
-              </div>
-            )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Role *</Label>
+              <Select onValueChange={handleRoleChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar role…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map(r => (
+                    <SelectItem key={r.name} value={r.name}>{r.label}</SelectItem>
+                  ))}
+                  <SelectItem value="__custom__">+ Novo role personalizado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Patente</Label>
+              <Select value={selectedPatente?.toString() ?? '__none__'}
+                onValueChange={v => setSelectedPatente(v === '__none__' ? null : parseInt(v))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Patente…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Sem patente</SelectItem>
+                  {patentes.map(p => (
+                    <SelectItem key={p.id} value={p.id.toString()}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color ?? '#6b7280' }} />
+                        {p.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          {/* Page access */}
+          {isCustomRole && (
+            <div className="grid grid-cols-2 gap-3 p-3 border rounded-md bg-muted/30">
+              <div>
+                <Label>Slug (interno)</Label>
+                <Input placeholder="ex: gestor_area" value={customRoleName}
+                  onChange={e => setCustomRoleName(e.target.value.toLowerCase().replace(/\s/g, '_'))} />
+              </div>
+              <div>
+                <Label>Label (visível)</Label>
+                <Input placeholder="ex: Gestor de Área" value={customRoleLabel}
+                  onChange={e => setCustomRoleLabel(e.target.value)} />
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
-            <Label>Acesso a páginas</Label>
-            {!isCustomRole && form.role && (
-              <p className="text-xs text-muted-foreground">
-                Pré-preenchido com as páginas do role. Altera individualmente se necessário.
-              </p>
-            )}
-            {isCustomRole && (
-              <p className="text-xs text-muted-foreground">
-                Role novo — todas as páginas começam desmarcadas.
-              </p>
-            )}
+            <Label>Acesso a páginas (override manual)</Label>
             <div className="grid grid-cols-3 gap-2 p-3 border rounded-md">
               {ALL_SLUGS.map(slug => (
                 <label key={slug} className="flex items-center gap-2 cursor-pointer select-none">
-                  <Checkbox
-                    checked={getPageAccess(slug)}
-                    onCheckedChange={() => togglePage(slug)}
-                    disabled={form.is_root}
-                  />
-                  <span className={`text-sm ${form.is_root ? 'text-muted-foreground' : ''}`}>
-                    {PAGE_LABELS[slug]}
-                  </span>
+                  <Checkbox checked={getPageAccess(slug)} onCheckedChange={() => togglePage(slug)} disabled={form.is_root} />
+                  <span className={`text-sm ${form.is_root ? 'text-muted-foreground' : ''}`}>{PAGE_LABELS[slug]}</span>
                 </label>
               ))}
             </div>
           </div>
 
-          {/* Project access */}
           {projetos.length > 0 && (
             <div className="space-y-2">
               <Label>Acesso a projetos</Label>
-              <p className="text-xs text-muted-foreground">
-                Deixa vazio para acesso a todos os projetos. Selecciona para limitar (project scoping).
-              </p>
+              <p className="text-xs text-muted-foreground">Deixa vazio para acesso a todos.</p>
               <div className="grid grid-cols-2 gap-2 p-3 border rounded-md">
                 {projetos.map(p => (
                   <label key={p.id} className="flex items-center gap-2 cursor-pointer select-none">
-                    <Checkbox
-                      checked={selectedProjects.includes(p.id)}
-                      onCheckedChange={() => toggleProject(p.id)}
-                      disabled={form.is_root}
-                    />
+                    <Checkbox checked={selectedProjects.includes(p.id)} onCheckedChange={() => toggleProject(p.id)} disabled={form.is_root} />
                     <span className="text-sm">{p.nome}</span>
                   </label>
                 ))}
               </div>
             </div>
           )}
-
-          {/* Coordination access toggle */}
-          <div className="flex items-center justify-between p-3 border rounded-md">
-            <div>
-              <p className="font-medium text-sm">Acesso de Coordenação</p>
-              <p className="text-xs text-muted-foreground">
-                Coordena sessões, turmas e exportações, independentemente do cargo.
-              </p>
-            </div>
-            <Switch
-              checked={form.is_coordenacao}
-              onCheckedChange={v => setForm(f => ({ ...f, is_coordenacao: v }))}
-              disabled={form.is_direcao || form.is_root}
-            />
-          </div>
-
-          {/* Direction access toggle */}
-          <div className="flex items-center justify-between p-3 border rounded-md">
-            <div>
-              <p className="font-medium text-sm">Acesso de Direção</p>
-              <p className="text-xs text-muted-foreground">
-                Acesso total à app exceto painel de administração de sistema.
-              </p>
-            </div>
-            <Switch
-              checked={form.is_direcao}
-              onCheckedChange={v => setForm(f => ({ ...f, is_direcao: v }))}
-              disabled={form.is_root}
-            />
-          </div>
-
-          {/* Root toggle */}
-          <div className="flex items-center justify-between p-3 border rounded-md">
-            <div>
-              <p className="font-medium text-sm">Acesso root</p>
-              <p className="text-xs text-muted-foreground">
-                Contorna todas as verificações de permissões. Usar apenas para IT.
-              </p>
-            </div>
-            <Switch
-              checked={form.is_root}
-              onCheckedChange={v => setForm(f => ({ ...f, is_root: v }))}
-            />
-          </div>
         </div>
 
         <DialogFooter>
@@ -485,14 +829,19 @@ function CreateUserDialog({ open, onClose, roles, projetos }: CreateUserDialogPr
   );
 }
 
-// ── Main Admin Page ────────────────────────────────────────────────────────
-
 // ── Settings Tab ──────────────────────────────────────────────────────────
+
+const SETTING_GROUPS: { prefix: string; label: string }[] = [
+  { prefix: 'app_',    label: 'Identidade' },
+  { prefix: 'module_', label: 'Módulos' },
+  { prefix: '',        label: 'Sistema' },
+];
 
 function SettingsTab() {
   const queryClient = useQueryClient();
   const { permissions } = useAuth();
   const isRoot = permissions?.is_root ?? false;
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
 
   const { data: settings, isLoading } = useQuery<SystemSettings>({
     queryKey: ['admin-settings'],
@@ -502,52 +851,155 @@ function SettingsTab() {
   const updateMutation = useMutation({
     mutationFn: ({ key, value }: { key: string; value: unknown }) =>
       api.patch(`/api/admin/settings/${key}`, { value }),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['app-identity'] });
+      setDrafts((d) => { const n = { ...d }; delete n[vars.key]; return n; });
       toast.success('Configuração guardada.');
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  if (isLoading) {
-    return <p className="text-muted-foreground py-4 text-sm">A carregar configurações…</p>;
-  }
-
-  if (!settings || Object.keys(settings).length === 0) {
+  if (isLoading) return <p className="text-muted-foreground py-4 text-sm">A carregar configurações…</p>;
+  if (!settings || Object.keys(settings).length === 0)
     return <p className="text-muted-foreground py-4 text-sm">Nenhuma configuração disponível.</p>;
-  }
+
+  const grouped = SETTING_GROUPS.map(({ prefix, label }) => ({
+    label,
+    entries: Object.entries(settings).filter(([k]) =>
+      prefix === '' ? !SETTING_GROUPS.slice(0, -1).some((g) => k.startsWith(g.prefix)) : k.startsWith(prefix)
+    ),
+  })).filter((g) => g.entries.length > 0);
 
   return (
-    <div className="space-y-3">
-      {Object.entries(settings).map(([key, setting]) => (
-        <div key={key} className="flex items-center justify-between p-4 border rounded-lg">
-          <div className="flex-1 mr-4">
-            <p className="font-medium text-sm">{setting.label ?? key}</p>
-            {setting.description && (
-              <p className="text-xs text-muted-foreground mt-0.5">{setting.description}</p>
-            )}
+    <div className="space-y-6">
+      {grouped.map((group) => (
+        <div key={group.label}>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">{group.label}</p>
+          <div className="space-y-2">
+            {group.entries.map(([key, setting]) => (
+              <div key={key} className="flex items-center justify-between p-4 border rounded-lg gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm">{setting.label ?? key}</p>
+                  {setting.description && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{setting.description}</p>
+                  )}
+                </div>
+                {typeof setting.value === 'boolean' ? (
+                  <Switch
+                    checked={setting.value}
+                    onCheckedChange={(v) => updateMutation.mutate({ key, value: v })}
+                    disabled={!isRoot || updateMutation.isPending}
+                  />
+                ) : (
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Input
+                      className="h-8 text-sm w-48"
+                      value={drafts[key] ?? String(setting.value ?? '')}
+                      onChange={(e) => setDrafts((d) => ({ ...d, [key]: e.target.value }))}
+                      disabled={!isRoot}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && drafts[key] !== undefined)
+                          updateMutation.mutate({ key, value: drafts[key] });
+                      }}
+                    />
+                    {drafts[key] !== undefined && drafts[key] !== String(setting.value ?? '') && (
+                      <Button size="sm" variant="outline" className="h-8 px-2"
+                        disabled={!isRoot || updateMutation.isPending}
+                        onClick={() => updateMutation.mutate({ key, value: drafts[key] })}>
+                        <Save className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
-          {typeof setting.value === 'boolean' ? (
-            <Switch
-              checked={setting.value}
-              onCheckedChange={(v) => updateMutation.mutate({ key, value: v })}
-              disabled={!isRoot || updateMutation.isPending}
-            />
-          ) : (
-            <span className="text-sm font-mono text-muted-foreground">
-              {String(setting.value)}
-            </span>
-          )}
         </div>
       ))}
       {!isRoot && (
-        <p className="text-xs text-muted-foreground mt-2">
-          Apenas utilizadores root podem alterar estas configurações.
-        </p>
+        <p className="text-xs text-muted-foreground mt-1">Apenas utilizadores root podem alterar estas configurações.</p>
       )}
     </div>
   );
 }
+
+// ── Audit Tab ─────────────────────────────────────────────────────────────
+
+function AuditTab() {
+  const { data: logs = [], isLoading } = useQuery<AuditLog[]>({
+    queryKey: ['admin-audit-logs'],
+    queryFn: () => api.get('/api/admin/audit-logs?limit=200'),
+  });
+
+  function exportCsv() {
+    const header = 'Data,Utilizador,Ação,Tipo,ID,Detalhes';
+    const rows = logs.map((l) =>
+      [l.created_at, l.user_email ?? '', l.action, l.target_type ?? '', l.target_id ?? '',
+        l.details ? JSON.stringify(l.details) : '']
+        .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+        .join(',')
+    );
+    const blob = new Blob([[header, ...rows].join('\n')], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `audit_log_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  if (isLoading) return <p className="text-muted-foreground py-4 text-sm">A carregar…</p>;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button size="sm" variant="outline" onClick={exportCsv} disabled={logs.length === 0}>
+          <Download className="h-4 w-4 mr-1" /> Exportar CSV
+        </Button>
+      </div>
+      {logs.length === 0 ? (
+        <p className="text-muted-foreground text-sm py-4">Nenhuma entrada no registo de auditoria.</p>
+      ) : (
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Data</th>
+                <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Utilizador</th>
+                <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground">Ação</th>
+                <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground hidden md:table-cell">Alvo</th>
+                <th className="text-left px-3 py-2 font-medium text-xs text-muted-foreground hidden lg:table-cell">Detalhe</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {logs.map((log) => (
+                <tr key={log.id} className="hover:bg-muted/30">
+                  <td className="px-3 py-2 text-xs text-muted-foreground whitespace-nowrap">
+                    {new Date(log.created_at).toLocaleString('pt-PT')}
+                  </td>
+                  <td className="px-3 py-2 text-xs">{log.user_email ?? '—'}</td>
+                  <td className="px-3 py-2">
+                    <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{log.action}</span>
+                  </td>
+                  <td className="px-3 py-2 text-xs hidden md:table-cell">
+                    {log.target_type && <span className="text-muted-foreground">{log.target_type}</span>}
+                    {log.target_id && <span className="ml-1 font-mono">{log.target_id}</span>}
+                  </td>
+                  <td className="px-3 py-2 text-xs text-muted-foreground hidden lg:table-cell max-w-xs truncate">
+                    {log.details ? JSON.stringify(log.details) : ''}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Main Admin Page ────────────────────────────────────────────────────────
 
 export default function Admin() {
   const [creatingUser, setCreatingUser] = useState(false);
@@ -574,15 +1026,32 @@ export default function Admin() {
         </Button>
       </div>
 
-      <Tabs defaultValue="roles">
+      <Tabs defaultValue="patentes">
         <TabsList>
+          <TabsTrigger value="patentes">
+            <Award className="h-4 w-4 mr-1" /> Patentes
+          </TabsTrigger>
           <TabsTrigger value="roles">
             <BookOpen className="h-4 w-4 mr-1" /> Roles
           </TabsTrigger>
           <TabsTrigger value="configuracoes">
             <Settings className="h-4 w-4 mr-1" /> Configurações
           </TabsTrigger>
+          <TabsTrigger value="auditoria">
+            <ClipboardList className="h-4 w-4 mr-1" /> Auditoria
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="patentes" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Hierarquia de Patentes</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PatentesTab />
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="roles" className="mt-4">
           <Card>
@@ -602,6 +1071,17 @@ export default function Admin() {
             </CardHeader>
             <CardContent>
               <SettingsTab />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="auditoria" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Registo de Auditoria</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <AuditTab />
             </CardContent>
           </Card>
         </TabsContent>
