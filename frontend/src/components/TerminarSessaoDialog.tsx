@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Camera, CheckCircle2, Images, Mic, MicOff, MessageSquare, Play, Plus, RefreshCw, Square, Trash2, Upload, X } from 'lucide-react';
+import { Camera, CheckCircle2, Images, Mic, MicOff, MessageSquare, RefreshCw, Square, Trash2, Upload, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -50,6 +50,12 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const sessionRef = useRef<RecordingSession | null>(null);
+
+  // Refs para file inputs — padrão fiável em iOS Safari dentro de modais
+  const registoCameraRef = useRef<HTMLInputElement>(null);
+  const registoGalleryRef = useRef<HTMLInputElement>(null);
+  const evidenciaCameraRef = useRef<HTMLInputElement>(null);
+  const evidenciaGalleryRef = useRef<HTMLInputElement>(null);
 
   // Reset completo ao fechar
   useEffect(() => {
@@ -216,7 +222,6 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
           <DialogDescription>
             Passo {step} de 3 — {stepLabels[step - 1]}
           </DialogDescription>
-          {/* Step indicator */}
           <div className="flex gap-1.5 pt-1">
             {[1, 2, 3].map(n => (
               <div
@@ -234,24 +239,33 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
         {step === 1 && (
           <div className="space-y-4 py-2">
             <Label className="font-medium">Fotografa a folha de registo da sessão</Label>
-            <label htmlFor="registo-file-input" className="w-full cursor-pointer">
-              <div className={cn(
-                'flex items-center justify-center gap-2 w-full px-4 py-3 rounded-md border border-input bg-background text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors',
-                registoUpload.status === 'uploading' && 'opacity-50 pointer-events-none'
-              )}>
-                <Upload className="h-4 w-4" />
-                {registoUpload.status === 'uploading' ? 'A processar...' : 'Tirar foto / Escolher ficheiro'}
-              </div>
-              <input
-                id="registo-file-input"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="sr-only"
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2"
                 disabled={registoUpload.status === 'uploading'}
-                onChange={e => { const f = e.target.files?.[0]; if (f) handleRegistoFile(f); e.target.value = ''; }}
-              />
-            </label>
+                onClick={() => registoCameraRef.current?.click()}
+              >
+                <Camera className="h-4 w-4" />
+                Câmara
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="gap-2"
+                disabled={registoUpload.status === 'uploading'}
+                onClick={() => registoGalleryRef.current?.click()}
+              >
+                <Images className="h-4 w-4" />
+                Galeria
+              </Button>
+            </div>
+            {registoUpload.status === 'uploading' && (
+              <p className="text-sm text-muted-foreground animate-pulse flex items-center gap-1.5">
+                <Upload className="h-4 w-4" /> A processar...
+              </p>
+            )}
             {registoUpload.status === 'done' && (
               <p className="text-sm text-green-600 flex items-center gap-1">
                 ✓ Registo enviado ({registoUpload.sizeKb} KB)
@@ -260,6 +274,22 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
             {registoUpload.status === 'error' && (
               <p className="text-sm text-destructive">{registoUpload.error}</p>
             )}
+            {/* Inputs ocultos via display:none — mais fiáveis que sr-only em iOS */}
+            <input
+              ref={registoCameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleRegistoFile(f); e.target.value = ''; }}
+            />
+            <input
+              ref={registoGalleryRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleRegistoFile(f); e.target.value = ''; }}
+            />
           </div>
         )}
 
@@ -290,40 +320,48 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
                 </div>
               ))}
               {evidencias.length < 5 && (
-                <div className="aspect-square rounded-md border-2 border-dashed border-muted-foreground/30 flex flex-col items-center justify-center gap-2 hover:border-muted-foreground/60 transition-colors">
-                  <label htmlFor="evidencia-camera-input" className="flex flex-col items-center gap-0.5 cursor-pointer p-1 rounded hover:bg-muted transition-colors">
+                <div className="aspect-square rounded-md border-2 border-dashed border-muted-foreground/30 flex flex-col items-center justify-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => evidenciaCameraRef.current?.click()}
+                    className="flex flex-col items-center gap-0.5 p-1.5 rounded hover:bg-muted transition-colors w-full"
+                  >
                     <Camera className="h-5 w-5 text-muted-foreground/60" />
                     <span className="text-[10px] text-muted-foreground/60">Câmara</span>
-                    <input
-                      id="evidencia-camera-input"
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="sr-only"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) handleEvidenciaFile(f); e.target.value = ''; }}
-                    />
-                  </label>
-                  <label htmlFor="evidencia-gallery-input" className="flex flex-col items-center gap-0.5 cursor-pointer p-1 rounded hover:bg-muted transition-colors">
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => evidenciaGalleryRef.current?.click()}
+                    className="flex flex-col items-center gap-0.5 p-1.5 rounded hover:bg-muted transition-colors w-full"
+                  >
                     <Images className="h-5 w-5 text-muted-foreground/60" />
                     <span className="text-[10px] text-muted-foreground/60">Galeria</span>
-                    <input
-                      id="evidencia-gallery-input"
-                      type="file"
-                      accept="image/*"
-                      className="sr-only"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) handleEvidenciaFile(f); e.target.value = ''; }}
-                    />
-                  </label>
+                  </button>
                 </div>
               )}
             </div>
             {evidencias.length === 0 && (
               <p className="text-xs text-muted-foreground">Podes ignorar este passo se não tiveres fotos para partilhar.</p>
             )}
+            <input
+              ref={evidenciaCameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleEvidenciaFile(f); e.target.value = ''; }}
+            />
+            <input
+              ref={evidenciaGalleryRef}
+              type="file"
+              accept="image/*"
+              style={{ display: 'none' }}
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleEvidenciaFile(f); e.target.value = ''; }}
+            />
           </div>
         )}
 
-        {/* ── Step 3: Avaliação + Áudio ── */}
+        {/* ── Step 3: Avaliação + Feedback ── */}
         {step === 3 && (
           <div className="space-y-5 py-2">
             <div className="space-y-2">
@@ -354,9 +392,7 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
                     onClick={() => setFeedbackMode('audio')}
                     className={cn(
                       'flex items-center gap-1 px-2.5 py-1 transition-colors',
-                      feedbackMode === 'audio'
-                        ? 'bg-[#6B7280] text-white'
-                        : 'text-muted-foreground hover:bg-muted'
+                      feedbackMode === 'audio' ? 'bg-[#6B7280] text-white' : 'text-muted-foreground hover:bg-muted'
                     )}
                   >
                     <Mic className="h-3 w-3" /> Áudio
@@ -366,9 +402,7 @@ export function TerminarSessaoDialog({ open, onOpenChange, aulaId, projetoId, re
                     onClick={() => setFeedbackMode('text')}
                     className={cn(
                       'flex items-center gap-1 px-2.5 py-1 transition-colors',
-                      feedbackMode === 'text'
-                        ? 'bg-[#6B7280] text-white'
-                        : 'text-muted-foreground hover:bg-muted'
+                      feedbackMode === 'text' ? 'bg-[#6B7280] text-white' : 'text-muted-foreground hover:bg-muted'
                     )}
                   >
                     <MessageSquare className="h-3 w-3" /> Texto
