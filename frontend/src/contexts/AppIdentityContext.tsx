@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, ReactNode } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 interface AppIdentity {
   appName: string;
@@ -19,32 +20,29 @@ const AppIdentityContext = createContext<AppIdentity>(DEFAULT_IDENTITY);
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 export function AppIdentityProvider({ children }: { children: ReactNode }) {
-  const [identity, setIdentity] = useState<AppIdentity>(DEFAULT_IDENTITY);
+  const { data } = useQuery({
+    queryKey: ['app-identity'],
+    queryFn: () => fetch(`${API_URL}/api/public/identity`).then((r) => r.json()),
+    staleTime: 60_000,
+  });
+
+  const identity: AppIdentity = data
+    ? {
+        appName:      data.app_name          || DEFAULT_IDENTITY.appName,
+        logoUrl:      data.app_logo_url      || '',
+        supportEmail: data.app_support_email || '',
+        primaryColor: data.app_primary_color || DEFAULT_IDENTITY.primaryColor,
+      }
+    : DEFAULT_IDENTITY;
 
   useEffect(() => {
-    fetch(`${API_URL}/api/public/identity`)
-      .then((r) => r.json())
-      .then((data) => {
-        const resolved: AppIdentity = {
-          appName:      data.app_name      || DEFAULT_IDENTITY.appName,
-          logoUrl:      data.app_logo_url  || '',
-          supportEmail: data.app_support_email || '',
-          primaryColor: data.app_primary_color || DEFAULT_IDENTITY.primaryColor,
-        };
-        setIdentity(resolved);
-        // Apply primary color as CSS variable
-        if (resolved.primaryColor) {
-          document.documentElement.style.setProperty('--color-brand', resolved.primaryColor);
-        }
-        // Update browser tab title
-        if (resolved.appName) {
-          document.title = resolved.appName;
-        }
-      })
-      .catch(() => {
-        // Silently fall back to defaults
-      });
-  }, []);
+    if (identity.primaryColor) {
+      document.documentElement.style.setProperty('--color-brand', identity.primaryColor);
+    }
+    if (identity.appName) {
+      document.title = identity.appName;
+    }
+  }, [identity.primaryColor, identity.appName]);
 
   return (
     <AppIdentityContext.Provider value={identity}>

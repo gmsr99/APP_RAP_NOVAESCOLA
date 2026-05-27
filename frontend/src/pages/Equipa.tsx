@@ -189,11 +189,21 @@ const Equipa = () => {
 
         // If admin, also save permissions
         if (isAdmin && advPerms) {
+            // Strip overrides that merely repeat what the patente already grants/denies
+            const pat = advPerms.permission_level_id
+                ? patentes.find(p => p.id === advPerms.permission_level_id)
+                : null;
+            const cleanOverrides = Object.fromEntries(
+                Object.entries(advPerms.page_overrides).filter(([slug, granted]) => {
+                    const base = pat ? pat.allowed_pages.includes(slug) : advPerms.role_pages.includes(slug);
+                    return granted !== base;
+                })
+            );
             updatePermsMutation.mutate({
                 userId: editTarget.id,
                 data: {
                     role: editForm.role,
-                    page_overrides: advPerms.page_overrides,
+                    page_overrides: cleanOverrides,
                     project_ids: advPerms.project_ids,
                     permission_level_id: advPerms.permission_level_id,
                 },
@@ -206,7 +216,14 @@ const Equipa = () => {
 
     const getPageAccess = (slug: string): boolean => {
         if (!advPerms) return false;
+        // Explicit override wins always
         if (advPerms.page_overrides[slug] !== undefined) return advPerms.page_overrides[slug];
+        // If user has a patente, use its allowed_pages as the base
+        if (advPerms.permission_level_id) {
+            const pat = patentes.find(p => p.id === advPerms.permission_level_id);
+            if (pat) return pat.allowed_pages.includes(slug);
+        }
+        // Legacy fallback: role page permissions
         return advPerms.role_pages.includes(slug);
     };
 
