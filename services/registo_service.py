@@ -330,15 +330,18 @@ def criar_registo(
     horario: Optional[str] = None,
     tecnicos: Optional[str] = None,
     kms_percorridos: Optional[float] = None,
+    leva_carro: Optional[bool] = None,
 ) -> Optional[Dict[str, Any]]:
     """Cria um registo de sessão."""
     import json
 
     sql_insert = text("""
         INSERT INTO registos (aula_id, user_id, numero_sessao, objetivos_gerais, sumario, participantes,
-                              atividade, data_registo, local_registo, horario, tecnicos, kms_percorridos)
+                              atividade, data_registo, local_registo, horario, tecnicos, kms_percorridos,
+                              leva_carro)
         VALUES (:aula_id, :user_id, :numero_sessao, :objetivos_gerais, :sumario, CAST(:participantes AS jsonb),
-                :atividade, :data_registo, :local_registo, :horario, :tecnicos, :kms_percorridos)
+                :atividade, :data_registo, :local_registo, :horario, :tecnicos, :kms_percorridos,
+                :leva_carro)
         RETURNING id, criado_em
     """)
 
@@ -359,6 +362,7 @@ def criar_registo(
                     "horario": horario,
                     "tecnicos": tecnicos,
                     "kms_percorridos": kms_percorridos,
+                    "leva_carro": leva_carro,
                 },
             ).first()
             session.commit()

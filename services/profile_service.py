@@ -115,15 +115,24 @@ def atualizar_producao_cols(user_id: str, cols):
         return False
 
 
-def atualizar_dados_financeiros(user_id: str, nif: str | None, morada: str | None, cod_postal: str | None, funcao: str | None) -> bool:
+def atualizar_dados_financeiros(
+    user_id: str,
+    nif: str | None,
+    morada: str | None,
+    cod_postal: str | None,
+    funcao: str | None,
+    matricula_viatura: str | None = None,
+) -> bool:
     """Atualiza os dados financeiros pessoais de um utilizador."""
     try:
         from database.connection import get_db_connection
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
-            "UPDATE profiles SET nif = %s, morada = %s, cod_postal = %s, funcao = %s, updated_at = NOW() WHERE id = %s",
-            (nif or None, morada or None, cod_postal or None, funcao or None, user_id)
+            "UPDATE profiles SET nif = %s, morada = %s, cod_postal = %s, funcao = %s, "
+            "matricula_viatura = %s, updated_at = NOW() WHERE id = %s",
+            (nif or None, morada or None, cod_postal or None, funcao or None,
+             matricula_viatura or None, user_id)
         )
         conn.commit()
         cur.close()

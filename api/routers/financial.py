@@ -5,6 +5,7 @@ from auth import get_current_user_required, get_current_user_optional
 from api.deps import _require_admin, _require_direcao, _require_coordenacao, _require_root_or_role, _require_action
 from services import permission_service as _perm_svc
 from services import honorario_service as _hon_svc
+from services import km_service as _km_svc
 from services import profile_service
 
 router = APIRouter()
@@ -28,6 +29,14 @@ class DadosFinanceirosUpdate(BaseModel):
     morada: Optional[str] = None
     cod_postal: Optional[str] = None
     funcao: Optional[str] = None
+    matricula_viatura: Optional[str] = None
+
+
+class MapaKmsRequest(BaseModel):
+    projeto_id: int
+    mes: int
+    ano: int
+    target_user_id: Optional[str] = None
 
 
 @router.post("/api/honorarios/gerar", tags=["Financeiro"])
@@ -100,8 +109,52 @@ async def get_rates_projeto(projeto_id: int, user=Depends(get_current_user_requi
 async def update_dados_financeiros(payload: DadosFinanceirosUpdate, user=Depends(get_current_user_required)):
     """Atualiza dados financeiros pessoais do utilizador autenticado."""
     sucesso = profile_service.atualizar_dados_financeiros(
-        user.get("sub"), payload.nif, payload.morada, payload.cod_postal, payload.funcao
+        user.get("sub"), payload.nif, payload.morada, payload.cod_postal,
+        payload.funcao, payload.matricula_viatura
     )
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao guardar dados financeiros.")
     return {"ok": True}
+
+
+@router.post("/api/mapas-kms/gerar", tags=["Financeiro"])
+async def gerar_mapa_kms(payload: MapaKmsRequest, user=Depends(get_current_user_required)):
+    """Gera mapa de KMs em XLSX. Próprio utilizador ou coordenação para outro."""
+    from fastapi.responses import Response as _Resp
+
+    user_id = user.get("sub")
+    target = payload.target_user_id or user_id
+    if target != user_id:
+        _require_coordenacao(user)
+
+    try:
+        xlsx_bytes = _km_svc.gerar_mapa_kms(target, payload.projeto_id, payload.mes, payload.ano)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    mes_str = str(payload.mes).zfill(2)
+    filename = f"mapa_kms_{mes_str}_{payload.ano}.xlsx"
+    return _Resp(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/api/mapas-kms/preview", tags=["Financeiro"])
+async def preview_mapa_kms(
+    projeto_id: int,
+    mes: int,
+    ano: int,
+    target_user_id: Optional[str] = None,
+    user=Depends(get_current_user_required),
+):
+    """Pré-visualização do mapa de KMs sem gerar o ficheiro."""
+    user_id = user.get("sub")
+    target = target_user_id or user_id
+    if target != user_id:
+        _require_coordenacao(user)
+    try:
+        return _km_svc.obter_preview_mapa_kms(target, projeto_id, mes, ano)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

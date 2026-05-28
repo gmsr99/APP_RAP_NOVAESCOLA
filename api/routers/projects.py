@@ -32,6 +32,7 @@ class ProjetoConfigPayload(BaseModel):
     honorario_nipc: Optional[str] = None
     honorario_designacao: Optional[str] = None
     usar_sub_projetos: Optional[bool] = None
+    usar_template_km_proprio: Optional[bool] = None
 
 
 class SubProjetoCreate(BaseModel):
@@ -116,7 +117,7 @@ async def update_projeto_config(id: int, data: ProjetoConfigPayload, user=Depend
         id, data.requer_digitalizacao, data.tem_pre_registos, data.codigo_projeto, data.usar_template_proprio,
         data.usa_template_pis, data.honorario_entidade, data.honorario_morada,
         data.honorario_cod_postal, data.honorario_nipc, data.honorario_designacao,
-        data.usar_sub_projetos,
+        data.usar_sub_projetos, data.usar_template_km_proprio,
     )
     if not sucesso:
         raise HTTPException(status_code=404, detail="Projeto não encontrado")

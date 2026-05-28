@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Car } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -344,6 +345,11 @@ const Registos = () => {
   const [editingRegisto, setEditingRegisto] = useState<Registo | null>(null);
   const [selectedProjetoId, setSelectedProjetoId] = useState<number | null>(null);
 
+  // "Levas o teu carro?" dialog
+  const [levaCarro, setLevaCarro] = useState<boolean | null>(null);
+  const [levaCarroDialogOpen, setLevaCarroDialogOpen] = useState(false);
+  const [levaCarroAviso, setLevaCarroAviso] = useState<string | null>(null);
+
   // ─── Queries ────────────────────────────────────────────────────────────
 
   const { data: todosProjetos = [] } = useQuery({
@@ -578,11 +584,48 @@ const Registos = () => {
     });
   };
 
-  const openModal = () => {
+  const openModal = async () => {
     if (!selectedSession) {
       toast({ title: 'Seleciona uma sessão', description: 'Escolhe uma sessão no dropdown primeiro.', variant: 'destructive' });
       return;
     }
+
+    // Only ask about car for presencial sessions
+    if (!selectedSession.is_autonomous) {
+      const sessionDate = selectedSession.data_hora.split('T')[0];
+      try {
+        const res = await api.get(`/api/registos/leva-carro-dia?data=${sessionDate}`);
+        const jaRespondeu: boolean | null = res.data?.leva_carro ?? null;
+        if (jaRespondeu !== null) {
+          // Already answered today — inherit silently
+          setLevaCarro(jaRespondeu);
+        } else {
+          // First session of the day — show popup
+          const semCoords =
+            !selectedSession.mentor_latitude || !selectedSession.mentor_longitude ||
+            !selectedSession.estab_latitude || !selectedSession.estab_longitude;
+          setLevaCarroAviso(
+            semCoords
+              ? 'Atenção: falta a localização do teu perfil ou do estabelecimento. Se levares carro, os KMs não poderão ser calculados automaticamente — contacta a coordenação para completar os dados.'
+              : null
+          );
+          setLevaCarroDialogOpen(true);
+          return; // modal opens after user answers
+        }
+      } catch {
+        // If endpoint fails, open modal directly without leva_carro
+        setLevaCarro(null);
+      }
+    } else {
+      setLevaCarro(null);
+    }
+
+    setModalOpen(true);
+  };
+
+  const handleLevaCarroResposta = (resposta: boolean) => {
+    setLevaCarro(resposta);
+    setLevaCarroDialogOpen(false);
     setModalOpen(true);
   };
 
@@ -601,11 +644,13 @@ const Registos = () => {
       horario: formData.horario || null,
       tecnicos: formData.tecnicos || null,
       kms_percorridos: formData.kms_percorridos ? Number(formData.kms_percorridos) : null,
+      leva_carro: levaCarro,
     });
 
     setModalOpen(false);
     setSelectedSessionId('');
     setSelectedSession(null);
+    setLevaCarro(null);
   };
 
   const _downloadPdfBlob = (data: ArrayBuffer, filename: string) => {
@@ -1277,6 +1322,33 @@ const Registos = () => {
                 Guardar & Exportar
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── "Levas o teu carro?" dialog ── */}
+      <Dialog open={levaCarroDialogOpen} onOpenChange={(open) => { if (!open) { setLevaCarroDialogOpen(false); } }}>
+        <DialogContent className="sm:max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Car className="h-4 w-4" /> Levas o teu carro?
+            </DialogTitle>
+            <DialogDescription>
+              A resposta é registada para todas as sessões deste dia.
+            </DialogDescription>
+          </DialogHeader>
+          {levaCarroAviso && (
+            <div className="rounded-md bg-amber-50 border border-amber-200 p-3 text-xs text-amber-700">
+              ⚠ {levaCarroAviso}
+            </div>
+          )}
+          <DialogFooter className="flex-row gap-2 sm:gap-2">
+            <Button variant="outline" className="flex-1" onClick={() => handleLevaCarroResposta(false)}>
+              Não
+            </Button>
+            <Button className="flex-1" onClick={() => handleLevaCarroResposta(true)}>
+              Sim
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

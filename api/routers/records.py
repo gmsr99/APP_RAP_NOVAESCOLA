@@ -6,7 +6,7 @@ from auth import get_current_user_required, get_current_user_optional
 from api.deps import _require_admin, _require_direcao, _require_coordenacao, _require_root_or_role, _require_action
 from services import permission_service as _perm_svc
 from services import registo_service, aula_registo_service, aula_evidencia_service
-from services import aula_service, projeto_service
+from services import aula_service, projeto_service, km_service as _km_svc
 
 router = APIRouter()
 
@@ -48,6 +48,7 @@ class RegistoCreate(BaseModel):
     horario: Optional[str] = None
     tecnicos: Optional[str] = None
     kms_percorridos: Optional[float] = None
+    leva_carro: Optional[bool] = None
 
 
 class RegistoUpdate(BaseModel):
@@ -61,6 +62,7 @@ class RegistoUpdate(BaseModel):
     horario: Optional[str] = None
     tecnicos: Optional[str] = None
     kms_percorridos: Optional[float] = None
+    leva_carro: Optional[bool] = None
 
 
 @router.get("/api/aulas/registaveis", tags=["Registos"])
@@ -191,6 +193,13 @@ async def export_aula_feedback(
     )
 
 
+@router.get("/api/registos/leva-carro-dia", tags=["Registos"])
+async def get_leva_carro_dia(data: str, user=Depends(get_current_user_required)):
+    """Retorna a resposta 'leva_carro' já dada neste dia (null se ainda não respondeu)."""
+    valor = _km_svc.obter_leva_carro_dia(user.get("sub"), data)
+    return {"leva_carro": valor}
+
+
 @router.get("/api/registos", tags=["Registos"])
 async def get_registos(user=Depends(get_current_user_required)):
     """Lista registos do user autenticado."""
@@ -236,6 +245,7 @@ async def create_registo(registo: RegistoCreate, user=Depends(get_current_user_r
         horario=registo.horario,
         tecnicos=registo.tecnicos,
         kms_percorridos=registo.kms_percorridos,
+        leva_carro=registo.leva_carro,
     )
     if not resultado:
         raise HTTPException(status_code=500, detail="Erro ao criar registo. Verifica se a migração 002_registos.sql foi executada.")

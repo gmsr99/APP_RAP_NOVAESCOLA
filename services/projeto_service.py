@@ -5,7 +5,7 @@ from database.connection import get_db_connection
 logger = logging.getLogger(__name__)
 
 
-_PROJETO_COLS = "id, nome, descricao, estado, requer_digitalizacao, tem_pre_registos, codigo_projeto, logo_esq_path, logo_dir_path, footer_path, usar_template_proprio, usa_template_pis, honorario_entidade, honorario_morada, honorario_cod_postal, honorario_nipc, honorario_designacao, usar_sub_projetos"
+_PROJETO_COLS = "id, nome, descricao, estado, requer_digitalizacao, tem_pre_registos, codigo_projeto, logo_esq_path, logo_dir_path, footer_path, usar_template_proprio, usa_template_pis, honorario_entidade, honorario_morada, honorario_cod_postal, honorario_nipc, honorario_designacao, usar_sub_projetos, usar_template_km_proprio"
 
 
 def listar_projetos(allowed_ids=None):
@@ -205,6 +205,7 @@ def atualizar_config_projeto(
     honorario_nipc: str | None = None,
     honorario_designacao: str | None = None,
     usar_sub_projetos: bool | None = None,
+    usar_template_km_proprio: bool | None = None,
 ) -> bool:
     """Atualiza as configurações de um projeto."""
     conn = get_db_connection()
@@ -227,6 +228,9 @@ def atualizar_config_projeto(
         if usar_sub_projetos is not None:
             sets.append("usar_sub_projetos = %s")
             vals.append(usar_sub_projetos)
+        if usar_template_km_proprio is not None:
+            sets.append("usar_template_km_proprio = %s")
+            vals.append(usar_template_km_proprio)
         for col, val in [
             ("honorario_entidade", honorario_entidade),
             ("honorario_morada", honorario_morada),

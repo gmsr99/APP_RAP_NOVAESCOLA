@@ -31,7 +31,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
-import { Download, Pencil, Euro } from 'lucide-react';
+import { Download, Pencil, Euro, Car } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -69,6 +69,16 @@ interface HonorarioPreview {
   mes: number;
   ano: number;
   num_sessoes: number;
+}
+
+interface MapaKmsPreview {
+  num_sessoes: number;
+  num_dias: number;
+  data_inicio: string;
+  data_fim: string;
+  data_doc: string;
+  mentor_nome: string;
+  avisos: string[];
 }
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -115,7 +125,13 @@ const Financeiro = () => {
 
   // Financial data dialog
   const [dadosOpen, setDadosOpen] = useState(false);
-  const [dadosForm, setDadosForm] = useState({ nif: '', morada: '', cod_postal: '', funcao: '' });
+  const [dadosForm, setDadosForm] = useState({ nif: '', morada: '', cod_postal: '', funcao: '', matricula_viatura: '' });
+
+  // Mapa de KMs state
+  const [kmProjetoId, setKmProjetoId] = useState<string>('');
+  const [kmMes, setKmMes] = useState<string>(String(new Date().getMonth() + 1));
+  const [kmAno, setKmAno] = useState<string>(String(currentYear));
+  const [kmTargetUserId, setKmTargetUserId] = useState<string>('');
 
   // ─── Queries ───────────────────────────────────────────────────────────────
 
@@ -170,6 +186,18 @@ const Financeiro = () => {
     queryFn: async () => (await api.get('/api/equipa')).data.find((m: Membro) => m.id === user?.id),
   });
 
+  const kmPreviewParams = { projeto_id: kmProjetoId, mes: kmMes, ano: kmAno, target_user_id: kmTargetUserId || undefined };
+  const { data: kmPreview, isLoading: kmPreviewLoading, error: kmPreviewError } = useQuery<MapaKmsPreview>({
+    queryKey: ['km-preview', kmPreviewParams],
+    queryFn: async () => {
+      const params: Record<string, string> = { projeto_id: kmProjetoId, mes: kmMes, ano: kmAno };
+      if (kmTargetUserId) params.target_user_id = kmTargetUserId;
+      return (await api.get('/api/mapas-kms/preview', { params })).data;
+    },
+    enabled: !!kmProjetoId && !!kmMes && !!kmAno,
+    retry: false,
+  });
+
   // ─── Mutations ─────────────────────────────────────────────────────────────
 
   const downloadMutation = useMutation({
@@ -206,6 +234,28 @@ const Financeiro = () => {
     onError: () => toast({ title: 'Erro', description: 'Falha ao guardar rate.', variant: 'destructive' }),
   });
 
+  const downloadKmMutation = useMutation({
+    mutationFn: async () => {
+      const payload: Record<string, unknown> = { projeto_id: parseInt(kmProjetoId), mes: parseInt(kmMes), ano: parseInt(kmAno) };
+      if (kmTargetUserId) payload.target_user_id = kmTargetUserId;
+      return api.post('/api/mapas-kms/gerar', payload, { responseType: 'blob' });
+    },
+    onSuccess: (res) => {
+      const url = URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `mapa_kms_${kmMes.padStart(2, '0')}_${kmAno}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: 'Download iniciado', description: 'O mapa de KMs foi gerado.' });
+    },
+    onError: (err: any) => toast({
+      title: 'Erro',
+      description: err?.response?.data?.detail || 'Falha ao gerar mapa de KMs.',
+      variant: 'destructive',
+    }),
+  });
+
   const saveDadosMutation = useMutation({
     mutationFn: () => api.patch('/api/profile/financeiro', dadosForm),
     onSuccess: () => {
@@ -224,6 +274,7 @@ const Financeiro = () => {
       morada: (myProfile as any)?.morada || '',
       cod_postal: (myProfile as any)?.cod_postal || '',
       funcao: (myProfile as any)?.funcao || '',
+      matricula_viatura: (myProfile as any)?.matricula_viatura || '',
     });
     setDadosOpen(true);
   };
@@ -244,6 +295,7 @@ const Financeiro = () => {
       <Tabs defaultValue="gerar">
         <TabsList>
           <TabsTrigger value="gerar">Gerar Nota</TabsTrigger>
+          <TabsTrigger value="mapa-kms">Mapa de KMs</TabsTrigger>
           <TabsTrigger value="dados">Os Meus Dados</TabsTrigger>
           {canManageRates && <TabsTrigger value="rates">Gestão de Rates</TabsTrigger>}
         </TabsList>
@@ -396,6 +448,111 @@ const Financeiro = () => {
           </Button>
         </TabsContent>
 
+        {/* ── Tab: Mapa de KMs ── */}
+        <TabsContent value="mapa-kms" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Parâmetros</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs">Projeto</Label>
+                  <Select value={kmProjetoId} onValueChange={setKmProjetoId}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Selecionar projeto" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {projetos.map(p => (
+                        <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Mês</Label>
+                  <Select value={kmMes} onValueChange={setKmMes}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {MESES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Ano</Label>
+                  <Select value={kmAno} onValueChange={setKmAno}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {ANOS.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {isCoord && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Gerar para outro utilizador (opcional)</Label>
+                  <Select value={kmTargetUserId || '__self'} onValueChange={v => setKmTargetUserId(v === '__self' ? '' : v)}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Próprio utilizador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__self">Próprio utilizador</SelectItem>
+                      {equipa.map(m => (
+                        <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {kmProjetoId && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Pré-visualização</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {kmPreviewLoading && <p className="text-sm text-muted-foreground">A carregar...</p>}
+                {(kmPreviewError as any)?.response?.data?.detail && (
+                  <p className="text-sm text-destructive">{(kmPreviewError as any).response.data.detail}</p>
+                )}
+                {kmPreview && !kmPreviewLoading && (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-y-2 text-sm">
+                      <span className="text-muted-foreground">Período</span>
+                      <span>{kmPreview.data_inicio} → {kmPreview.data_fim}</span>
+                      <span className="text-muted-foreground">Data do documento</span>
+                      <span>{kmPreview.data_doc}</span>
+                      <span className="text-muted-foreground">Sessões com carro</span>
+                      <span>{kmPreview.num_sessoes} sessão(ões) em {kmPreview.num_dias} dia(s)</span>
+                      <span className="text-muted-foreground">Mentor</span>
+                      <span>{kmPreview.mentor_nome || '—'}</span>
+                    </div>
+                    {kmPreview.avisos.length > 0 && (
+                      <div className="rounded-md bg-amber-50 border border-amber-200 p-3 space-y-1">
+                        {kmPreview.avisos.map((a, i) => (
+                          <p key={i} className="text-xs text-amber-700">⚠ {a}</p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          <Button
+            disabled={!kmProjetoId || downloadKmMutation.isPending}
+            onClick={() => downloadKmMutation.mutate()}
+            className="w-full sm:w-auto"
+          >
+            <Car className="w-4 h-4 mr-2" />
+            {downloadKmMutation.isPending ? 'A gerar...' : 'Gerar e Descarregar XLSX'}
+          </Button>
+        </TabsContent>
+
         {/* ── Tab: Os Meus Dados ── */}
         <TabsContent value="dados" className="mt-4">
           <Card>
@@ -417,9 +574,11 @@ const Financeiro = () => {
                 <span>{(myProfile as any)?.morada || <span className="text-muted-foreground italic">Não definida</span>}</span>
                 <span className="text-muted-foreground">Cód. Postal</span>
                 <span>{(myProfile as any)?.cod_postal || <span className="text-muted-foreground italic">Não definido</span>}</span>
+                <span className="text-muted-foreground">Matrícula da viatura</span>
+                <span>{(myProfile as any)?.matricula_viatura || <span className="text-muted-foreground italic">Não definida</span>}</span>
               </div>
               <p className="text-xs text-muted-foreground mt-4">
-                Estes dados serão incluídos automaticamente na nota de honorários. O valor/hora é configurado por projeto.
+                Estes dados serão incluídos automaticamente nas notas de honorários e mapas de KMs. O valor/hora é configurado por projeto.
               </p>
             </CardContent>
           </Card>
@@ -538,6 +697,10 @@ const Financeiro = () => {
             <div className="space-y-1">
               <Label className="text-xs">Cód. Postal</Label>
               <Input value={dadosForm.cod_postal} onChange={e => setDadosForm(f => ({ ...f, cod_postal: e.target.value }))} placeholder="0000-000" className="h-9 text-sm" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Matrícula da viatura</Label>
+              <Input value={dadosForm.matricula_viatura} onChange={e => setDadosForm(f => ({ ...f, matricula_viatura: e.target.value }))} placeholder="00-AA-00" className="h-9 text-sm" />
             </div>
           </div>
           <DialogFooter>

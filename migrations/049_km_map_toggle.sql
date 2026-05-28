@@ -1,0 +1,8 @@
+ALTER TABLE projetos
+  ADD COLUMN IF NOT EXISTS usar_template_km_proprio BOOLEAN DEFAULT FALSE;
+
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS matricula_viatura VARCHAR(50);
+
+ALTER TABLE registos
+  ADD COLUMN IF NOT EXISTS leva_carro BOOLEAN DEFAULT NULL;
