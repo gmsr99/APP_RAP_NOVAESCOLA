@@ -265,6 +265,45 @@ def gerar_mapa_kms(user_id: str, projeto_id: int, mes: int, ano: int) -> bytes:
     return buffer.read()
 
 
+def obter_leva_carro_resumo(data_inicio: str, data_fim: str) -> dict:
+    """
+    Retorna, para cada dia no intervalo, a lista de mentores que levam carro e os estabelecimentos visitados.
+    Formato: { "YYYY-MM-DD": [{ "mentor_nome": str, "estabelecimentos": [str] }] }
+    """
+    conn = get_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    DATE(a.data_hora AT TIME ZONE 'Europe/Lisbon') AS dia,
+                    p.full_name AS mentor_nome,
+                    ARRAY_AGG(DISTINCT e.nome ORDER BY e.nome) AS estabelecimentos
+                FROM registos r
+                JOIN aulas a ON a.id = r.aula_id
+                JOIN mentores m ON m.id = a.mentor_id
+                JOIN profiles p ON p.id = m.user_id
+                JOIN turmas t ON t.id = a.turma_id
+                JOIN estabelecimentos e ON e.id = t.estabelecimento_id
+                WHERE r.leva_carro = TRUE
+                  AND a.is_autonomous = FALSE
+                  AND DATE(a.data_hora AT TIME ZONE 'Europe/Lisbon') BETWEEN %s AND %s
+                GROUP BY dia, p.full_name
+                ORDER BY dia, p.full_name
+            """, (data_inicio, data_fim))
+            result: dict = {}
+            for row in cur.fetchall():
+                dia_str = row[0].isoformat() if hasattr(row[0], 'isoformat') else str(row[0])
+                if dia_str not in result:
+                    result[dia_str] = []
+                result[dia_str].append({
+                    "mentor_nome": row[1],
+                    "estabelecimentos": list(row[2]) if row[2] else [],
+                })
+            return result
+    finally:
+        conn.close()
+
+
 def obter_preview_mapa_kms(user_id: str, projeto_id: int, mes: int, ano: int) -> dict:
     """Preview sem gerar o ficheiro: retorna totais e avisos de dados em falta."""
     projeto = obter_projeto_config_km(projeto_id)

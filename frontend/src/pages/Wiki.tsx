@@ -141,6 +141,8 @@ interface WikiEstabelecimento {
   turmas: WikiTurma[];
 }
 
+interface SubProjetoItem { id: number; nome: string; }
+
 interface ContactoEstabelecimento {
   id: number;
   estabelecimento_id: number;
@@ -212,6 +214,12 @@ const Wiki = () => {
   // Sub-projeto selecionado na sidebar (para projetos com usar_sub_projetos)
   const [selectedWikiSubProjetoId, setSelectedWikiSubProjetoId] = useState<number | null>(null);
 
+  // State for Sub-Projeto management
+  const [isSubProjetoDialogOpen, setIsSubProjetoDialogOpen] = useState(false);
+  const [editingSubProjeto, setEditingSubProjeto] = useState<SubProjetoItem | null>(null);
+  const [subProjetoForm, setSubProjetoForm] = useState({ nome: '' });
+  const [newEstabTargetSubProjetoId, setNewEstabTargetSubProjetoId] = useState<number | null>(null);
+
   // Info cards visibility
   const [showInfoCards, setShowInfoCards] = useState(false);
 
@@ -279,6 +287,15 @@ const Wiki = () => {
     enabled: !!selectedProjetoId,
   });
 
+  const { data: subProjetosList = [] } = useQuery({
+    queryKey: ['sub-projetos', selectedProjetoId],
+    queryFn: async () => {
+      const res = await api.get(`/api/projetos/${selectedProjetoId}/sub-projetos`);
+      return res.data as SubProjetoItem[];
+    },
+    enabled: !!selectedProjetoId && !!selectedProjeto?.usar_sub_projetos,
+  });
+
   // Filtered data
   const filteredEstabs = selectedProjetoId ? projetoEstabs : estabelecimentos;
   const filteredEstabIds = new Set(filteredEstabs.map(e => e.id));
@@ -340,6 +357,30 @@ const Wiki = () => {
     },
   });
 
+  const saveSubProjetoMutation = useMutation({
+    mutationFn: (data: { nome: string }) => {
+      if (editingSubProjeto) return api.put(`/api/sub-projetos/${editingSubProjeto.id}`, data);
+      return api.post(`/api/projetos/${selectedProjetoId}/sub-projetos`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sub-projetos', selectedProjetoId] });
+      queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
+      toast.success(editingSubProjeto ? 'Sub-projeto atualizado!' : 'Sub-projeto criado!');
+      setIsSubProjetoDialogOpen(false);
+    },
+    onError: () => toast.error('Erro ao guardar sub-projeto.'),
+  });
+
+  const deleteSubProjetoMutation = useMutation({
+    mutationFn: (id: number) => api.delete(`/api/sub-projetos/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sub-projetos', selectedProjetoId] });
+      queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
+      setIsSubProjetoDialogOpen(false);
+      toast.success('Sub-projeto apagado!');
+    },
+  });
+
   const saveConfigMutation = useMutation({
     mutationFn: (data: object) =>
       api.patch(`/api/projetos/${selectedProjetoId}/config`, data),
@@ -387,7 +428,17 @@ const Wiki = () => {
       toast.success(editingEstab ? 'Estabelecimento atualizado!' : 'Estabelecimento criado!');
       setIsEstabDialogOpen(false);
       if (!editingEstab && selectedProjetoId && response?.data?.id) {
-        assocEstabMutation.mutate(response.data.id);
+        const targetSubId = newEstabTargetSubProjetoId;
+        setNewEstabTargetSubProjetoId(null);
+        if (targetSubId) {
+          api.post(`/api/sub-projetos/${targetSubId}/estabelecimentos`, { estabelecimento_id: response.data.id })
+            .then(() => {
+              queryClient.invalidateQueries({ queryKey: ['wiki-hierarquia', selectedProjetoId] });
+              queryClient.invalidateQueries({ queryKey: ['projeto-estabs', selectedProjetoId] });
+            });
+        } else {
+          assocEstabMutation.mutate(response.data.id);
+        }
       }
     },
     onError: () => toast.error('Erro ao salvar estabelecimento.')
@@ -517,6 +568,18 @@ const Wiki = () => {
     setEditingEstab(null);
     setEstabForm({ nome: '', sigla: '', nome_apresentacao: '', morada: '', latitude: 0, longitude: 0 });
     setIsEstabDialogOpen(true);
+  };
+
+  const openNewSubProjeto = () => {
+    setEditingSubProjeto(null);
+    setSubProjetoForm({ nome: '' });
+    setIsSubProjetoDialogOpen(true);
+  };
+
+  const openEditSubProjeto = (sp: SubProjetoItem) => {
+    setEditingSubProjeto(sp);
+    setSubProjetoForm({ nome: sp.nome });
+    setIsSubProjetoDialogOpen(true);
   };
 
   const openEditEstab = (estab: Estabelecimento) => {
@@ -729,7 +792,7 @@ const Wiki = () => {
           <div className="p-3 border-b bg-muted/20 flex items-center justify-between">
             <h3 className="font-semibold text-sm">Hierarquia</h3>
             {isCoordinator && (
-              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={openNewEstab}><Plus className="h-4 w-4"/></Button>
+              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={selectedProjeto?.usar_sub_projetos ? openNewSubProjeto : openNewEstab}><Plus className="h-4 w-4"/></Button>
             )}
           </div>
           <div className="overflow-y-auto p-2 space-y-1">
@@ -751,7 +814,10 @@ const Wiki = () => {
                   semSub.push(e);
                 }
               }
-              const subProjetos = [...subMap.values()];
+              // Merge with query to include sub-projetos with no establishments yet
+              const subProjetos = subProjetosList.length > 0
+                ? subProjetosList.map(sp => ({ id: sp.id, nome: sp.nome, estabs: subMap.get(sp.id)?.estabs || [] }))
+                : [...subMap.values()];
 
               const renderEstabItem = (estab: WikiEstabelecimento) => (
                 <div key={estab.id} className="space-y-1">
@@ -790,18 +856,37 @@ const Wiki = () => {
                 <>
                   {subProjetos.map(sp => (
                     <div key={sp.id} className="space-y-1">
-                      <button
-                        onClick={() => setSelectedWikiSubProjetoId(selectedWikiSubProjetoId === sp.id ? null : sp.id)}
-                        className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between text-sm font-semibold transition-colors ${selectedWikiSubProjetoId === sp.id ? 'bg-primary/15 text-primary' : 'hover:bg-muted text-foreground'}`}
-                      >
-                        <span className="flex items-center gap-2 truncate">
+                      <div className={`px-3 py-1.5 rounded-lg flex items-center justify-between text-sm font-semibold transition-colors ${selectedWikiSubProjetoId === sp.id ? 'bg-primary/15 text-primary' : 'hover:bg-muted text-foreground'}`}>
+                        <button
+                          className="flex items-center gap-2 truncate flex-1 text-left"
+                          onClick={() => setSelectedWikiSubProjetoId(selectedWikiSubProjetoId === sp.id ? null : sp.id)}
+                        >
                           <span className="text-primary/70">◈</span> {sp.nome}
-                        </span>
-                        <ChevronDown className={`h-3.5 w-3.5 opacity-50 shrink-0 transition-transform ${selectedWikiSubProjetoId === sp.id ? 'rotate-180' : ''}`} />
-                      </button>
+                          {sp.estabs.length === 0 && <span className="text-xs font-normal text-muted-foreground ml-1">(vazio)</span>}
+                        </button>
+                        <div className="flex items-center gap-0 shrink-0">
+                          {isCoordinator && (
+                            <>
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); openEditSubProjeto(sp); }}>
+                                <Edit2 className="h-3 w-3" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); setNewEstabTargetSubProjetoId(sp.id); openNewEstab(); }}>
+                                <Plus className="h-3 w-3" />
+                              </Button>
+                            </>
+                          )}
+                          <ChevronDown
+                            className={`h-3.5 w-3.5 opacity-50 shrink-0 transition-transform cursor-pointer ${selectedWikiSubProjetoId === sp.id ? 'rotate-180' : ''}`}
+                            onClick={() => setSelectedWikiSubProjetoId(selectedWikiSubProjetoId === sp.id ? null : sp.id)}
+                          />
+                        </div>
+                      </div>
                       {selectedWikiSubProjetoId === sp.id && (
                         <div className="pl-3 space-y-1 border-l-2 border-primary/20 ml-3">
-                          {sp.estabs.map(renderEstabItem)}
+                          {sp.estabs.length === 0
+                            ? <p className="text-xs text-muted-foreground px-3 py-2">Sem estabelecimentos.</p>
+                            : sp.estabs.map(renderEstabItem)
+                          }
                         </div>
                       )}
                     </div>
@@ -1548,6 +1633,42 @@ const Wiki = () => {
               </Button>
             ) : <div />}
             <Button onClick={() => saveContactoMutation.mutate({ tipo: contactoForm.tipo, valor: contactoForm.valor, descricao: contactoForm.descricao || undefined })} disabled={!contactoForm.valor.trim()}>
+              <Save className="h-4 w-4 mr-2" /> Gravar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIALOG FOR SUB-PROJETOS */}
+      <Dialog open={isSubProjetoDialogOpen} onOpenChange={setIsSubProjetoDialogOpen}>
+        <DialogContent className="w-full max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{editingSubProjeto ? 'Editar Sub-Projeto' : 'Novo Sub-Projeto'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid gap-2">
+              <Label>Nome</Label>
+              <Input
+                value={subProjetoForm.nome}
+                onChange={(e) => setSubProjetoForm({ nome: e.target.value })}
+                placeholder="Ex: Norte, Centro, Sul"
+                onKeyDown={(e) => e.key === 'Enter' && subProjetoForm.nome && saveSubProjetoMutation.mutate(subProjetoForm)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex sm:justify-between w-full">
+            {editingSubProjeto ? (
+              <Button variant="destructive" onClick={() => {
+                askConfirm(
+                  `Apagar "${editingSubProjeto.nome}"?`,
+                  'Os estabelecimentos associados ficarão sem sub-projeto.',
+                  () => deleteSubProjetoMutation.mutate(editingSubProjeto.id)
+                );
+              }}>
+                <Trash2 className="h-4 w-4 mr-2" /> Apagar
+              </Button>
+            ) : <div />}
+            <Button onClick={() => saveSubProjetoMutation.mutate(subProjetoForm)} disabled={!subProjetoForm.nome || saveSubProjetoMutation.isPending}>
               <Save className="h-4 w-4 mr-2" /> Gravar
             </Button>
           </DialogFooter>

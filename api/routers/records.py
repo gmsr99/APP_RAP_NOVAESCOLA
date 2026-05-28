@@ -200,6 +200,17 @@ async def get_leva_carro_dia(data: str, user=Depends(get_current_user_required))
     return {"leva_carro": valor}
 
 
+@router.get("/api/registos/leva-carro-resumo", tags=["Registos"])
+async def get_leva_carro_resumo(
+    data_inicio: str,
+    data_fim: str,
+    user=Depends(get_current_user_required),
+):
+    """Resumo semanal de mentores que levam carro, por dia (coordenadores e superiores)."""
+    _require_coordenacao(user)
+    return _km_svc.obter_leva_carro_resumo(data_inicio, data_fim)
+
+
 @router.get("/api/registos", tags=["Registos"])
 async def get_registos(user=Depends(get_current_user_required)):
     """Lista registos do user autenticado."""

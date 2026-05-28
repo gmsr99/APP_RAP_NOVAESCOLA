@@ -34,6 +34,12 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Plus,
@@ -60,6 +66,7 @@ import {
   Users,
   Upload,
   RotateCcw,
+  Car,
 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -689,6 +696,14 @@ const Horarios = () => {
   const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
   const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd }).slice(0, 5);
+
+  const { data: levaCarroResumo } = useQuery<Record<string, { mentor_nome: string; estabelecimentos: string[] }[]>>({
+    queryKey: ['leva-carro-resumo', weekStart.toISOString()],
+    queryFn: () =>
+      api.get(`/api/registos/leva-carro-resumo?data_inicio=${format(weekStart, 'yyyy-MM-dd')}&data_fim=${format(weekEnd, 'yyyy-MM-dd')}`).then((r: any) => r.data ?? r),
+    enabled: isCoordenacao,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Month view calculations
   const monthStart = startOfMonth(currentMonth);
@@ -2757,14 +2772,40 @@ const Horarios = () => {
             <div className="grid grid-cols-5 gap-2 flex-1">
               {weekDays.map((day) => {
                 const isToday = isSameDay(day, new Date());
+                const dayKey = format(day, 'yyyy-MM-dd');
+                const carDrivers = levaCarroResumo?.[dayKey];
                 return (
                   <div key={day.toISOString()} className="flex flex-col h-full">
                     <div className={cn(
-                      'text-center py-2 rounded-t-lg',
+                      'text-center py-2 rounded-t-lg relative',
                       isToday ? 'bg-primary text-primary-foreground' : 'bg-secondary'
                     )}>
                       <p className="text-xs uppercase">{format(day, 'EEE', { locale: pt })}</p>
                       <p className="text-lg font-bold font-display">{format(day, 'd')}</p>
+                      {isCoordenacao && carDrivers && carDrivers.length > 0 && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="absolute top-1.5 right-1.5 cursor-default">
+                                <Car className="h-3.5 w-3.5 opacity-70" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-[220px] text-xs">
+                              <p className="font-semibold mb-1">Levam carro:</p>
+                              <ul className="space-y-1">
+                                {carDrivers.map((d, i) => (
+                                  <li key={i}>
+                                    <span className="font-medium">{d.mentor_nome}</span>
+                                    {d.estabelecimentos.length > 0 && (
+                                      <span className="text-muted-foreground"> → {d.estabelecimentos.join(', ')}</span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                     </div>
                     {renderDayInternos(day)}
                     <div className="bg-card rounded-b-lg relative border border-border h-[800px] overflow-hidden">
