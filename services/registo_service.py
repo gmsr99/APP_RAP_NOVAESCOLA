@@ -50,6 +50,7 @@ def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
             t.id           AS turma_id,
             e.nome         AS estabelecimento_nome,
             e.sigla        AS estabelecimento_sigla,
+            e.nome_apresentacao AS estabelecimento_nome_apresentacao,
             m.nome         AS mentor_nome,
             m.user_id      AS mentor_user_id,
             m.latitude     AS mentor_latitude,
@@ -108,6 +109,7 @@ def listar_sessoes_registaveis(user_id: str) -> List[Dict[str, Any]]:
                 "turma_id": row.turma_id,
                 "estabelecimento_nome": row.estabelecimento_nome,
                 "estabelecimento_sigla": row.estabelecimento_sigla,
+                "estabelecimento_nome_apresentacao": row.estabelecimento_nome_apresentacao,
                 "mentor_nome": row.mentor_nome,
                 "mentor_user_id": str(row.mentor_user_id) if row.mentor_user_id else None,
                 "mentor_latitude": float(row.mentor_latitude) if row.mentor_latitude else None,
@@ -157,6 +159,7 @@ def listar_todas_sessoes_registaveis() -> List[Dict[str, Any]]:
             t.id           AS turma_id,
             e.nome         AS estabelecimento_nome,
             e.sigla        AS estabelecimento_sigla,
+            e.nome_apresentacao AS estabelecimento_nome_apresentacao,
             m.nome         AS mentor_nome,
             m.user_id      AS mentor_user_id,
             m.latitude     AS mentor_latitude,
@@ -204,6 +207,7 @@ def listar_todas_sessoes_registaveis() -> List[Dict[str, Any]]:
                 "turma_id": row.turma_id,
                 "estabelecimento_nome": row.estabelecimento_nome,
                 "estabelecimento_sigla": row.estabelecimento_sigla,
+                "estabelecimento_nome_apresentacao": row.estabelecimento_nome_apresentacao,
                 "mentor_nome": row.mentor_nome,
                 "mentor_user_id": str(row.mentor_user_id) if row.mentor_user_id else None,
                 "mentor_latitude": float(row.mentor_latitude) if row.mentor_latitude else None,
@@ -260,6 +264,7 @@ def listar_registos(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
             t.nome          AS turma_nome,
             e.nome          AS estabelecimento_nome,
             e.sigla         AS estabelecimento_sigla,
+            e.nome_apresentacao AS estabelecimento_nome_apresentacao,
             m.nome          AS mentor_nome
         FROM registos r
         JOIN aulas a              ON r.aula_id = a.id
@@ -302,6 +307,7 @@ def listar_registos(user_id: Optional[str] = None) -> List[Dict[str, Any]]:
                 "turma_nome": row.turma_nome,
                 "estabelecimento_nome": row.estabelecimento_nome,
                 "estabelecimento_sigla": row.estabelecimento_sigla,
+                "estabelecimento_nome_apresentacao": row.estabelecimento_nome_apresentacao,
                 "mentor_nome": row.mentor_nome,
             })
         return result

@@ -75,6 +75,7 @@ interface SessaoRegistavel {
   turma_id: number | null;
   estabelecimento_nome: string | null;
   estabelecimento_sigla: string | null;
+  estabelecimento_nome_apresentacao: string | null;
   mentor_nome: string | null;
   mentor_user_id: string | null;
   mentor_latitude: number | null;
@@ -113,6 +114,7 @@ interface Registo {
   turma_nome: string | null;
   estabelecimento_nome: string | null;
   estabelecimento_sigla: string | null;
+  estabelecimento_nome_apresentacao: string | null;
   mentor_nome: string | null;
   kms_percorridos: number | null;
   projeto_id: number | null;
@@ -566,7 +568,7 @@ const Registos = () => {
       data: format(start, 'dd/MM/yyyy'),
       local: session.is_autonomous
         ? (session.local || '')
-        : `${session.estabelecimento_nome || ''} ${session.local ? `- ${session.local}` : ''}`.trim(),
+        : `${session.estabelecimento_nome_apresentacao || session.estabelecimento_nome || ''} ${session.local ? `- ${session.local}` : ''}`.trim(),
       horario: buildHorario(session.data_hora, session.duracao_minutos),
       tecnicos: session.mentor_nome || user?.name || '',
       objetivos_gerais: session.objetivos || '',
@@ -675,7 +677,7 @@ const Registos = () => {
       || (reg.is_autonomous ? (reg.tipo_atividade || 'Trabalho Autónomo') : `Sessão ${reg.turma_nome || ''}`.trim());
     const data = reg.data_registo || format(start, 'dd/MM/yyyy');
     const local = reg.local_registo
-      || (reg.is_autonomous ? (reg.local || '') : `${reg.estabelecimento_nome || ''}${reg.local ? ` - ${reg.local}` : ''}`.trim());
+      || (reg.is_autonomous ? (reg.local || '') : `${reg.estabelecimento_nome_apresentacao || reg.estabelecimento_nome || ''}${reg.local ? ` - ${reg.local}` : ''}`.trim());
     const safeName = atividade.replace(/[^a-zA-Z0-9À-ú ]/g, '').trim();
     const filename = `Registo_${safeName}_${data.replace(/\//g, '-')}.pdf`;
     const projetoId = reg.projeto_id ?? selectedProjetoId;
@@ -731,7 +733,7 @@ const Registos = () => {
       data: reg.data_registo || format(parseISO(reg.data_hora), 'dd/MM/yyyy'),
       local: reg.local_registo || (reg.is_autonomous
         ? (reg.local || '')
-        : `${reg.estabelecimento_nome || ''}${reg.local ? ` - ${reg.local}` : ''}`.trim()),
+        : `${reg.estabelecimento_nome_apresentacao || reg.estabelecimento_nome || ''}${reg.local ? ` - ${reg.local}` : ''}`.trim()),
       horario: reg.horario || buildHorario(reg.data_hora, reg.duracao_minutos),
       tecnicos: reg.tecnicos || reg.mentor_nome || '',
       objetivos_gerais: reg.objetivos_gerais || '',

@@ -271,6 +271,7 @@ export interface Estabelecimento { // Renamed form Instituicao
   id: number;
   nome: string;
   sigla?: string;
+  nome_apresentacao?: string;
   morada?: string;
   latitude?: number;
   longitude?: number;

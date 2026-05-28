@@ -82,6 +82,7 @@ interface Estabelecimento {
   id: number;
   nome: string;
   sigla: string;
+  nome_apresentacao?: string;
   morada?: string;
   latitude?: number;
   longitude?: number;
@@ -162,7 +163,7 @@ const Wiki = () => {
   // State for Estabelecimentos
   const [isEstabDialogOpen, setIsEstabDialogOpen] = useState(false);
   const [editingEstab, setEditingEstab] = useState<Estabelecimento | null>(null);
-  const [estabForm, setEstabForm] = useState({ nome: '', sigla: '', morada: '', latitude: 0, longitude: 0 });
+  const [estabForm, setEstabForm] = useState({ nome: '', sigla: '', nome_apresentacao: '', morada: '', latitude: 0, longitude: 0 });
 
   // State for Contactos
   const [isContactoDialogOpen, setIsContactoDialogOpen] = useState(false);
@@ -507,13 +508,13 @@ const Wiki = () => {
   // --- HANDLERS ---
   const openNewEstab = () => {
     setEditingEstab(null);
-    setEstabForm({ nome: '', sigla: '', morada: '', latitude: 0, longitude: 0 });
+    setEstabForm({ nome: '', sigla: '', nome_apresentacao: '', morada: '', latitude: 0, longitude: 0 });
     setIsEstabDialogOpen(true);
   };
 
   const openEditEstab = (estab: Estabelecimento) => {
     setEditingEstab(estab);
-    setEstabForm({ nome: estab.nome, sigla: estab.sigla, morada: estab.morada || '', latitude: estab.latitude || 0, longitude: estab.longitude || 0 });
+    setEstabForm({ nome: estab.nome, sigla: estab.sigla, nome_apresentacao: estab.nome_apresentacao || '', morada: estab.morada || '', latitude: estab.latitude || 0, longitude: estab.longitude || 0 });
     setIsEstabDialogOpen(true);
   };
 
@@ -1099,6 +1100,10 @@ const Wiki = () => {
             <div className="grid gap-2">
               <Label htmlFor="inst-nome">Nome</Label>
               <Input id="inst-nome" value={estabForm.nome} onChange={(e) => setEstabForm({ ...estabForm, nome: e.target.value })} placeholder="Nome completo" />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="inst-nome-apresentacao">Nome de Apresentação</Label>
+              <Input id="inst-nome-apresentacao" value={estabForm.nome_apresentacao} onChange={(e) => setEstabForm({ ...estabForm, nome_apresentacao: e.target.value })} placeholder="Usado no campo 'Local' das exportações" />
             </div>
             <div className="grid gap-2">
               <Label>Morada</Label>

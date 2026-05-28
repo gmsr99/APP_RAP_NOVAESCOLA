@@ -73,10 +73,10 @@ def listar_estabelecimentos():
         conn = get_db_connection()
         cur = conn.cursor()
         
-        cur.execute("SELECT id, nome, sigla, morada, latitude, longitude FROM estabelecimentos ORDER BY nome;")
+        cur.execute("SELECT id, nome, sigla, nome_apresentacao, morada, latitude, longitude FROM estabelecimentos ORDER BY nome;")
         resultados = cur.fetchall()
 
-        return [{'id': r[0], 'nome': r[1], 'sigla': r[2] or '', 'morada': r[3], 'latitude': r[4], 'longitude': r[5]} for r in resultados]
+        return [{'id': r[0], 'nome': r[1], 'sigla': r[2] or '', 'nome_apresentacao': r[3], 'morada': r[4], 'latitude': r[5], 'longitude': r[6]} for r in resultados]
         
     except Exception as e:
         logger.error(f"Erro ao listar estabelecimentos: {e}")
@@ -87,7 +87,7 @@ def listar_estabelecimentos():
         if 'conn' in locals() and conn:
             conn.close()
 
-def criar_estabelecimento(nome: str, sigla: str = None, morada: str = None, latitude: float = None, longitude: float = None):
+def criar_estabelecimento(nome: str, sigla: str = None, nome_apresentacao: str = None, morada: str = None, latitude: float = None, longitude: float = None):
     """Cria um novo estabelecimento."""
     try:
         conn = get_db_connection()
@@ -99,8 +99,8 @@ def criar_estabelecimento(nome: str, sigla: str = None, morada: str = None, lati
             return None # Already exists
 
         cur.execute(
-            "INSERT INTO estabelecimentos (nome, sigla, morada, latitude, longitude) VALUES (%s, %s, %s, %s, %s) RETURNING id, nome, sigla",
-            (nome, sigla, morada, latitude, longitude)
+            "INSERT INTO estabelecimentos (nome, sigla, nome_apresentacao, morada, latitude, longitude) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id, nome, sigla",
+            (nome, sigla, nome_apresentacao, morada, latitude, longitude)
         )
         nova_inst = cur.fetchone()
         conn.commit()
@@ -117,15 +117,15 @@ def criar_estabelecimento(nome: str, sigla: str = None, morada: str = None, lati
         if 'conn' in locals() and conn:
             conn.close()
 
-def atualizar_estabelecimento(id: int, nome: str, sigla: str = None, morada: str = None, latitude: float = None, longitude: float = None):
+def atualizar_estabelecimento(id: int, nome: str, sigla: str = None, nome_apresentacao: str = None, morada: str = None, latitude: float = None, longitude: float = None):
     """Atualiza um estabelecimento existente."""
     try:
         conn = get_db_connection()
         cur = conn.cursor()
 
         cur.execute(
-            "UPDATE estabelecimentos SET nome = %s, sigla = %s, morada = %s, latitude = %s, longitude = %s WHERE id = %s",
-            (nome, sigla, morada, latitude, longitude, id)
+            "UPDATE estabelecimentos SET nome = %s, sigla = %s, nome_apresentacao = %s, morada = %s, latitude = %s, longitude = %s WHERE id = %s",
+            (nome, sigla, nome_apresentacao, morada, latitude, longitude, id)
         )
         conn.commit()
         return True

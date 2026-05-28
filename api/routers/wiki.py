@@ -12,6 +12,7 @@ router = APIRouter()
 class EstabelecimentoWikiCreate(BaseModel):
     nome: str
     sigla: Optional[str] = None
+    nome_apresentacao: Optional[str] = None
     morada: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -65,7 +66,7 @@ async def get_estabelecimentos(user=Depends(get_current_user_required)):
 @router.post("/api/estabelecimentos", tags=["Wiki"])
 async def create_estabelecimento(inst: EstabelecimentoWikiCreate, user=Depends(get_current_user_required)):
     _require_coordenacao(user)
-    res = turma_service.criar_estabelecimento(inst.nome, inst.sigla, inst.morada, inst.latitude, inst.longitude)
+    res = turma_service.criar_estabelecimento(inst.nome, inst.sigla, inst.nome_apresentacao, inst.morada, inst.latitude, inst.longitude)
     if not res:
         raise HTTPException(status_code=400, detail="Erro ao criar. Possível duplicado.")
     return res
@@ -74,7 +75,7 @@ async def create_estabelecimento(inst: EstabelecimentoWikiCreate, user=Depends(g
 @router.put("/api/estabelecimentos/{id}", tags=["Wiki"])
 async def update_estabelecimento(id: int, inst: EstabelecimentoWikiCreate, user=Depends(get_current_user_required)):
     _require_coordenacao(user)
-    sucesso = turma_service.atualizar_estabelecimento(id, inst.nome, inst.sigla, inst.morada, inst.latitude, inst.longitude)
+    sucesso = turma_service.atualizar_estabelecimento(id, inst.nome, inst.sigla, inst.nome_apresentacao, inst.morada, inst.latitude, inst.longitude)
     if not sucesso:
         raise HTTPException(status_code=500, detail="Erro ao atualizar.")
     return {"message": "Atualizado com sucesso"}
