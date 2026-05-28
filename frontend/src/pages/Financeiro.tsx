@@ -38,6 +38,12 @@ import { Download, Pencil, Euro } from 'lucide-react';
 interface Projeto {
   id: number;
   nome: string;
+  usar_sub_projetos?: boolean;
+}
+
+interface SubProjeto {
+  id: number;
+  nome: string;
 }
 
 interface Membro {
@@ -98,6 +104,7 @@ const Financeiro = () => {
 
   // Selectors state
   const [projetoId, setProjetoId] = useState<string>('');
+  const [subProjetoId, setSubProjetoId] = useState<string>('');
   const [mes, setMes] = useState<string>(String(new Date().getMonth() + 1));
   const [ano, setAno] = useState<string>(String(currentYear));
   const [targetUserId, setTargetUserId] = useState<string>('');
@@ -117,6 +124,15 @@ const Financeiro = () => {
     queryFn: async () => (await api.get('/api/projetos')).data,
   });
 
+  const selectedProjeto = projetos.find(p => String(p.id) === projetoId);
+  const usaSubProjetos = selectedProjeto?.usar_sub_projetos ?? false;
+
+  const { data: subProjetos = [] } = useQuery<SubProjeto[]>({
+    queryKey: ['sub-projetos', projetoId],
+    queryFn: async () => (await api.get(`/api/projetos/${projetoId}/sub-projetos`)).data,
+    enabled: !!projetoId && usaSubProjetos,
+  });
+
   const { data: equipa = [] } = useQuery<Membro[]>({
     queryKey: ['equipa'],
     queryFn: async () => (await api.get('/api/equipa')).data,
@@ -129,12 +145,13 @@ const Financeiro = () => {
     enabled: !!projetoId,
   });
 
-  const previewParams = { projeto_id: projetoId, mes, ano, target_user_id: targetUserId || undefined };
+  const previewParams = { projeto_id: projetoId, mes, ano, target_user_id: targetUserId || undefined, sub_projeto_id: subProjetoId || undefined };
   const { data: preview, isLoading: previewLoading, error: previewError } = useQuery<HonorarioPreview>({
     queryKey: ['honorario-preview', previewParams],
     queryFn: async () => {
       const params: Record<string, string> = { projeto_id: projetoId, mes, ano };
       if (targetUserId) params.target_user_id = targetUserId;
+      if (subProjetoId) params.sub_projeto_id = subProjetoId;
       return (await api.get('/api/honorarios/preview', { params })).data;
     },
     enabled: !!projetoId && !!mes && !!ano,
@@ -159,6 +176,7 @@ const Financeiro = () => {
     mutationFn: async () => {
       const payload: Record<string, unknown> = { projeto_id: parseInt(projetoId), mes: parseInt(mes), ano: parseInt(ano) };
       if (targetUserId) payload.target_user_id = targetUserId;
+      if (subProjetoId) payload.sub_projeto_id = parseInt(subProjetoId);
       return api.post('/api/honorarios/gerar', payload, { responseType: 'blob' });
     },
     onSuccess: (res) => {
@@ -240,7 +258,7 @@ const Financeiro = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs">Projeto</Label>
-                  <Select value={projetoId} onValueChange={setProjetoId}>
+                  <Select value={projetoId} onValueChange={v => { setProjetoId(v); setSubProjetoId(''); }}>
                     <SelectTrigger className="h-9 text-sm">
                       <SelectValue placeholder="Selecionar projeto" />
                     </SelectTrigger>
@@ -274,6 +292,23 @@ const Financeiro = () => {
                   </Select>
                 </div>
               </div>
+
+              {usaSubProjetos && subProjetos.length > 0 && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Sub-Projeto (opcional)</Label>
+                  <Select value={subProjetoId || '__all'} onValueChange={v => setSubProjetoId(v === '__all' ? '' : v)}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__all">Todos os sub-projetos</SelectItem>
+                      {subProjetos.map(sp => (
+                        <SelectItem key={sp.id} value={String(sp.id)}>{sp.nome}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               {isCoord && (
                 <div className="space-y-1">

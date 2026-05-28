@@ -428,6 +428,7 @@ const Horarios = () => {
 
   // Projeto → Estabelecimento → Turma cascading
   const [selectedProjetoId, setSelectedProjetoId] = useState<number | null>(null);
+  const [selectedSubProjetoId, setSelectedSubProjetoId] = useState<number | null>(null);
   const [selectedEstabId, setSelectedEstabId] = useState<number | null>(null);
 
   const { data: projetos } = useQuery({
@@ -441,6 +442,21 @@ const Horarios = () => {
     queryFn: () => api.get<Estabelecimento[]>(`/api/projetos/${selectedProjetoId}/estabelecimentos`).then((r: any) => r.data ?? r),
     enabled: !!selectedProjetoId,
   });
+
+  const selectedProjeto = projetos?.find(p => p.id === selectedProjetoId);
+  const projetoUsaSubProjetos = selectedProjeto?.usar_sub_projetos ?? false;
+  const subProjetosDisponiveis = projetoEstabs
+    ? [...new Map(
+        projetoEstabs
+          .filter(e => e.sub_projeto_id != null)
+          .map(e => [e.sub_projeto_id, { id: e.sub_projeto_id!, nome: e.sub_projeto_nome! }])
+      ).values()]
+    : [];
+  const estabsVisiveis = projetoEstabs
+    ? (projetoUsaSubProjetos && selectedSubProjetoId
+        ? projetoEstabs.filter(e => e.sub_projeto_id === selectedSubProjetoId)
+        : projetoEstabs)
+    : [];
 
   // Estabelecimentos do projeto selecionado no FILTRO (independente do form)
   const { data: filterProjetoEstabs } = useQuery({
@@ -943,6 +959,7 @@ const Horarios = () => {
     setSelectedKitCatId('');
     setCheckedItemIds(new Set());
     setSelectedProjetoId(null);
+    setSelectedSubProjetoId(null);
     setSelectedEstabId(null);
     setFormData({
       duracao_minutos: 120,
@@ -1385,6 +1402,7 @@ const Horarios = () => {
                             value={selectedProjetoId ? String(selectedProjetoId) : ''}
                             onValueChange={(v) => {
                               setSelectedProjetoId(Number(v));
+                              setSelectedSubProjetoId(null);
                               setSelectedEstabId(null);
                               setFormData({ ...formData, turma_id: undefined, atividade_uuid: null });
                               setSelectedDisciplinaId(null);
@@ -1400,6 +1418,23 @@ const Horarios = () => {
                             </SelectContent>
                           </Select>
                         </div>
+                        {projetoUsaSubProjetos && subProjetosDisponiveis.length > 0 && (
+                          <div className="space-y-2">
+                            <Label>Sub-Projeto</Label>
+                            <Select
+                              value={selectedSubProjetoId ? String(selectedSubProjetoId) : '__all'}
+                              onValueChange={(v) => { setSelectedSubProjetoId(v === '__all' ? null : Number(v)); setSelectedEstabId(null); setFormData({ ...formData, turma_id: undefined }); }}
+                            >
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent className="bg-popover">
+                                <SelectItem value="__all">Todos</SelectItem>
+                                {subProjetosDisponiveis.map(sp => (
+                                  <SelectItem key={sp.id} value={String(sp.id)}>{sp.nome}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                         <div className="grid grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="estabelecimento">Estabelecimento</Label>
@@ -1415,7 +1450,7 @@ const Horarios = () => {
                                 <SelectValue placeholder="Selecione..." />
                               </SelectTrigger>
                               <SelectContent className="bg-popover">
-                                {projetoEstabs?.map((e) => (
+                                {estabsVisiveis.map((e) => (
                                   <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>
                                 ))}
                               </SelectContent>
@@ -2133,6 +2168,7 @@ const Horarios = () => {
                         value={selectedProjetoId ? String(selectedProjetoId) : ''}
                         onValueChange={(v) => {
                           setSelectedProjetoId(Number(v));
+                          setSelectedSubProjetoId(null);
                           setSelectedEstabId(null);
                           setFormData({ ...formData, turma_id: undefined, atividade_uuid: null });
                           setSelectedDisciplinaId(null);
@@ -2148,6 +2184,23 @@ const Horarios = () => {
                         </SelectContent>
                       </Select>
                     </div>
+                    {projetoUsaSubProjetos && subProjetosDisponiveis.length > 0 && (
+                      <div className="space-y-2">
+                        <Label>Sub-Projeto</Label>
+                        <Select
+                          value={selectedSubProjetoId ? String(selectedSubProjetoId) : '__all'}
+                          onValueChange={(v) => { setSelectedSubProjetoId(v === '__all' ? null : Number(v)); setSelectedEstabId(null); setFormData({ ...formData, turma_id: undefined }); }}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent className="bg-popover">
+                            <SelectItem value="__all">Todos</SelectItem>
+                            {subProjetosDisponiveis.map(sp => (
+                              <SelectItem key={sp.id} value={String(sp.id)}>{sp.nome}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="edit-estab">Estabelecimento</Label>
@@ -2163,7 +2216,7 @@ const Horarios = () => {
                             <SelectValue placeholder="Selecione..." />
                           </SelectTrigger>
                           <SelectContent className="bg-popover">
-                            {projetoEstabs?.map((e) => (
+                            {estabsVisiveis.map((e) => (
                               <SelectItem key={e.id} value={String(e.id)}>{e.nome}</SelectItem>
                             ))}
                           </SelectContent>

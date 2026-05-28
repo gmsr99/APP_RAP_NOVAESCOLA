@@ -257,6 +257,15 @@ export interface Projeto {
   logo_esq_path?: string | null;
   logo_dir_path?: string | null;
   footer_path?: string | null;
+  usar_sub_projetos?: boolean;
+}
+
+export interface SubProjeto {
+  id: number;
+  projeto_id: number;
+  nome: string;
+  descricao?: string;
+  estabelecimentos?: Estabelecimento[];
 }
 
 export interface ContactoEstabelecimento {
@@ -275,6 +284,8 @@ export interface Estabelecimento { // Renamed form Instituicao
   morada?: string;
   latitude?: number;
   longitude?: number;
+  sub_projeto_id?: number | null;
+  sub_projeto_nome?: string | null;
 }
 
 export interface AulaCreate {

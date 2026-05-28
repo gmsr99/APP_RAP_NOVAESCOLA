@@ -232,11 +232,12 @@ const Wiki = () => {
     honorario_cod_postal: '',
     honorario_nipc: '',
     honorario_designacao: '',
+    usar_sub_projetos: false,
   });
   const [assetUploading, setAssetUploading] = useState<Record<string, boolean>>({});
 
   // --- QUERIES ---
-  interface Projeto { id: number; nome: string; descricao?: string; estado?: string; requer_digitalizacao?: boolean; tem_pre_registos?: boolean; codigo_projeto?: string | null; logo_esq_path?: string | null; logo_dir_path?: string | null; footer_path?: string | null; usar_template_proprio?: boolean; usa_template_pis?: boolean; honorario_entidade?: string | null; honorario_morada?: string | null; honorario_cod_postal?: string | null; honorario_nipc?: string | null; honorario_designacao?: string | null; }
+  interface Projeto { id: number; nome: string; descricao?: string; estado?: string; requer_digitalizacao?: boolean; tem_pre_registos?: boolean; codigo_projeto?: string | null; logo_esq_path?: string | null; logo_dir_path?: string | null; footer_path?: string | null; usar_template_proprio?: boolean; usa_template_pis?: boolean; honorario_entidade?: string | null; honorario_morada?: string | null; honorario_cod_postal?: string | null; honorario_nipc?: string | null; honorario_designacao?: string | null; usar_sub_projetos?: boolean; }
 
   const { data: projetos = [] } = useQuery({
     queryKey: ['projetos'],
@@ -695,6 +696,7 @@ const Wiki = () => {
                   honorario_cod_postal: selectedProjeto?.honorario_cod_postal ?? '',
                   honorario_nipc: selectedProjeto?.honorario_nipc ?? '',
                   honorario_designacao: selectedProjeto?.honorario_designacao ?? '',
+                  usar_sub_projetos: selectedProjeto?.usar_sub_projetos ?? false,
                 });
                 setIsConfigModalOpen(true);
               }}>Configs</Button>
@@ -1508,6 +1510,13 @@ const Wiki = () => {
                 <p className="text-sm text-muted-foreground">Usar folha PDF customizada.</p>
               </div>
               <Switch checked={configForm.usar_template_proprio} onCheckedChange={(c) => setConfigForm(f => ({...f, usar_template_proprio: c}))} />
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Sub-Projetos</Label>
+                <p className="text-sm text-muted-foreground">Agrupar estabelecimentos em sub-projetos (ex: Easy Going → AE Alcanena, Arribar).</p>
+              </div>
+              <Switch checked={configForm.usar_sub_projetos} onCheckedChange={(c) => setConfigForm(f => ({...f, usar_sub_projetos: c}))} />
             </div>
 
             <div className="border-t pt-4 mt-2">

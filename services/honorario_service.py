@@ -14,11 +14,24 @@ MESES_PT = {
 }
 
 
-def obter_sessoes_honorario(user_id: str, projeto_id: int, mes: int, ano: int) -> list:
+def obter_sessoes_honorario(
+    user_id: str, projeto_id: int, mes: int, ano: int, sub_projeto_id: int | None = None
+) -> list:
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute("""
+            sub_join = ""
+            sub_cond = ""
+            params: list = [projeto_id, user_id, user_id, mes, ano]
+            if sub_projeto_id is not None:
+                sub_join = (
+                    "LEFT JOIN turmas t ON t.id = a.turma_id "
+                    "LEFT JOIN projeto_estabelecimentos pe "
+                    "  ON pe.estabelecimento_id = t.estabelecimento_id AND pe.projeto_id = a.projeto_id "
+                )
+                sub_cond = "AND pe.sub_projeto_id = %s"
+                params.append(sub_projeto_id)
+            cur.execute(f"""
                 SELECT a.id,
                        a.data_hora,
                        a.duracao_minutos,
@@ -28,6 +41,7 @@ def obter_sessoes_honorario(user_id: str, projeto_id: int, mes: int, ano: int) -
                 FROM aulas a
                 LEFT JOIN mentores m ON m.id = a.mentor_id
                 LEFT JOIN turma_atividades ta ON ta.uuid = a.atividade_uuid
+                {sub_join}
                 WHERE a.projeto_id = %s
                   AND (
                       (a.is_autonomous = FALSE AND m.user_id = %s)
@@ -39,8 +53,9 @@ def obter_sessoes_honorario(user_id: str, projeto_id: int, mes: int, ano: int) -
                   )
                   AND EXTRACT(month FROM a.data_hora AT TIME ZONE 'Europe/Lisbon') = %s
                   AND EXTRACT(year FROM a.data_hora AT TIME ZONE 'Europe/Lisbon') = %s
+                  {sub_cond}
                 ORDER BY a.data_hora
-            """, (projeto_id, user_id, user_id, mes, ano))
+            """, params)
             cols = [d[0] for d in cur.description]
             return [dict(zip(cols, row)) for row in cur.fetchall()]
     finally:
@@ -186,12 +201,13 @@ def gerar_honorario(
     mes: int,
     ano: int,
     data_emissao: str,
+    sub_projeto_id: int | None = None,
 ) -> bytes:
     projeto = obter_projeto_config_honorario(projeto_id)
     prestador = obter_dados_prestador(target_user_id, projeto_id)
 
     valor_hora = float(prestador.get("valor_hora") or 0)
-    sessoes = obter_sessoes_honorario(target_user_id, projeto_id, mes, ano)
+    sessoes = obter_sessoes_honorario(target_user_id, projeto_id, mes, ano, sub_projeto_id)
 
     if not sessoes:
         raise ValueError(
@@ -218,10 +234,12 @@ def gerar_honorario(
     return buffer.read()
 
 
-def obter_preview_honorario(target_user_id: str, projeto_id: int, mes: int, ano: int) -> dict:
+def obter_preview_honorario(
+    target_user_id: str, projeto_id: int, mes: int, ano: int, sub_projeto_id: int | None = None
+) -> dict:
     prestador = obter_dados_prestador(target_user_id, projeto_id)
     valor_hora = float(prestador.get("valor_hora") or 0)
-    sessoes = obter_sessoes_honorario(target_user_id, projeto_id, mes, ano)
+    sessoes = obter_sessoes_honorario(target_user_id, projeto_id, mes, ano, sub_projeto_id)
     grupos = agrupar_por_atividade(sessoes, valor_hora) if sessoes else []
     subtotal = round(sum(g["valor"] for g in grupos), 2)
     return {

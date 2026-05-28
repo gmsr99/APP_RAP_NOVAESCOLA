@@ -16,6 +16,7 @@ class HonorarioRequest(BaseModel):
     ano: int
     target_user_id: Optional[str] = None
     data_emissao: Optional[str] = None
+    sub_projeto_id: Optional[int] = None
 
 
 class UserRateUpsert(BaseModel):
@@ -42,7 +43,7 @@ async def gerar_honorario(payload: HonorarioRequest, user=Depends(get_current_us
 
     data_emissao = payload.data_emissao or datetime.date.today().isoformat()
     try:
-        xlsx_bytes = _hon_svc.gerar_honorario(user_id, target, payload.projeto_id, payload.mes, payload.ano, data_emissao)
+        xlsx_bytes = _hon_svc.gerar_honorario(user_id, target, payload.projeto_id, payload.mes, payload.ano, data_emissao, payload.sub_projeto_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
@@ -61,6 +62,7 @@ async def preview_honorario(
     mes: int,
     ano: int,
     target_user_id: Optional[str] = None,
+    sub_projeto_id: Optional[int] = None,
     user=Depends(get_current_user_required),
 ):
     """Devolve JSON com grupos de sessões para pré-visualização sem gerar o XLSX."""
@@ -69,7 +71,7 @@ async def preview_honorario(
     if target != user_id:
         _require_coordenacao(user)
     try:
-        return _hon_svc.obter_preview_honorario(target, projeto_id, mes, ano)
+        return _hon_svc.obter_preview_honorario(target, projeto_id, mes, ano, sub_projeto_id)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

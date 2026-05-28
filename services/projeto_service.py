@@ -5,7 +5,7 @@ from database.connection import get_db_connection
 logger = logging.getLogger(__name__)
 
 
-_PROJETO_COLS = "id, nome, descricao, estado, requer_digitalizacao, tem_pre_registos, codigo_projeto, logo_esq_path, logo_dir_path, footer_path, usar_template_proprio, usa_template_pis, honorario_entidade, honorario_morada, honorario_cod_postal, honorario_nipc, honorario_designacao"
+_PROJETO_COLS = "id, nome, descricao, estado, requer_digitalizacao, tem_pre_registos, codigo_projeto, logo_esq_path, logo_dir_path, footer_path, usar_template_proprio, usa_template_pis, honorario_entidade, honorario_morada, honorario_cod_postal, honorario_nipc, honorario_designacao, usar_sub_projetos"
 
 
 def listar_projetos(allowed_ids=None):
@@ -115,9 +115,11 @@ def listar_estabelecimentos_por_projeto(projeto_id):
         cur = conn.cursor()
         cur.execute(
             """
-            SELECT e.id, e.nome, e.sigla, e.morada, e.latitude, e.longitude
+            SELECT e.id, e.nome, e.sigla, e.morada, e.latitude, e.longitude,
+                   pe.sub_projeto_id, sp.nome AS sub_projeto_nome
             FROM estabelecimentos e
             JOIN projeto_estabelecimentos pe ON pe.estabelecimento_id = e.id
+            LEFT JOIN sub_projetos sp ON sp.id = pe.sub_projeto_id
             WHERE pe.projeto_id = %s
             ORDER BY e.nome
             """,
@@ -182,6 +184,7 @@ def atualizar_config_projeto(
     honorario_cod_postal: str | None = None,
     honorario_nipc: str | None = None,
     honorario_designacao: str | None = None,
+    usar_sub_projetos: bool | None = None,
 ) -> bool:
     """Atualiza as configurações de um projeto."""
     conn = get_db_connection()
@@ -201,6 +204,9 @@ def atualizar_config_projeto(
         if usa_template_pis is not None:
             sets.append("usa_template_pis = %s")
             vals.append(usa_template_pis)
+        if usar_sub_projetos is not None:
+            sets.append("usar_sub_projetos = %s")
+            vals.append(usar_sub_projetos)
         for col, val in [
             ("honorario_entidade", honorario_entidade),
             ("honorario_morada", honorario_morada),

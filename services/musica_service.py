@@ -376,11 +376,11 @@ def avancar_fase(musica_id, user_id, dados=None):
                 cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, revisto_por_id = %s, fase_deadline = NULL, updated_at = NOW() WHERE id = %s",
                            (novo_estado, novo_responsavel, user_id, musica_id))
 
-        # 5. Produtor: Finalização WIP -> Concluído
+        # 5. Produtor: Finalização WIP -> Concluído (arquiva automaticamente)
         elif estado_atual == 'finalização_wip':
             novo_estado = 'concluído'
             novo_responsavel = None
-            cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, finalizado_por_id = %s, fase_deadline = NULL, updated_at = NOW() WHERE id = %s",
+            cur.execute("UPDATE musicas SET estado = %s, responsavel_id = %s, finalizado_por_id = %s, arquivado = TRUE, arquivado_em = NOW(), fase_deadline = NULL, updated_at = NOW() WHERE id = %s",
                        (novo_estado, novo_responsavel, user_id, musica_id))
 
         else:
