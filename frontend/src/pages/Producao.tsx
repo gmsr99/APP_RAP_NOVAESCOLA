@@ -58,6 +58,7 @@ import {
   Settings,
   ArrowUpCircle,
   FileDown,
+  Archive,
 } from 'lucide-react';
 import { ExportMusicasModal } from '@/components/ExportMusicasModal';
 import { cn } from '@/lib/utils';
@@ -368,6 +369,16 @@ const Producao = () => {
       toast({ title: 'Timer reposto', description: 'O prazo foi reiniciado.' });
     },
     onError: () => toast({ title: 'Erro', description: 'Falha ao repor timer.', variant: 'destructive' })
+  });
+
+  const arquivarMusicaMutation = useMutation({
+    mutationFn: (id: number) => api.patch(`/api/musicas/${id}/arquivar`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['musicas'] });
+      queryClient.invalidateQueries({ queryKey: ['musicas-arquivadas'] });
+      toast({ title: 'Música arquivada', description: 'A música foi arquivada com sucesso.' });
+    },
+    onError: () => toast({ title: 'Erro', description: 'Não foi possível arquivar.', variant: 'destructive' })
   });
 
   const prioritizarMutation = useMutation({
@@ -1539,6 +1550,7 @@ const Producao = () => {
                       <TableHead>Turma / Instituição</TableHead>
                       <TableHead>Finalizada por</TableHead>
                       <TableHead>Estado</TableHead>
+                      <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1555,6 +1567,19 @@ const Producao = () => {
                           <Badge variant="secondary" className={m.arquivado ? 'bg-gray-100 text-gray-600' : 'bg-green-100 text-green-700'}>
                             {m.arquivado ? 'Arquivada' : 'Concluída'}
                           </Badge>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {m._tipo === 'concluída' && (isProdutor || isCoordinator) && (
+                            <Button
+                              size="sm" variant="ghost"
+                              className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                              onClick={() => arquivarMusicaMutation.mutate(m.id)}
+                              disabled={arquivarMusicaMutation.isPending}
+                              title="Arquivar música"
+                            >
+                              <Archive className="w-3.5 h-3.5 mr-1" /> Arquivar
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}

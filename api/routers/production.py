@@ -104,8 +104,12 @@ async def reset_timer_musica(musica_id: int, user=Depends(get_current_user_requi
 
 
 @router.patch("/api/musicas/{musica_id}/arquivar", tags=["Producao"])
-async def arquivar_musica(musica_id: int):
-    """Arquiva uma música (apenas se estiver em Finalização)."""
+async def arquivar_musica(musica_id: int, user=Depends(get_current_user_required)):
+    """Arquiva uma música — requer production.lab (produtor) ou coordenação."""
+    perms = _perm_svc.get_user_permissions(user.get("sub"))
+    has_lab = _perm_svc.has_action(user.get("sub"), "production.lab")
+    if not (has_lab or perms["is_coordenacao"] or perms["is_direcao"] or perms["is_root"]):
+        raise HTTPException(status_code=403, detail="Acesso negado.")
     sucesso, mensagem = musica_service.arquivar_musica(musica_id)
     if not sucesso:
         raise HTTPException(status_code=400, detail=mensagem)
