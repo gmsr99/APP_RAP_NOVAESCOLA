@@ -303,6 +303,10 @@ const Horarios = () => {
   // Confirmação para ações em sessões de outros users
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
 
+  // Popup "Levas o teu carro?" antes de confirmar sessão presencial
+  const [levaCarroConfirmOpen, setLevaCarroConfirmOpen] = useState(false);
+  const [pendingConfirmId, setPendingConfirmId] = useState<number | null>(null);
+
   // Confirmação de apagar sessão
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
@@ -906,15 +910,25 @@ const Horarios = () => {
   };
 
   const confirmMutation = useMutation({
-    mutationFn: (id: number) => api.post(`/api/aulas/${id}/confirm`),
+    mutationFn: ({ id, leva_carro }: { id: number; leva_carro: boolean }) =>
+      api.post(`/api/aulas/${id}/confirm`, { leva_carro }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['aulas'] });
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['leva-carro-resumo'] });
       setIsDetailOpen(false);
       toast.success('Sessão confirmada com sucesso!');
     },
     onError: () => toast.error('Erro ao confirmar sessão.'),
   });
+
+  const handleLevaCarroConfirm = (leva_carro: boolean) => {
+    setLevaCarroConfirmOpen(false);
+    if (pendingConfirmId !== null) {
+      confirmMutation.mutate({ id: pendingConfirmId, leva_carro });
+      setPendingConfirmId(null);
+    }
+  };
 
   const realizeMutation = useMutation({
     mutationFn: (id: number) => api.post(`/api/aulas/${id}/realize`),
@@ -3225,7 +3239,10 @@ const Horarios = () => {
                   {(viewSession.estado === 'pendente' || viewSession.estado === 'agendada') && !viewSession.is_autonomous &&
                     (isAdmin || isOwnSession) && (
                       <Button
-                        onClick={() => handleWithConfirmation(() => confirmMutation.mutate(viewSession.id))}
+                        onClick={() => handleWithConfirmation(() => {
+                          setPendingConfirmId(viewSession.id);
+                          setLevaCarroConfirmOpen(true);
+                        })}
                         disabled={confirmMutation.isPending}
                         className={greenClass}
                       >
@@ -3454,6 +3471,29 @@ const Horarios = () => {
 
       {/* AI Agent Sidebar */}
       <AIAgentChat open={isAgentOpen} onClose={() => setIsAgentOpen(false)} />
+
+      {/* Popup "Levas o teu carro?" — aparece antes de confirmar sessão presencial */}
+      <Dialog open={levaCarroConfirmOpen} onOpenChange={(open) => { if (!open) { setLevaCarroConfirmOpen(false); setPendingConfirmId(null); } }}>
+        <DialogContent className="sm:max-w-[380px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Car className="h-4 w-4" />
+              Levas o teu carro?
+            </DialogTitle>
+            <DialogDescription>
+              Indica se vais de carro próprio para esta sessão. A resposta fica registada para o mapa de KMs.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex-row gap-2 sm:justify-start">
+            <Button variant="outline" className="flex-1" onClick={() => handleLevaCarroConfirm(false)}>
+              Não
+            </Button>
+            <Button className="flex-1" onClick={() => handleLevaCarroConfirm(true)}>
+              Sim
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div >
   );
 };

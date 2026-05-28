@@ -444,7 +444,7 @@ def atribuir_mentor(aula_id, mentor_id):
         return False
 
 
-def mudar_estado_aula(aula_id, novo_estado):
+def mudar_estado_aula(aula_id, novo_estado, leva_carro=None):
     if novo_estado not in ESTADOS_VALIDOS:
         logger.error("Erro: Estado '%s' nao e valido! Estados validos: %s", novo_estado, ESTADOS_VALIDOS)
         return False
@@ -461,6 +461,8 @@ def mudar_estado_aula(aula_id, novo_estado):
 
             aula.estado = novo_estado
             aula.atualizado_em = datetime.utcnow()
+            if leva_carro is not None:
+                aula.leva_carro = leva_carro
 
             session.add(aula)
             session.commit()

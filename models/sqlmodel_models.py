@@ -96,6 +96,8 @@ class Aula(SQLModel, table=True):
     # Campos para estado "Terminada"
     avaliacao: Optional[int] = None
     obs_termino: Optional[str] = None
+    # Transporte
+    leva_carro: Optional[bool] = None
     # Trabalho Interno
     tarefa_id: Optional[int] = Field(default=None)
 

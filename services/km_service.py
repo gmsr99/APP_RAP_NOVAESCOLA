@@ -76,8 +76,7 @@ def obter_sessoes_km(
                     e.longitude,
                     e.nome AS estabelecimento,
                     p.nome AS projeto_nome
-                FROM registos r
-                JOIN aulas a ON a.id = r.aula_id
+                FROM aulas a
                 JOIN mentores m ON m.id = a.mentor_id
                 JOIN turmas t ON t.id = a.turma_id
                 JOIN estabelecimentos e ON e.id = t.estabelecimento_id
@@ -85,7 +84,8 @@ def obter_sessoes_km(
                 WHERE a.projeto_id = %s
                   AND a.is_autonomous = FALSE
                   AND m.user_id = %s
-                  AND r.leva_carro = TRUE
+                  AND a.leva_carro = TRUE
+                  AND a.estado = 'terminada'
                   AND DATE(a.data_hora AT TIME ZONE 'Europe/Lisbon') BETWEEN %s AND %s
                 ORDER BY dia, a.data_hora
             """, (projeto_id, user_id, data_inicio, data_fim))
@@ -96,17 +96,17 @@ def obter_sessoes_km(
 
 
 def obter_leva_carro_dia(user_id: str, data: str) -> bool | None:
-    """Verifica se o mentor já respondeu 'leva_carro' neste dia (para herança automática)."""
+    """Verifica se o mentor já respondeu 'leva_carro' neste dia (lê de aulas.leva_carro)."""
     conn = get_db_connection()
     try:
         with conn.cursor() as cur:
             cur.execute("""
-                SELECT r.leva_carro
-                FROM registos r
-                JOIN aulas a ON a.id = r.aula_id
+                SELECT a.leva_carro
+                FROM aulas a
                 JOIN mentores m ON m.id = a.mentor_id
                 WHERE m.user_id = %s
-                  AND r.leva_carro IS NOT NULL
+                  AND a.leva_carro IS NOT NULL
+                  AND a.is_autonomous = FALSE
                   AND DATE(a.data_hora AT TIME ZONE 'Europe/Lisbon') = %s
                 LIMIT 1
             """, (user_id, data))
@@ -267,7 +267,8 @@ def gerar_mapa_kms(user_id: str, projeto_id: int, mes: int, ano: int) -> bytes:
 
 def obter_leva_carro_resumo(data_inicio: str, data_fim: str) -> dict:
     """
-    Retorna, para cada dia no intervalo, a lista de mentores que levam carro e os estabelecimentos visitados.
+    Retorna, para cada dia no intervalo, a lista de mentores que confirmaram levar carro.
+    Lê de aulas.leva_carro (definido no momento de confirmação da sessão).
     Formato: { "YYYY-MM-DD": [{ "mentor_nome": str, "estabelecimentos": [str] }] }
     """
     conn = get_db_connection()
@@ -278,14 +279,14 @@ def obter_leva_carro_resumo(data_inicio: str, data_fim: str) -> dict:
                     DATE(a.data_hora AT TIME ZONE 'Europe/Lisbon') AS dia,
                     p.full_name AS mentor_nome,
                     ARRAY_AGG(DISTINCT e.nome ORDER BY e.nome) AS estabelecimentos
-                FROM registos r
-                JOIN aulas a ON a.id = r.aula_id
+                FROM aulas a
                 JOIN mentores m ON m.id = a.mentor_id
                 JOIN profiles p ON p.id = m.user_id
                 JOIN turmas t ON t.id = a.turma_id
                 JOIN estabelecimentos e ON e.id = t.estabelecimento_id
-                WHERE r.leva_carro = TRUE
+                WHERE a.leva_carro = TRUE
                   AND a.is_autonomous = FALSE
+                  AND a.estado IN ('confirmada', 'terminada')
                   AND DATE(a.data_hora AT TIME ZONE 'Europe/Lisbon') BETWEEN %s AND %s
                 GROUP BY dia, p.full_name
                 ORDER BY dia, p.full_name

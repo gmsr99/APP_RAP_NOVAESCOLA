@@ -332,8 +332,21 @@ def criar_registo(
     kms_percorridos: Optional[float] = None,
     leva_carro: Optional[bool] = None,
 ) -> Optional[Dict[str, Any]]:
-    """Cria um registo de sessão."""
+    """Cria um registo de sessão. Se leva_carro não fornecido, herda de aulas.leva_carro."""
     import json
+
+    # Inherit leva_carro from the aula if not explicitly provided
+    if leva_carro is None:
+        try:
+            with Session(engine) as s:
+                row = s.exec(
+                    text("SELECT leva_carro FROM aulas WHERE id = :id"),
+                    params={"id": aula_id}
+                ).first()
+                if row and row[0] is not None:
+                    leva_carro = row[0]
+        except Exception:
+            pass
 
     sql_insert = text("""
         INSERT INTO registos (aula_id, user_id, numero_sessao, objetivos_gerais, sumario, participantes,

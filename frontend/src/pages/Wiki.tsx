@@ -293,7 +293,7 @@ const Wiki = () => {
       const res = await api.get(`/api/projetos/${selectedProjetoId}/sub-projetos`);
       return res.data as SubProjetoItem[];
     },
-    enabled: !!selectedProjetoId && !!selectedProjeto?.usar_sub_projetos,
+    enabled: !!selectedProjetoId && !!projetos.find(p => p.id === selectedProjetoId)?.usar_sub_projetos,
   });
 
   // Filtered data

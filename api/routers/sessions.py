@@ -40,6 +40,10 @@ class AulaEstadoOverride(BaseModel):
     estado: str
 
 
+class ConfirmPayload(BaseModel):
+    leva_carro: Optional[bool] = None
+
+
 class TerminarPayload(BaseModel):
     avaliacao: int = Field(ge=1, le=5)
     obs_termino: Optional[str] = None
@@ -238,15 +242,15 @@ async def delete_aula(aula_id: int, user=Depends(get_current_user_required)):
 
 
 @router.post("/api/aulas/{aula_id}/confirm", tags=["Aulas"])
-async def confirm_aula(aula_id: int, user=Depends(get_current_user_required)):
-    """Confirma uma aula (status -> 'confirmada')."""
+async def confirm_aula(aula_id: int, payload: ConfirmPayload = ConfirmPayload(), user=Depends(get_current_user_required)):
+    """Confirma uma aula (status -> 'confirmada'). Aceita leva_carro opcional."""
     aula_info = aula_service.obter_aula_por_id(aula_id)
     if not aula_info:
         raise HTTPException(status_code=404, detail="Sessão não encontrada")
     if not _check_session_permission(user, aula_info):
         raise HTTPException(status_code=403, detail="Sem permissão para alterar esta sessão.")
     try:
-        sucesso = aula_service.mudar_estado_aula(aula_id, "confirmada")
+        sucesso = aula_service.mudar_estado_aula(aula_id, "confirmada", leva_carro=payload.leva_carro)
         if sucesso:
             return {"message": "Aula confirmada com sucesso"}
         raise HTTPException(status_code=400, detail="Erro ao confirmar aula")
