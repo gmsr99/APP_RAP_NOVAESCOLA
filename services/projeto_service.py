@@ -93,10 +93,30 @@ def atualizar_projeto(projeto_id, nome, descricao=None):
 
 
 def apagar_projeto(projeto_id):
-    """Apaga um projeto (cascade apaga bridge)."""
+    """Apaga um projeto em cascata: aulas → turmas (+ disciplinas, atividades, alunos) → projeto."""
     conn = get_db_connection()
     try:
         cur = conn.cursor()
+
+        # Turmas dos estabelecimentos deste projeto
+        cur.execute("""
+            SELECT DISTINCT t.id FROM turmas t
+            JOIN projeto_estabelecimentos pe ON pe.estabelecimento_id = t.estabelecimento_id
+            WHERE pe.projeto_id = %s
+        """, (projeto_id,))
+        turma_ids = [r[0] for r in cur.fetchall()]
+
+        if turma_ids:
+            ph = ",".join(["%s"] * len(turma_ids))
+            # Aulas ligadas a estas turmas (NO ACTION FK — apagar antes)
+            cur.execute(f"DELETE FROM aulas WHERE turma_id IN ({ph})", turma_ids)
+            # Turmas (cascade: turma_disciplinas → turma_atividades, alunos)
+            cur.execute(f"DELETE FROM turmas WHERE id IN ({ph})", turma_ids)
+
+        # Quaisquer aulas restantes ligadas a este projeto (autónomas ou residuais)
+        cur.execute("DELETE FROM aulas WHERE projeto_id = %s", (projeto_id,))
+
+        # Projeto (cascade: projeto_estabelecimentos, sub_projetos, rates, access)
         cur.execute("DELETE FROM projetos WHERE id = %s", (projeto_id,))
         conn.commit()
         return cur.rowcount > 0

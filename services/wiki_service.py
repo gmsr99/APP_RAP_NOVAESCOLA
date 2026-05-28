@@ -34,13 +34,14 @@ def listar_hierarquia_projeto(projeto_id: int):
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # 1. Estabelecimentos do projeto
+        # 1. Estabelecimentos do projeto (com sub-projeto se existir)
         cur.execute("""
-            SELECT e.id, e.nome, e.sigla
+            SELECT e.id, e.nome, e.sigla, pe.sub_projeto_id, sp.nome AS sub_projeto_nome
             FROM estabelecimentos e
             JOIN projeto_estabelecimentos pe ON pe.estabelecimento_id = e.id
+            LEFT JOIN sub_projetos sp ON sp.id = pe.sub_projeto_id
             WHERE pe.projeto_id = %s
-            ORDER BY e.nome
+            ORDER BY sp.nome NULLS LAST, e.nome
         """, (projeto_id,))
         estabelecimentos = cur.fetchall()
 
@@ -48,7 +49,7 @@ def listar_hierarquia_projeto(projeto_id: int):
 
         resultado = []
         for est in estabelecimentos:
-            est_id, est_nome, est_sigla = est
+            est_id, est_nome, est_sigla, est_sub_projeto_id, est_sub_projeto_nome = est
 
             # 2. Turmas do estabelecimento
             cur.execute("""
@@ -147,6 +148,8 @@ def listar_hierarquia_projeto(projeto_id: int):
                 'id': est_id,
                 'nome': est_nome,
                 'sigla': est_sigla,
+                'sub_projeto_id': est_sub_projeto_id,
+                'sub_projeto_nome': est_sub_projeto_nome,
                 'turmas': turmas,
             })
 

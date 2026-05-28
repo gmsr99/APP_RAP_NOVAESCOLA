@@ -136,6 +136,8 @@ interface WikiEstabelecimento {
   id: number;
   nome: string;
   sigla: string;
+  sub_projeto_id?: number | null;
+  sub_projeto_nome?: string | null;
   turmas: WikiTurma[];
 }
 
@@ -206,6 +208,9 @@ const Wiki = () => {
   const askConfirm = (title: string, description: string, onConfirm: () => void) => {
     setConfirmDialog({ open: true, title, description, onConfirm });
   };
+
+  // Sub-projeto selecionado na sidebar (para projetos com usar_sub_projetos)
+  const [selectedWikiSubProjetoId, setSelectedWikiSubProjetoId] = useState<number | null>(null);
 
   // Info cards visibility
   const [showInfoCards, setShowInfoCards] = useState(false);
@@ -672,7 +677,7 @@ const Wiki = () => {
               </Button>
             )}
           </div>
-          <Select value={selectedProjetoId ? String(selectedProjetoId) : undefined} onValueChange={(v) => { setSelectedProjetoId(Number(v)); setSelectedNode(null); }}>
+          <Select value={selectedProjetoId ? String(selectedProjetoId) : undefined} onValueChange={(v) => { setSelectedProjetoId(Number(v)); setSelectedNode(null); setSelectedWikiSubProjetoId(null); }}>
             <SelectTrigger><SelectValue placeholder="Selecionar projeto..." /></SelectTrigger>
             <SelectContent>
               {projetos.map(p => <SelectItem key={p.id} value={String(p.id)}>{p.nome}</SelectItem>)}
@@ -684,6 +689,19 @@ const Wiki = () => {
                 const p = projetos.find(x => x.id === selectedProjetoId);
                 if (p) { setEditingProjeto(p); setProjetoForm({ nome: p.nome, descricao: p.descricao || '' }); setIsProjetoDialogOpen(true); }
               }}>Editar</Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive border-destructive/30"
+                onClick={() => {
+                  const p = projetos.find(x => x.id === selectedProjetoId);
+                  askConfirm(
+                    `Apagar "${p?.nome}"?`,
+                    'Esta ação é irreversível. Serão apagadas todas as turmas, disciplinas, atividades e sessões associadas a este projeto.',
+                    () => deleteProjetoMutation.mutate(selectedProjetoId)
+                  );
+                }}
+              >Apagar</Button>
               <Button variant="outline" size="sm" className="flex-1 h-8 text-xs" onClick={() => {
                 setConfigForm({
                   requer_digitalizacao: selectedProjeto?.requer_digitalizacao ?? false,
@@ -719,17 +737,86 @@ const Wiki = () => {
               <p className="text-xs text-muted-foreground text-center py-4">A carregar...</p>
             ) : wikiHierarquia.length === 0 ? (
               <p className="text-xs text-muted-foreground text-center py-4">Sem estabelecimentos.</p>
-            ) : (
-              wikiHierarquia.map(estab => (
+            ) : selectedProjeto?.usar_sub_projetos ? (() => {
+              // Agrupar por sub-projeto
+              const subMap = new Map<number, { id: number; nome: string; estabs: WikiEstabelecimento[] }>();
+              const semSub: WikiEstabelecimento[] = [];
+              for (const e of wikiHierarquia) {
+                if (e.sub_projeto_id && e.sub_projeto_nome) {
+                  if (!subMap.has(e.sub_projeto_id)) subMap.set(e.sub_projeto_id, { id: e.sub_projeto_id, nome: e.sub_projeto_nome, estabs: [] });
+                  subMap.get(e.sub_projeto_id)!.estabs.push(e);
+                } else {
+                  semSub.push(e);
+                }
+              }
+              const subProjetos = [...subMap.values()];
+
+              const renderEstabItem = (estab: WikiEstabelecimento) => (
                 <div key={estab.id} className="space-y-1">
-                  <button 
+                  <button
                     onClick={() => setSelectedNode({ type: 'estab', id: estab.id, data: estab })}
                     className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between text-sm transition-colors ${selectedNode?.type === 'estab' && selectedNode.id === estab.id ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted'}`}
                   >
                     <span className="flex items-center gap-2 truncate"><Building2 className="h-4 w-4 shrink-0"/> {estab.nome}</span>
                     <ChevronRight className="h-3.5 w-3.5 opacity-50 shrink-0"/>
                   </button>
-                  {/* Render Turmas only if Estab is selected or partially selected */}
+                  {((selectedNode?.type === 'estab' && selectedNode.id === estab.id) || (selectedNode?.type === 'turma' && selectedNode.estabId === estab.id) || (selectedNode?.type === 'disc' && wikiHierarquia.find(e => e.id === estab.id)?.turmas.some(t => t.id === selectedNode.turmaId))) && (
+                    <div className="pl-4 space-y-1 border-l-2 border-muted ml-4 mt-1">
+                      {estab.turmas.map(turma => (
+                        <div key={turma.id} className="space-y-1">
+                          <button onClick={() => setSelectedNode({ type: 'turma', id: turma.id, data: turma, estabId: estab.id })} className={`w-full text-left px-3 py-1.5 rounded-lg flex items-center justify-between text-sm transition-colors ${selectedNode?.type === 'turma' && selectedNode.id === turma.id ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted'}`}>
+                            <span className="flex items-center gap-2 truncate"><Users className="h-3.5 w-3.5 shrink-0"/> {turma.nome}</span>
+                            <ChevronRight className="h-3 w-3 opacity-50 shrink-0"/>
+                          </button>
+                          {((selectedNode?.type === 'turma' && selectedNode.id === turma.id) || (selectedNode?.type === 'disc' && selectedNode.turmaId === turma.id)) && (
+                            <div className="pl-4 space-y-1 border-l-2 border-muted ml-4 mt-1">
+                              {turma.disciplinas.map(disc => (
+                                <button key={disc.id} onClick={() => setSelectedNode({ type: 'disc', id: disc.id, data: disc, turmaId: turma.id })} className={`w-full text-left px-3 py-1.5 rounded-lg flex items-center text-sm transition-colors ${selectedNode?.type === 'disc' && selectedNode.id === disc.id ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted text-muted-foreground'}`}>
+                                  <span className="flex items-center gap-2 truncate"><Book className="h-3 w-3 shrink-0"/> {disc.nome}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+
+              return (
+                <>
+                  {subProjetos.map(sp => (
+                    <div key={sp.id} className="space-y-1">
+                      <button
+                        onClick={() => setSelectedWikiSubProjetoId(selectedWikiSubProjetoId === sp.id ? null : sp.id)}
+                        className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between text-sm font-semibold transition-colors ${selectedWikiSubProjetoId === sp.id ? 'bg-primary/15 text-primary' : 'hover:bg-muted text-foreground'}`}
+                      >
+                        <span className="flex items-center gap-2 truncate">
+                          <span className="text-primary/70">◈</span> {sp.nome}
+                        </span>
+                        <ChevronDown className={`h-3.5 w-3.5 opacity-50 shrink-0 transition-transform ${selectedWikiSubProjetoId === sp.id ? 'rotate-180' : ''}`} />
+                      </button>
+                      {selectedWikiSubProjetoId === sp.id && (
+                        <div className="pl-3 space-y-1 border-l-2 border-primary/20 ml-3">
+                          {sp.estabs.map(renderEstabItem)}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {semSub.map(renderEstabItem)}
+                </>
+              );
+            })() : (
+              wikiHierarquia.map(estab => (
+                <div key={estab.id} className="space-y-1">
+                  <button
+                    onClick={() => setSelectedNode({ type: 'estab', id: estab.id, data: estab })}
+                    className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between text-sm transition-colors ${selectedNode?.type === 'estab' && selectedNode.id === estab.id ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted'}`}
+                  >
+                    <span className="flex items-center gap-2 truncate"><Building2 className="h-4 w-4 shrink-0"/> {estab.nome}</span>
+                    <ChevronRight className="h-3.5 w-3.5 opacity-50 shrink-0"/>
+                  </button>
                   {(selectedNode?.type === 'estab' && selectedNode.id === estab.id) || (selectedNode?.type === 'turma' && selectedNode.estabId === estab.id) || (selectedNode?.type === 'disc' && wikiHierarquia.find(e=>e.id===estab.id)?.turmas.some(t=>t.id===selectedNode.turmaId)) ? (
                     <div className="pl-4 space-y-1 border-l-2 border-muted ml-4 mt-1">
                       {estab.turmas.map(turma => (
@@ -741,7 +828,6 @@ const Wiki = () => {
                             <span className="flex items-center gap-2 truncate"><Users className="h-3.5 w-3.5 shrink-0"/> {turma.nome}</span>
                             <ChevronRight className="h-3 w-3 opacity-50 shrink-0"/>
                           </button>
-                          {/* Render Disciplinas */}
                           {((selectedNode?.type === 'turma' && selectedNode.id === turma.id) || (selectedNode?.type === 'disc' && selectedNode.turmaId === turma.id)) && (
                             <div className="pl-4 space-y-1 border-l-2 border-muted ml-4 mt-1">
                               {turma.disciplinas.map(disc => (
