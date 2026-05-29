@@ -1062,6 +1062,24 @@ const Horarios = () => {
   const handleOpenEdit = async (session: AulaAPI) => {
     setEditingSession(session);
 
+    // Sessões 'outro' usam tab e form próprios
+    if (session.tipo === 'outro') {
+      const sessionDate = new Date(session.data_hora);
+      setModalTab('outro');
+      setOutroForm({
+        titulo: session.tema ?? '',
+        participantes_ids: session.participantes_ids ?? [],
+        date: format(sessionDate, 'yyyy-MM-dd'),
+        hora_inicio: format(sessionDate, 'HH:mm'),
+        hora_fim: format(addMinutes(sessionDate, session.duracao_minutos), 'HH:mm'),
+        observacoes: session.observacoes ?? '',
+        repetir_semanalmente: false,
+        semanas: 4,
+      });
+      setIsDialogOpen(true);
+      return;
+    }
+
     // Pre-populate projeto + estabelecimento cascading
     if (session.projeto_id) {
       setSelectedProjetoId(session.projeto_id);
@@ -1150,7 +1168,9 @@ const Horarios = () => {
         observacoes: outroForm.observacoes || '',
         participantes_ids: outroForm.participantes_ids,
       };
-      if (outroForm.repetir_semanalmente && outroForm.semanas > 1) {
+      if (editingSession) {
+        updateSessionMutation.mutate({ id: editingSession.id, data: payload });
+      } else if (outroForm.repetir_semanalmente && outroForm.semanas > 1) {
         createRecurringSessionMutation.mutate({ payload, semanas: outroForm.semanas });
       } else {
         createSessionMutation.mutate(payload);
@@ -2150,6 +2170,7 @@ const Horarios = () => {
                         </div>
 
                         {/* Repetição semanal */}
+                        {!editingSession && (
                         <div className="space-y-3 rounded-md border border-dashed border-border p-3">
                           <div className="flex items-center gap-2">
                             <Checkbox
@@ -2182,6 +2203,7 @@ const Horarios = () => {
                             </div>
                           )}
                         </div>
+                        )}
 
                       </div>
                     </TabsContent>
@@ -3350,10 +3372,22 @@ const Horarios = () => {
                         Voltar a Rascunho
                       </Button>
                     )}
-                  {isAdmin && viewSession?.tipo !== 'outro' && (
+                  {/* Editar — sessões normais só admins; 'outro' qualquer participante ou admin */}
+                  {(isAdmin || (isOwnSession && viewSession.tipo === 'outro')) && (
                     <Button onClick={() => { setIsDetailOpen(false); handleOpenEdit(viewSession); }} variant="outline" className="w-full sm:w-auto">
                       <Edit2 className="w-4 h-4 mr-2" />
-                      Editar Sessão
+                      {viewSession.tipo === 'outro' ? 'Editar Reunião' : 'Editar Sessão'}
+                    </Button>
+                  )}
+                  {/* Apagar 'outro' — qualquer participante ou admin */}
+                  {viewSession.tipo === 'outro' && (isAdmin || isOwnSession) && (
+                    <Button
+                      variant="outline"
+                      className="w-full sm:w-auto text-destructive border-destructive/30 hover:bg-destructive/10"
+                      onClick={() => { setIsDetailOpen(false); setEditingSession(viewSession); setDeleteConfirmOpen(true); }}
+                    >
+                      <Trash2 className="w-4 h-4 mr-2" />
+                      Apagar Reunião
                     </Button>
                   )}
                 </>
