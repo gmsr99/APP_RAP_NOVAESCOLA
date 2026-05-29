@@ -7,6 +7,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Union
 
+from sqlalchemy import or_
 from sqlmodel import Session, select
 
 from database.connection import get_db_connection
@@ -743,7 +744,11 @@ def listar_todas_aulas(limite=2000, allowed_project_ids=None, hide_direcao_sessi
                 .limit(limite)
             )
             if allowed_project_ids is not None:
-                statement = statement.where(Aula.projeto_id.in_(allowed_project_ids))
+                # Sessões presenciais (tipo='aula') são sempre devolvidas para coordenação de boleias;
+                # outros tipos ficam restritos aos projetos permitidos do mentor
+                statement = statement.where(
+                    or_(Aula.tipo == 'aula', Aula.projeto_id.in_(allowed_project_ids))
+                )
             rows = session.exec(statement).all()
 
         # Batch fetch participants for 'outro' aulas
