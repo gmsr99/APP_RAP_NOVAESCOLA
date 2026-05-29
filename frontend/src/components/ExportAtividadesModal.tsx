@@ -27,7 +27,8 @@ import { toast } from 'sonner';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface Projeto { id: number; nome: string; }
+interface Projeto { id: number; nome: string; usar_sub_projetos?: boolean; }
+interface SubProjeto { id: number; nome: string; projeto_id: number; projeto_nome: string; }
 interface Mentor  { id: number; nome: string; }
 
 export interface ExportAtividadesModalProps {
@@ -255,8 +256,10 @@ function gerarXLSX(rows: ExportRow[], labelProjetos: string, labelTipo: string, 
 
 export function ExportAtividadesModal({ open, onOpenChange }: ExportAtividadesModalProps) {
 
-  // Projetos selecionados: [] = todos
+  // Projetos (sem sub-projetos) selecionados
   const [projetosSel, setProjetosSel] = useState<number[]>([]);
+  // Sub-projetos selecionados
+  const [subProjetosSel, setSubProjetosSel] = useState<number[]>([]);
   const [mentorSel, setMentorSel] = useState<string>('all');
   const [tipoSessao, setTipoSessao] = useState('todas');
   const [todosEstados, setTodosEstados] = useState(true);
@@ -271,6 +274,12 @@ export function ExportAtividadesModal({ open, onOpenChange }: ExportAtividadesMo
     enabled: open,
   });
 
+  const { data: todosSubProjetos = [] } = useQuery<SubProjeto[]>({
+    queryKey: ['all-sub-projetos'],
+    queryFn: async () => (await api.get('/api/sub-projetos')).data,
+    enabled: open,
+  });
+
   const { data: mentores = [] } = useQuery<Mentor[]>({
     queryKey: ['mentores'],
     queryFn: async () => (await api.get('/api/mentores')).data,
@@ -279,6 +288,7 @@ export function ExportAtividadesModal({ open, onOpenChange }: ExportAtividadesMo
 
   function handleClose() {
     setProjetosSel([]);
+    setSubProjetosSel([]);
     setMentorSel('all');
     setTipoSessao('todas');
     setTodosEstados(true);
@@ -294,6 +304,12 @@ export function ExportAtividadesModal({ open, onOpenChange }: ExportAtividadesMo
     );
   }
 
+  function toggleSubProjeto(id: number) {
+    setSubProjetosSel(prev =>
+      prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]
+    );
+  }
+
   function toggleEstado(e: string) {
     setEstadosSel(prev =>
       prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e]
@@ -305,6 +321,7 @@ export function ExportAtividadesModal({ open, onOpenChange }: ExportAtividadesMo
     try {
       const params = new URLSearchParams();
       if (projetosSel.length > 0) params.set('projeto_ids', projetosSel.join(','));
+      if (subProjetosSel.length > 0) params.set('sub_projeto_ids', subProjetosSel.join(','));
       params.set('tipo_sessao', tipoSessao);
       if (!todosEstados && estadosSel.length > 0) params.set('estados', estadosSel.join(','));
       if (mentorSel !== 'all') params.set('mentor_id', mentorSel);
@@ -320,9 +337,15 @@ export function ExportAtividadesModal({ open, onOpenChange }: ExportAtividadesMo
         return;
       }
 
-      const labelProjetos = projetosSel.length === 0
+      const labelProjetos = projetosSel.length === 0 && subProjetosSel.length === 0
         ? 'Todos os Projetos'
-        : projetosSel.map(id => projetos.find(p => p.id === id)?.nome ?? id).join(', ');
+        : [
+            ...projetosSel.map(id => projetos.find(p => p.id === id)?.nome ?? String(id)),
+            ...subProjetosSel.map(id => {
+              const sp = todosSubProjetos.find(s => s.id === id);
+              return sp ? `${sp.projeto_nome} — ${sp.nome}` : String(id);
+            }),
+          ].join(', ');
       const labelTipo = TIPO_SESSAO_OPTIONS.find(o => o.value === tipoSessao)?.label ?? tipoSessao;
       const labelEstados = todosEstados ? 'Todos' : estadosSel.map(e => ESTADO_LABELS[e] ?? e).join(', ');
       const labelMentor = mentorSel === 'all' ? 'Todos' : (mentores.find(m => m.id === Number(mentorSel))?.nome ?? mentorSel);
@@ -362,29 +385,53 @@ export function ExportAtividadesModal({ open, onOpenChange }: ExportAtividadesMo
 
         <div className="space-y-5 py-1">
 
-          {/* ── Projetos ── */}
+          {/* ── Projetos / Sub-Projetos ── */}
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Projetos</Label>
-            <p className="text-xs text-muted-foreground">Sem seleção = todos os projetos</p>
-            <div className="grid grid-cols-2 gap-1.5">
-              {projetos.map(p => (
-                <div key={p.id} className="flex items-center gap-2">
-                  <Checkbox
-                    id={`proj-${p.id}`}
-                    checked={projetosSel.includes(p.id)}
-                    onCheckedChange={() => toggleProjeto(p.id)}
-                  />
-                  <label htmlFor={`proj-${p.id}`} className="text-sm cursor-pointer leading-tight">{p.nome}</label>
-                </div>
-              ))}
+            <Label className="text-sm font-medium">Projetos / Sub-Projetos</Label>
+            <p className="text-xs text-muted-foreground">Sem seleção = todos. Projetos com sub-projetos expandem as suas opções.</p>
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              {projetos.map(p => {
+                const subsProjeto = todosSubProjetos.filter(sp => sp.projeto_id === p.id);
+                if (subsProjeto.length > 0) {
+                  return (
+                    <div key={p.id}>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pb-1">{p.nome}</p>
+                      <div className="pl-3 space-y-1 border-l-2 border-muted">
+                        {subsProjeto.map(sp => (
+                          <div key={sp.id} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`sp-${sp.id}`}
+                              checked={subProjetosSel.includes(sp.id)}
+                              onCheckedChange={() => toggleSubProjeto(sp.id)}
+                            />
+                            <label htmlFor={`sp-${sp.id}`} className="text-sm cursor-pointer leading-tight">{sp.nome}</label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={p.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`proj-${p.id}`}
+                      checked={projetosSel.includes(p.id)}
+                      onCheckedChange={() => toggleProjeto(p.id)}
+                    />
+                    <label htmlFor={`proj-${p.id}`} className="text-sm cursor-pointer leading-tight">{p.nome}</label>
+                  </div>
+                );
+              })}
             </div>
-            {projetosSel.length > 0 && (
+            {(projetosSel.length > 0 || subProjetosSel.length > 0) && (
               <div className="flex flex-wrap gap-1 pt-1">
                 {projetosSel.map(id => (
-                  <Badge key={id} variant="secondary" className="text-xs">
-                    {projetos.find(p => p.id === id)?.nome ?? id}
-                  </Badge>
+                  <Badge key={id} variant="secondary" className="text-xs">{projetos.find(p => p.id === id)?.nome ?? id}</Badge>
                 ))}
+                {subProjetosSel.map(id => {
+                  const sp = todosSubProjetos.find(s => s.id === id);
+                  return <Badge key={id} variant="secondary" className="text-xs">{sp ? `${sp.projeto_nome} — ${sp.nome}` : id}</Badge>;
+                })}
               </div>
             )}
           </div>

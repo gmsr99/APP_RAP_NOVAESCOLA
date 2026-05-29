@@ -736,20 +736,33 @@ const Horarios = () => {
     if (!list) return [];
     // TAs de produção musical (musica_id preenchido) só aparecem na página de Produção
     let out = list.filter(a => !(a.is_autonomous && a.musica_id));
-    if (effectiveMemberId) {
-      out = out.filter(a =>
-        a.mentor_user_id === effectiveMemberId ||
-        a.responsavel_user_id === effectiveMemberId ||
-        a.participantes_ids?.includes(effectiveMemberId)
-      );
-    } else if (!isAdmin && filterMode === 'all' && user?.id) {
-      // Mentor em modo "todas as aulas presenciais": próprias sessões (todos os tipos) + aulas presenciais de outros mentores
-      out = out.filter(a =>
-        a.tipo === 'aula' ||
-        a.mentor_user_id === user.id ||
-        a.responsavel_user_id === user.id ||
-        (a.participantes_ids?.includes(user.id) ?? false)
-      );
+    const userId = user?.id ?? null;
+    if (isAdmin) {
+      // Admins: filtrar por membro específico se selecionado, senão ver tudo
+      if (effectiveMemberId) {
+        out = out.filter(a =>
+          a.mentor_user_id === effectiveMemberId ||
+          a.responsavel_user_id === effectiveMemberId ||
+          (a.participantes_ids?.includes(effectiveMemberId) ?? false)
+        );
+      }
+    } else if (userId) {
+      // Mentors: 'mine' → só as próprias; 'all' → próprias + aulas presenciais de todos
+      if (filterMode === 'mine') {
+        out = out.filter(a =>
+          a.mentor_user_id === userId ||
+          a.responsavel_user_id === userId ||
+          (a.participantes_ids?.includes(userId) ?? false)
+        );
+      } else {
+        // filterMode === 'all': próprias sessões (todos os tipos) + aulas presenciais dos outros mentores
+        out = out.filter(a =>
+          a.tipo === 'aula' ||
+          a.mentor_user_id === userId ||
+          a.responsavel_user_id === userId ||
+          (a.participantes_ids?.includes(userId) ?? false)
+        );
+      }
     }
     if (filterProjectId !== null) {
       const estabIds = new Set((filterProjetoEstabs ?? []).map(e => e.id));

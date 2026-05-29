@@ -82,6 +82,7 @@ async def get_todas_sessoes_registaveis(user=Depends(get_current_user_required))
 @router.get("/api/aulas/export", tags=["Aulas"])
 async def export_aulas(
     projeto_ids: Optional[str] = None,
+    sub_projeto_ids: Optional[str] = None,
     tipo_sessao: Optional[str] = "todas",
     estados: Optional[str] = None,
     mentor_id: Optional[int] = None,
@@ -92,10 +93,12 @@ async def export_aulas(
     """Exporta lista de atividades/sessões com filtros flexíveis (coordenadores e superiores)."""
     _require_coordenacao(user)
     projeto_ids_list = [int(p.strip()) for p in projeto_ids.split(",") if p.strip()] if projeto_ids else None
+    sub_projeto_ids_list = [int(p.strip()) for p in sub_projeto_ids.split(",") if p.strip()] if sub_projeto_ids else None
     estados_list = [e.strip() for e in estados.split(",")] if estados else None
     mentor_id_int = int(mentor_id) if mentor_id else None
     return aula_service.listar_aulas_export(
         projeto_ids=projeto_ids_list,
+        sub_projeto_ids=sub_projeto_ids_list,
         tipo_sessao=tipo_sessao or "todas",
         estados=estados_list,
         mentor_id=mentor_id_int,

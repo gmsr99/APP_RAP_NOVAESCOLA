@@ -5,6 +5,33 @@ from database.connection import get_db_connection
 logger = logging.getLogger(__name__)
 
 
+def listar_todos_sub_projetos() -> list:
+    """Lista todos os sub-projetos de todos os projetos, com informação do projeto pai."""
+    conn = get_db_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT sp.id, sp.nome, sp.projeto_id, p.nome AS projeto_nome,
+                   COALESCE(
+                       json_agg(json_build_object('id', e.id) ORDER BY e.nome)
+                       FILTER (WHERE e.id IS NOT NULL), '[]'
+                   ) AS estabelecimentos
+            FROM sub_projetos sp
+            JOIN projetos p ON p.id = sp.projeto_id
+            LEFT JOIN projeto_estabelecimentos pe ON pe.sub_projeto_id = sp.id
+            LEFT JOIN estabelecimentos e ON e.id = pe.estabelecimento_id
+            GROUP BY sp.id, sp.nome, sp.projeto_id, p.nome
+            ORDER BY p.nome, sp.nome
+        """)
+        cols = [desc[0] for desc in cur.description]
+        return [dict(zip(cols, row)) for row in cur.fetchall()]
+    except Exception as e:
+        logger.error(f"Erro ao listar todos sub-projetos: {e}")
+        return []
+    finally:
+        conn.close()
+
+
 def listar_sub_projetos(projeto_id: int) -> list:
     """Lista sub-projetos de um projeto, com os respectivos estabelecimentos."""
     conn = get_db_connection()

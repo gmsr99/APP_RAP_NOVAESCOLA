@@ -1183,6 +1183,7 @@ def listar_aulas_export(
     mentor_id: int = None,
     data_inicio: str = None,
     data_fim: str = None,
+    sub_projeto_ids: list = None,
 ) -> list:
     """
     Exporta atividades/sessões com filtros flexíveis.
@@ -1225,6 +1226,17 @@ def listar_aulas_export(
         if data_fim:
             conditions.append("a.data_hora < (%s::date + INTERVAL '1 day')")
             params.append(data_fim)
+
+        if sub_projeto_ids:
+            ph = ", ".join(["%s"] * len(sub_projeto_ids))
+            conditions.append(f"""
+                EXISTS (
+                    SELECT 1 FROM projeto_estabelecimentos pe2
+                    JOIN turmas t2 ON t2.estabelecimento_id = pe2.estabelecimento_id
+                    WHERE t2.id = a.turma_id AND pe2.sub_projeto_id IN ({ph})
+                )
+            """)
+            params.extend(sub_projeto_ids)
 
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 

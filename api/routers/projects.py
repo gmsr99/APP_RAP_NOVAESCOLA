@@ -172,6 +172,12 @@ async def delete_projeto_asset(id: int, tipo: str, user=Depends(get_current_user
 
 # ─── Sub-Projetos ────────────────────────────────────────────────────────────
 
+@router.get("/api/sub-projetos", tags=["SubProjetos"])
+async def get_all_sub_projetos(_user=Depends(get_current_user_required)):
+    """Lista todos os sub-projetos de todos os projetos."""
+    return sub_projeto_service.listar_todos_sub_projetos()
+
+
 @router.get("/api/projetos/{id}/sub-projetos", tags=["SubProjetos"])
 async def get_sub_projetos(id: int, _user=Depends(get_current_user_required)):
     """Lista sub-projetos de um projeto, com os respetivos estabelecimentos."""

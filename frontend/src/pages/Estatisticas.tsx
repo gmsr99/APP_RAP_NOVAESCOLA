@@ -25,7 +25,7 @@ import { ExportMusicasModal } from '@/components/ExportMusicasModal';
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface Projeto { id: number; nome: string; usar_sub_projetos?: boolean }
-interface SubProjetoOpt { id: number; nome: string }
+interface SubProjetoOpt { id: number; nome: string; estabelecimentos: { id: number }[] }
 
 interface TurmaStats {
   turma_id: number;
@@ -96,7 +96,8 @@ export default function Estatisticas() {
   const canExportMedia = isCoordenacao;
 
   const [selectedProjetoId, setSelectedProjetoId] = useState<string>('');
-  const [selectedSubProjetoId, setSelectedSubProjetoId] = useState<number | null>(null);
+  // null = not yet chosen (shown when usar_sub_projetos=true), 'all' = whole project, number = specific sub-projeto
+  const [subProjetoChoice, setSubProjetoChoice] = useState<number | 'all' | null>(null);
   const [mentorFilter, setMentorFilter] = useState('all');
   const [disciplinaFilter, setDisciplinaFilter] = useState('all');
   const [instituicaoFilter, setInstituicaoFilter] = useState('all');
@@ -129,6 +130,15 @@ export default function Estatisticas() {
     queryFn: async () => (await api.get(`/api/projetos/${projetoId}/sub-projetos`)).data as SubProjetoOpt[],
     enabled: !!projetoId && !!selectedProjeto?.usar_sub_projetos,
   });
+
+  // Client-side sub-projeto filtering for stats display
+  const selectedSubProjetoData = typeof subProjetoChoice === 'number'
+    ? subProjetosOpts.find(sp => sp.id === subProjetoChoice)
+    : null;
+  const subProjetoEstabIds = selectedSubProjetoData
+    ? new Set(selectedSubProjetoData.estabelecimentos.map(e => e.id))
+    : null;
+  const activeSubProjetoId = typeof subProjetoChoice === 'number' ? subProjetoChoice : null;
 
   const { data: statsInstituicao = [] } = useQuery({
     queryKey: ['producao-stats-inst', projetoId],
@@ -175,41 +185,49 @@ export default function Estatisticas() {
 
   // ─── Computed KPIs ──────────────────────────────────────────────────────────
 
+  const displayedStatsInstituicao = subProjetoEstabIds
+    ? statsInstituicao.filter(e => subProjetoEstabIds.has(e.estabelecimento_id))
+    : statsInstituicao;
+
+  const displayedFeedbackData = subProjetoEstabIds
+    ? feedbackData.filter(f => f.estab_id != null && subProjetoEstabIds.has(f.estab_id))
+    : feedbackData;
+
   const kpis = useMemo(() => {
-    const allTurmas = statsInstituicao.flatMap(e => e.turmas);
+    const allTurmas = displayedStatsInstituicao.flatMap(e => e.turmas);
     const totalHoras = allTurmas.reduce((s, t) => s + (t.horas_previstas || 0), 0);
     const totalHorasRealizadas = allTurmas.reduce((s, t) => s + t.horas_realizadas, 0);
     const totalMusicasPrev = allTurmas.reduce((s, t) => s + (t.musicas_previstas || 0), 0);
     const totalConcluidas = allTurmas.reduce((s, t) => s + t.musicas_concluidas, 0);
     const totalEmCurso = allTurmas.reduce((s, t) => s + t.musicas_em_curso, 0);
-    const avgRating = feedbackData.length > 0
-      ? feedbackData.reduce((s, f) => s + f.avaliacao, 0) / feedbackData.length
+    const avgRating = displayedFeedbackData.length > 0
+      ? displayedFeedbackData.reduce((s, f) => s + f.avaliacao, 0) / displayedFeedbackData.length
       : 0;
-    return { totalHoras, totalHorasRealizadas, totalMusicasPrev, totalConcluidas, totalEmCurso, avgRating, totalSessoes: feedbackData.length };
-  }, [statsInstituicao, feedbackData]);
+    return { totalHoras, totalHorasRealizadas, totalMusicasPrev, totalConcluidas, totalEmCurso, avgRating, totalSessoes: displayedFeedbackData.length };
+  }, [displayedStatsInstituicao, displayedFeedbackData]);
 
   // ─── Feedback filters ───────────────────────────────────────────────────────
 
   const mentors = useMemo(() => {
     const map = new Map<string, string>();
-    feedbackData.forEach(f => { if (f.mentor_user_id && f.mentor_nome) map.set(f.mentor_user_id, f.mentor_nome); });
+    displayedFeedbackData.forEach(f => { if (f.mentor_user_id && f.mentor_nome) map.set(f.mentor_user_id, f.mentor_nome); });
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-  }, [feedbackData]);
+  }, [displayedFeedbackData]);
 
   const disciplinas = useMemo(() => {
     const map = new Map<number, string>();
-    feedbackData.forEach(f => { if (f.disciplina_id && f.disciplina_nome) map.set(f.disciplina_id, f.disciplina_nome); });
+    displayedFeedbackData.forEach(f => { if (f.disciplina_id && f.disciplina_nome) map.set(f.disciplina_id, f.disciplina_nome); });
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-  }, [feedbackData]);
+  }, [displayedFeedbackData]);
 
   const instituicoes = useMemo(() => {
     const map = new Map<number, string>();
-    feedbackData.forEach(f => { if (f.estab_id && f.estab_nome) map.set(f.estab_id, f.estab_nome); });
+    displayedFeedbackData.forEach(f => { if (f.estab_id && f.estab_nome) map.set(f.estab_id, f.estab_nome); });
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-  }, [feedbackData]);
+  }, [displayedFeedbackData]);
 
   const filteredFeedback = useMemo(() => {
-    return feedbackData.filter(f => {
+    return displayedFeedbackData.filter(f => {
       if (mentorFilter !== 'all' && f.mentor_user_id !== mentorFilter) return false;
       if (disciplinaFilter !== 'all' && String(f.disciplina_id) !== disciplinaFilter) return false;
       if (instituicaoFilter !== 'all' && String(f.estab_id) !== instituicaoFilter) return false;
@@ -253,7 +271,7 @@ export default function Estatisticas() {
               <Card
                 key={projeto.id}
                 className="cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all duration-200 group"
-                onClick={() => setSelectedProjetoId(String(projeto.id))}
+                onClick={() => { setSelectedProjetoId(String(projeto.id)); setSubProjetoChoice(null); }}
               >
                 <CardContent className="h-full flex flex-col items-center justify-center p-6 text-center space-y-4">
                   <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
@@ -275,13 +293,73 @@ export default function Estatisticas() {
     );
   }
 
+  // Sub-projeto selection screen (for projects with usar_sub_projetos=true)
+  if (projetoId && selectedProjeto?.usar_sub_projetos && subProjetoChoice === null) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-3">
+          <button onClick={() => setSelectedProjetoId('')} className="text-muted-foreground hover:text-foreground transition-colors">
+            <Layers className="h-5 w-5" />
+          </button>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <BarChart3 className="h-6 w-6" /> {selectedProjeto.nome}
+          </h1>
+        </div>
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="text-center space-y-1">
+            <p className="text-muted-foreground text-sm">Seleciona o âmbito dos dados a visualizar.</p>
+          </div>
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            <Card
+              className="cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all duration-200 group sm:col-span-2 lg:col-span-3"
+              onClick={() => setSubProjetoChoice('all')}
+            >
+              <CardContent className="flex items-center justify-center gap-4 p-6">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                  <Layers className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg">Ver dados de todo o Projeto</h3>
+                  <p className="text-sm text-muted-foreground">Todos os sub-projetos agregados</p>
+                </div>
+              </CardContent>
+            </Card>
+            {subProjetosOpts.map(sp => (
+              <Card
+                key={sp.id}
+                className="cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-all duration-200 group"
+                onClick={() => setSubProjetoChoice(sp.id)}
+              >
+                <CardContent className="h-full flex flex-col items-center justify-center p-6 text-center space-y-3">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                    <span className="text-primary font-bold text-lg">◈</span>
+                  </div>
+                  <h3 className="font-semibold text-lg">{sp.nome}</h3>
+                  <p className="text-xs text-muted-foreground">{sp.estabelecimentos.length} estabelecimento(s)</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <BarChart3 className="h-6 w-6" /> Estatísticas
-        </h1>
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <BarChart3 className="h-6 w-6" /> {selectedProjeto?.nome ?? 'Estatísticas'}
+            {selectedSubProjetoData && <span className="text-base font-normal text-muted-foreground">— {selectedSubProjetoData.nome}</span>}
+          </h1>
+          {selectedProjeto?.usar_sub_projetos && (
+            <button onClick={() => setSubProjetoChoice(null)} className="text-xs text-muted-foreground hover:text-foreground transition-colors mt-0.5">
+              ← Voltar à seleção de sub-projeto
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
           {(canExport || canExportMusicas) && projetoId && (
             <DropdownMenu>
@@ -330,7 +408,7 @@ export default function Estatisticas() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <ProjetoSelect projetos={projetos} value={selectedProjetoId} onChange={(v) => { setSelectedProjetoId(v); setSelectedSubProjetoId(null); }} />
+          <ProjetoSelect projetos={projetos} value={selectedProjetoId} onChange={(v) => { setSelectedProjetoId(v); setSubProjetoChoice(null); }} />
         </div>
       </div>
 
@@ -349,7 +427,7 @@ export default function Estatisticas() {
           onOpenChange={setExportMusicasOpen}
           projetoId={projetoId}
           projetoNome={selectedProjeto?.nome}
-          subProjetoId={selectedSubProjetoId}
+          subProjetoId={activeSubProjetoId}
           subProjetoOptions={subProjetosOpts}
         />
       )}
@@ -365,7 +443,7 @@ export default function Estatisticas() {
               {subProjetosOpts.length > 0 && (
                 <div className="space-y-1">
                   <Label>Sub-Projeto</Label>
-                  <Select value={selectedSubProjetoId ? String(selectedSubProjetoId) : 'all'} onValueChange={v => setSelectedSubProjetoId(v === 'all' ? null : Number(v))}>
+                  <Select value={activeSubProjetoId ? String(activeSubProjetoId) : 'all'} onValueChange={v => setSelectedSubProjetoId(v === 'all' ? null : Number(v))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos os sub-projetos</SelectItem>
@@ -404,12 +482,12 @@ export default function Estatisticas() {
                     const params: Record<string, string | number> = { projeto_id: projetoId };
                     if (registosFilter.data_inicio) params.data_inicio = registosFilter.data_inicio;
                     if (registosFilter.data_fim) params.data_fim = registosFilter.data_fim;
-                    if (selectedSubProjetoId) params.sub_projeto_id = selectedSubProjetoId;
+                    if (activeSubProjetoId) params.sub_projeto_id = activeSubProjetoId;
                     const res = await api.get('/api/aula-registos/export', { params, responseType: 'blob' });
                     const url = URL.createObjectURL(res.data);
                     const a = document.createElement('a');
                     a.href = url;
-                    const label = selectedSubProjetoId ? subProjetosOpts.find(s => s.id === selectedSubProjetoId)?.nome : selectedProjeto?.nome ?? 'Projeto';
+                    const label = activeSubProjetoId ? subProjetosOpts.find(s => s.id === activeSubProjetoId)?.nome : selectedProjeto?.nome ?? 'Projeto';
                     a.download = `Registos_${label}_${registosFilter.data_inicio || 'todos'}.zip`;
                     a.click();
                     URL.revokeObjectURL(url);
@@ -441,7 +519,7 @@ export default function Estatisticas() {
               {subProjetosOpts.length > 0 && (
                 <div className="space-y-1">
                   <Label>Sub-Projeto</Label>
-                  <Select value={selectedSubProjetoId ? String(selectedSubProjetoId) : 'all'} onValueChange={v => setSelectedSubProjetoId(v === 'all' ? null : Number(v))}>
+                  <Select value={activeSubProjetoId ? String(activeSubProjetoId) : 'all'} onValueChange={v => setSelectedSubProjetoId(v === 'all' ? null : Number(v))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos os sub-projetos</SelectItem>
@@ -480,12 +558,12 @@ export default function Estatisticas() {
                     const params: Record<string, string | number> = { projeto_id: projetoId };
                     if (evidenciasFilter.data_inicio) params.data_inicio = evidenciasFilter.data_inicio;
                     if (evidenciasFilter.data_fim) params.data_fim = evidenciasFilter.data_fim;
-                    if (selectedSubProjetoId) params.sub_projeto_id = selectedSubProjetoId;
+                    if (activeSubProjetoId) params.sub_projeto_id = activeSubProjetoId;
                     const res = await api.get('/api/aula-evidencias/export', { params, responseType: 'blob' });
                     const url = URL.createObjectURL(res.data);
                     const a = document.createElement('a');
                     a.href = url;
-                    const label = selectedSubProjetoId ? subProjetosOpts.find(s => s.id === selectedSubProjetoId)?.nome : selectedProjeto?.nome ?? 'Projeto';
+                    const label = activeSubProjetoId ? subProjetosOpts.find(s => s.id === activeSubProjetoId)?.nome : selectedProjeto?.nome ?? 'Projeto';
                     a.download = `Evidencias_${label}_${evidenciasFilter.data_inicio || 'todos'}.zip`;
                     a.click();
                     URL.revokeObjectURL(url);
@@ -517,7 +595,7 @@ export default function Estatisticas() {
               {subProjetosOpts.length > 0 && (
                 <div className="space-y-1">
                   <Label>Sub-Projeto</Label>
-                  <Select value={selectedSubProjetoId ? String(selectedSubProjetoId) : 'all'} onValueChange={v => setSelectedSubProjetoId(v === 'all' ? null : Number(v))}>
+                  <Select value={activeSubProjetoId ? String(activeSubProjetoId) : 'all'} onValueChange={v => setSelectedSubProjetoId(v === 'all' ? null : Number(v))}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos os sub-projetos</SelectItem>
@@ -556,12 +634,12 @@ export default function Estatisticas() {
                     const params: Record<string, string | number> = { projeto_id: projetoId };
                     if (feedbackFilter.data_inicio) params.data_inicio = feedbackFilter.data_inicio;
                     if (feedbackFilter.data_fim) params.data_fim = feedbackFilter.data_fim;
-                    if (selectedSubProjetoId) params.sub_projeto_id = selectedSubProjetoId;
+                    if (activeSubProjetoId) params.sub_projeto_id = activeSubProjetoId;
                     const res = await api.get('/api/aula-feedback/export', { params, responseType: 'blob' });
                     const url = URL.createObjectURL(res.data);
                     const a = document.createElement('a');
                     a.href = url;
-                    const label = selectedSubProjetoId ? subProjetosOpts.find(s => s.id === selectedSubProjetoId)?.nome : selectedProjeto?.nome ?? 'Projeto';
+                    const label = activeSubProjetoId ? subProjetosOpts.find(s => s.id === activeSubProjetoId)?.nome : selectedProjeto?.nome ?? 'Projeto';
                     a.download = `Feedback_${label}_${feedbackFilter.data_inicio || 'todos'}.zip`;
                     a.click();
                     URL.revokeObjectURL(url);
@@ -665,13 +743,13 @@ export default function Estatisticas() {
 
         {/* ─── Tab: Aulas ─────────────────────────────────────────────────── */}
         <TabsContent value="aulas" className="mt-4 space-y-4">
-          {statsInstituicao.length === 0 ? (
+          {displayedStatsInstituicao.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Building2 className="h-8 w-8 mx-auto mb-2 opacity-50" />
               Sem dados de progresso.
             </div>
           ) : (
-            statsInstituicao.map(estab => {
+            displayedStatsInstituicao.map(estab => {
               const totalHoras = estab.turmas.reduce((s, t) => s + (t.horas_previstas || 0), 0);
               const totalHorasR = estab.turmas.reduce((s, t) => s + t.horas_realizadas, 0);
               const totalMusicasPrev = estab.turmas.reduce((s, t) => s + (t.musicas_previstas || 0), 0);
