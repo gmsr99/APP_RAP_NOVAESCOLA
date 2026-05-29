@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import * as XLSX from 'xlsx-js-style';
 import { api } from '@/lib/api';
 import {
@@ -22,6 +23,8 @@ export interface ExportMusicasModalProps {
   onOpenChange: (open: boolean) => void;
   projetoId?: number | null;
   projetoNome?: string;
+  subProjetoId?: number | null;
+  subProjetoOptions?: { id: number; nome: string }[];
 }
 
 type MusicaExportRow = {
@@ -212,14 +215,16 @@ function gerarXLSX(rows: MusicaExportRow[], labelProjeto: string, labelDatas: st
 
 // ─── Componente ──────────────────────────────────────────────────────────────
 
-export function ExportMusicasModal({ open, onOpenChange, projetoId, projetoNome }: ExportMusicasModalProps) {
+export function ExportMusicasModal({ open, onOpenChange, projetoId, projetoNome, subProjetoId, subProjetoOptions = [] }: ExportMusicasModalProps) {
   const [dataInicio, setDataInicio] = useState('');
   const [dataFim, setDataFim] = useState('');
+  const [localSubProjetoId, setLocalSubProjetoId] = useState<number | null>(subProjetoId ?? null);
   const [loading, setLoading] = useState(false);
 
   function handleClose() {
     setDataInicio('');
     setDataFim('');
+    setLocalSubProjetoId(subProjetoId ?? null);
     onOpenChange(false);
   }
 
@@ -227,9 +232,10 @@ export function ExportMusicasModal({ open, onOpenChange, projetoId, projetoNome 
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (projetoId)   params.set('projeto_id',  String(projetoId));
-      if (dataInicio)  params.set('data_inicio',  dataInicio);
-      if (dataFim)     params.set('data_fim',     dataFim);
+      if (projetoId)          params.set('projeto_id',    String(projetoId));
+      if (dataInicio)         params.set('data_inicio',   dataInicio);
+      if (dataFim)            params.set('data_fim',      dataFim);
+      if (localSubProjetoId)  params.set('sub_projeto_id', String(localSubProjetoId));
 
       const res = await api.get(`/api/musicas/export?${params.toString()}`);
       const data = res.data as MusicaExportRow[];
@@ -240,7 +246,8 @@ export function ExportMusicasModal({ open, onOpenChange, projetoId, projetoNome 
         return;
       }
 
-      const labelProjeto = projetoNome ?? 'Todos os Projetos';
+      const subNome = localSubProjetoId ? subProjetoOptions.find(s => s.id === localSubProjetoId)?.nome : null;
+      const labelProjeto = subNome ? `${projetoNome ?? 'Projeto'} — ${subNome}` : (projetoNome ?? 'Todos os Projetos');
       const labelDatas = dataInicio || dataFim
         ? `${dataInicio || '…'} → ${dataFim || '…'}`
         : 'Sem limite';
@@ -275,6 +282,18 @@ export function ExportMusicasModal({ open, onOpenChange, projetoId, projetoNome 
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          {subProjetoOptions.length > 0 && (
+            <div className="space-y-1">
+              <Label className="text-sm font-medium">Sub-Projeto</Label>
+              <Select value={localSubProjetoId ? String(localSubProjetoId) : 'all'} onValueChange={v => setLocalSubProjetoId(v === 'all' ? null : Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os sub-projetos</SelectItem>
+                  {subProjetoOptions.map(sp => <SelectItem key={sp.id} value={String(sp.id)}>{sp.nome}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Período de conclusão</Label>
             <p className="text-xs text-muted-foreground">

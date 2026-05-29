@@ -69,6 +69,7 @@ def exportar_evidencias_zip(
     projeto_id: int,
     data_inicio: Optional[str] = None,
     data_fim: Optional[str] = None,
+    sub_projeto_id: Optional[int] = None,
 ) -> bytes:
     """
     Gera um ZIP com as fotos de evidência organizadas em pastas:
@@ -84,6 +85,12 @@ def exportar_evidencias_zip(
     if data_fim:
         conditions.append("a.data_hora <= :data_fim")
         params["data_fim"] = data_fim
+
+    sub_join = ""
+    if sub_projeto_id:
+        sub_join = "JOIN projeto_estabelecimentos pe ON pe.estabelecimento_id = e.id AND pe.projeto_id = a.projeto_id"
+        conditions.append("pe.sub_projeto_id = :sub_projeto_id")
+        params["sub_projeto_id"] = sub_projeto_id
 
     where_clause = " AND ".join(conditions)
 
@@ -102,6 +109,7 @@ def exportar_evidencias_zip(
         JOIN turmas t             ON a.turma_id = t.id
         JOIN estabelecimentos e   ON t.estabelecimento_id = e.id
         JOIN mentores m           ON a.mentor_id = m.id
+        {sub_join}
         WHERE {where_clause}
         ORDER BY a.data_hora ASC, ae.id ASC
     """)
@@ -154,6 +162,7 @@ def exportar_feedback_zip(
     projeto_id: int,
     data_inicio: Optional[str] = None,
     data_fim: Optional[str] = None,
+    sub_projeto_id: Optional[int] = None,
 ) -> bytes:
     """
     Gera um ZIP com os áudios de feedback organizados em pastas:
@@ -173,6 +182,12 @@ def exportar_feedback_zip(
         conditions.append("a.data_hora <= :data_fim")
         params["data_fim"] = data_fim
 
+    sub_join = ""
+    if sub_projeto_id:
+        sub_join = "JOIN projeto_estabelecimentos pe ON pe.estabelecimento_id = e.id AND pe.projeto_id = a.projeto_id"
+        conditions.append("pe.sub_projeto_id = :sub_projeto_id")
+        params["sub_projeto_id"] = sub_projeto_id
+
     where_clause = " AND ".join(conditions)
 
     sql = text(f"""
@@ -188,6 +203,7 @@ def exportar_feedback_zip(
         JOIN turmas t             ON a.turma_id = t.id
         JOIN estabelecimentos e   ON t.estabelecimento_id = e.id
         JOIN mentores m           ON a.mentor_id = m.id
+        {sub_join}
         WHERE {where_clause}
         ORDER BY a.data_hora ASC
     """)

@@ -125,6 +125,7 @@ def exportar_registos_zip(
     projeto_id: int,
     data_inicio: Optional[str] = None,
     data_fim: Optional[str] = None,
+    sub_projeto_id: Optional[int] = None,
 ) -> bytes:
     """
     Gera um ZIP com os PDFs dos registos organizados em pastas:
@@ -140,6 +141,12 @@ def exportar_registos_zip(
     if data_fim:
         conditions.append("a.data_hora <= :data_fim")
         params["data_fim"] = data_fim
+
+    sub_join = ""
+    if sub_projeto_id:
+        sub_join = "JOIN projeto_estabelecimentos pe ON pe.estabelecimento_id = e.id AND pe.projeto_id = a.projeto_id"
+        conditions.append("pe.sub_projeto_id = :sub_projeto_id")
+        params["sub_projeto_id"] = sub_projeto_id
 
     where_clause = " AND ".join(conditions)
 
@@ -160,6 +167,7 @@ def exportar_registos_zip(
         JOIN mentores m           ON a.mentor_id = m.id
         LEFT JOIN turma_atividades ta ON ta.uuid = a.atividade_uuid
         LEFT JOIN turma_disciplinas td ON td.id = ta.turma_disciplina_id
+        {sub_join}
         WHERE {where_clause}
         ORDER BY a.data_hora ASC
     """)

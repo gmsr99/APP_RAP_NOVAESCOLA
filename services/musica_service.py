@@ -170,7 +170,7 @@ def listar_musicas(arquivadas=False, user_id=None, role=None, projeto_id=None, a
         if 'cur' in locals() and cur: cur.close()
         if 'conn' in locals() and conn: conn.close()
 
-def exportar_musicas(projeto_id=None, data_inicio=None, data_fim=None):
+def exportar_musicas(projeto_id=None, data_inicio=None, data_fim=None, sub_projeto_id=None):
     """
     Exporta músicas arquivadas com todos os campos relevantes.
     Filtra por projeto e/ou janela temporal (baseada em arquivado_em).
@@ -194,6 +194,12 @@ def exportar_musicas(projeto_id=None, data_inicio=None, data_fim=None):
             conditions.append("m.arquivado_em <= %s")
             params.append(data_fim + " 23:59:59")
 
+        sub_join = ""
+        if sub_projeto_id:
+            sub_join = "JOIN projeto_estabelecimentos pe ON pe.estabelecimento_id = e.id AND pe.projeto_id = m.projeto_id"
+            conditions.append("pe.sub_projeto_id = %s")
+            params.append(sub_projeto_id)
+
         query = f"""
             SELECT
                 m.id, m.titulo, m.estado,
@@ -216,6 +222,7 @@ def exportar_musicas(projeto_id=None, data_inicio=None, data_fim=None):
             LEFT JOIN profiles p_mist ON m.misturado_por_id = p_mist.id
             LEFT JOIN profiles p_rev ON m.revisto_por_id = p_rev.id
             LEFT JOIN profiles p_fin ON m.finalizado_por_id = p_fin.id
+            {sub_join}
             WHERE {" AND ".join(conditions)}
             ORDER BY m.arquivado_em DESC
         """

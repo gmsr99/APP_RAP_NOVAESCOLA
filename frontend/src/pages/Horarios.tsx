@@ -734,12 +734,21 @@ const Horarios = () => {
 
   const applyActiveFilters = (list: typeof aulasApi) => {
     if (!list) return [];
-    let out = list;
+    // TAs de produção musical (musica_id preenchido) só aparecem na página de Produção
+    let out = list.filter(a => !(a.is_autonomous && a.musica_id));
     if (effectiveMemberId) {
       out = out.filter(a =>
         a.mentor_user_id === effectiveMemberId ||
         a.responsavel_user_id === effectiveMemberId ||
         a.participantes_ids?.includes(effectiveMemberId)
+      );
+    } else if (!isAdmin && filterMode === 'all' && user?.id) {
+      // Mentor em modo "todas as aulas presenciais": próprias sessões (todos os tipos) + aulas presenciais de outros mentores
+      out = out.filter(a =>
+        a.tipo === 'aula' ||
+        a.mentor_user_id === user.id ||
+        a.responsavel_user_id === user.id ||
+        (a.participantes_ids?.includes(user.id) ?? false)
       );
     }
     if (filterProjectId !== null) {
@@ -2510,8 +2519,8 @@ const Horarios = () => {
           <Filter className="h-4 w-4" />
           Filtro:
         </span>
-        {/* Todas / Minhas — apenas para admins */}
-        {isAdmin && (
+        {/* Todas / Minhas — admins vêem tudo; mentors vêem só aulas presenciais de outros */}
+        {isAdmin ? (
           <div className="flex items-center rounded-md border border-input bg-transparent p-1 shrink-0">
             <Button
               variant={filterMode === 'all' && !filterMemberId ? 'secondary' : 'ghost'}
@@ -2528,6 +2537,25 @@ const Horarios = () => {
               className="h-7 text-xs"
             >
               Minhas Aulas
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center rounded-md border border-input bg-transparent p-1 shrink-0">
+            <Button
+              variant={filterMode === 'mine' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setFilterMode('mine')}
+              className="h-7 text-xs"
+            >
+              Minhas Aulas
+            </Button>
+            <Button
+              variant={filterMode === 'all' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setFilterMode('all')}
+              className="h-7 text-xs"
+            >
+              Todas as Aulas Presenciais
             </Button>
           </div>
         )}

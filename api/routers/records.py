@@ -131,10 +131,11 @@ async def export_aula_registos(
     projeto_id: int,
     data_inicio: Optional[str] = None,
     data_fim: Optional[str] = None,
+    sub_projeto_id: Optional[int] = None,
     user=Depends(get_current_user_required),
 ):
     _require_direcao(user)
-    zip_bytes = aula_registo_service.exportar_registos_zip(projeto_id, data_inicio, data_fim)
+    zip_bytes = aula_registo_service.exportar_registos_zip(projeto_id, data_inicio, data_fim, sub_projeto_id)
     return Response(
         content=zip_bytes,
         media_type="application/zip",
@@ -164,11 +165,12 @@ async def export_aula_evidencias(
     projeto_id: int,
     data_inicio: Optional[str] = None,
     data_fim: Optional[str] = None,
+    sub_projeto_id: Optional[int] = None,
     user=Depends(get_current_user_required),
 ):
     """Exporta fotos de evidência num ZIP organizado por pastas."""
     _require_coordenacao(user)
-    zip_bytes = aula_evidencia_service.exportar_evidencias_zip(projeto_id, data_inicio, data_fim)
+    zip_bytes = aula_evidencia_service.exportar_evidencias_zip(projeto_id, data_inicio, data_fim, sub_projeto_id)
     return Response(
         content=zip_bytes,
         media_type="application/zip",
@@ -181,11 +183,12 @@ async def export_aula_feedback(
     projeto_id: int,
     data_inicio: Optional[str] = None,
     data_fim: Optional[str] = None,
+    sub_projeto_id: Optional[int] = None,
     user=Depends(get_current_user_required),
 ):
     """Exporta áudios de feedback num ZIP organizado por pastas."""
     _require_coordenacao(user)
-    zip_bytes = aula_evidencia_service.exportar_feedback_zip(projeto_id, data_inicio, data_fim)
+    zip_bytes = aula_evidencia_service.exportar_feedback_zip(projeto_id, data_inicio, data_fim, sub_projeto_id)
     return Response(
         content=zip_bytes,
         media_type="application/zip",

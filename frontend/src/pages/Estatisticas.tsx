@@ -24,7 +24,8 @@ import { ExportMusicasModal } from '@/components/ExportMusicasModal';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-interface Projeto { id: number; nome: string }
+interface Projeto { id: number; nome: string; usar_sub_projetos?: boolean }
+interface SubProjetoOpt { id: number; nome: string }
 
 interface TurmaStats {
   turma_id: number;
@@ -95,6 +96,7 @@ export default function Estatisticas() {
   const canExportMedia = isCoordenacao;
 
   const [selectedProjetoId, setSelectedProjetoId] = useState<string>('');
+  const [selectedSubProjetoId, setSelectedSubProjetoId] = useState<number | null>(null);
   const [mentorFilter, setMentorFilter] = useState('all');
   const [disciplinaFilter, setDisciplinaFilter] = useState('all');
   const [instituicaoFilter, setInstituicaoFilter] = useState('all');
@@ -120,6 +122,13 @@ export default function Estatisticas() {
   });
 
   const projetoId = selectedProjetoId ? parseInt(selectedProjetoId) : null;
+  const selectedProjeto = projetos.find(p => p.id === projetoId);
+
+  const { data: subProjetosOpts = [] } = useQuery({
+    queryKey: ['sub-projetos', projetoId],
+    queryFn: async () => (await api.get(`/api/projetos/${projetoId}/sub-projetos`)).data as SubProjetoOpt[],
+    enabled: !!projetoId && !!selectedProjeto?.usar_sub_projetos,
+  });
 
   const { data: statsInstituicao = [] } = useQuery({
     queryKey: ['producao-stats-inst', projetoId],
@@ -321,7 +330,7 @@ export default function Estatisticas() {
               </DropdownMenuContent>
             </DropdownMenu>
           )}
-          <ProjetoSelect projetos={projetos} value={selectedProjetoId} onChange={setSelectedProjetoId} />
+          <ProjetoSelect projetos={projetos} value={selectedProjetoId} onChange={(v) => { setSelectedProjetoId(v); setSelectedSubProjetoId(null); }} />
         </div>
       </div>
 
@@ -339,7 +348,9 @@ export default function Estatisticas() {
           open={exportMusicasOpen}
           onOpenChange={setExportMusicasOpen}
           projetoId={projetoId}
-          projetoNome={projetos.find(p => p.id === projetoId)?.nome}
+          projetoNome={selectedProjeto?.nome}
+          subProjetoId={selectedSubProjetoId}
+          subProjetoOptions={subProjetosOpts}
         />
       )}
 
@@ -351,6 +362,18 @@ export default function Estatisticas() {
               <DialogTitle className="flex items-center gap-2"><FileDown className="h-5 w-5 text-emerald-600" /> Exportar Registos de Sessão</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
+              {subProjetosOpts.length > 0 && (
+                <div className="space-y-1">
+                  <Label>Sub-Projeto</Label>
+                  <Select value={selectedSubProjetoId ? String(selectedSubProjetoId) : 'all'} onValueChange={v => setSelectedSubProjetoId(v === 'all' ? null : Number(v))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os sub-projetos</SelectItem>
+                      {subProjetosOpts.map(sp => <SelectItem key={sp.id} value={String(sp.id)}>{sp.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Data início</Label>
@@ -381,15 +404,13 @@ export default function Estatisticas() {
                     const params: Record<string, string | number> = { projeto_id: projetoId };
                     if (registosFilter.data_inicio) params.data_inicio = registosFilter.data_inicio;
                     if (registosFilter.data_fim) params.data_fim = registosFilter.data_fim;
-                    const res = await api.get('/api/aula-registos/export', {
-                      params,
-                      responseType: 'blob',
-                    });
+                    if (selectedSubProjetoId) params.sub_projeto_id = selectedSubProjetoId;
+                    const res = await api.get('/api/aula-registos/export', { params, responseType: 'blob' });
                     const url = URL.createObjectURL(res.data);
                     const a = document.createElement('a');
                     a.href = url;
-                    const projetoNome = projetos.find(p => p.id === projetoId)?.nome ?? 'Projeto';
-                    a.download = `Registos_${projetoNome}_${registosFilter.data_inicio || 'todos'}.zip`;
+                    const label = selectedSubProjetoId ? subProjetosOpts.find(s => s.id === selectedSubProjetoId)?.nome : selectedProjeto?.nome ?? 'Projeto';
+                    a.download = `Registos_${label}_${registosFilter.data_inicio || 'todos'}.zip`;
                     a.click();
                     URL.revokeObjectURL(url);
                     setExportRegistosOpen(false);
@@ -417,6 +438,18 @@ export default function Estatisticas() {
               <DialogTitle className="flex items-center gap-2"><Images className="h-5 w-5 text-blue-600" /> Exportar Evidências</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
+              {subProjetosOpts.length > 0 && (
+                <div className="space-y-1">
+                  <Label>Sub-Projeto</Label>
+                  <Select value={selectedSubProjetoId ? String(selectedSubProjetoId) : 'all'} onValueChange={v => setSelectedSubProjetoId(v === 'all' ? null : Number(v))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os sub-projetos</SelectItem>
+                      {subProjetosOpts.map(sp => <SelectItem key={sp.id} value={String(sp.id)}>{sp.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Data início</Label>
@@ -447,12 +480,13 @@ export default function Estatisticas() {
                     const params: Record<string, string | number> = { projeto_id: projetoId };
                     if (evidenciasFilter.data_inicio) params.data_inicio = evidenciasFilter.data_inicio;
                     if (evidenciasFilter.data_fim) params.data_fim = evidenciasFilter.data_fim;
+                    if (selectedSubProjetoId) params.sub_projeto_id = selectedSubProjetoId;
                     const res = await api.get('/api/aula-evidencias/export', { params, responseType: 'blob' });
                     const url = URL.createObjectURL(res.data);
                     const a = document.createElement('a');
                     a.href = url;
-                    const projetoNome = projetos.find(p => p.id === projetoId)?.nome ?? 'Projeto';
-                    a.download = `Evidencias_${projetoNome}_${evidenciasFilter.data_inicio || 'todos'}.zip`;
+                    const label = selectedSubProjetoId ? subProjetosOpts.find(s => s.id === selectedSubProjetoId)?.nome : selectedProjeto?.nome ?? 'Projeto';
+                    a.download = `Evidencias_${label}_${evidenciasFilter.data_inicio || 'todos'}.zip`;
                     a.click();
                     URL.revokeObjectURL(url);
                     setExportEvidenciasOpen(false);
@@ -480,6 +514,18 @@ export default function Estatisticas() {
               <DialogTitle className="flex items-center gap-2"><Mic className="h-5 w-5 text-purple-600" /> Exportar Feedback de Áudio</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-2">
+              {subProjetosOpts.length > 0 && (
+                <div className="space-y-1">
+                  <Label>Sub-Projeto</Label>
+                  <Select value={selectedSubProjetoId ? String(selectedSubProjetoId) : 'all'} onValueChange={v => setSelectedSubProjetoId(v === 'all' ? null : Number(v))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os sub-projetos</SelectItem>
+                      {subProjetosOpts.map(sp => <SelectItem key={sp.id} value={String(sp.id)}>{sp.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Data início</Label>
@@ -510,12 +556,13 @@ export default function Estatisticas() {
                     const params: Record<string, string | number> = { projeto_id: projetoId };
                     if (feedbackFilter.data_inicio) params.data_inicio = feedbackFilter.data_inicio;
                     if (feedbackFilter.data_fim) params.data_fim = feedbackFilter.data_fim;
+                    if (selectedSubProjetoId) params.sub_projeto_id = selectedSubProjetoId;
                     const res = await api.get('/api/aula-feedback/export', { params, responseType: 'blob' });
                     const url = URL.createObjectURL(res.data);
                     const a = document.createElement('a');
                     a.href = url;
-                    const projetoNome = projetos.find(p => p.id === projetoId)?.nome ?? 'Projeto';
-                    a.download = `Feedback_${projetoNome}_${feedbackFilter.data_inicio || 'todos'}.zip`;
+                    const label = selectedSubProjetoId ? subProjetosOpts.find(s => s.id === selectedSubProjetoId)?.nome : selectedProjeto?.nome ?? 'Projeto';
+                    a.download = `Feedback_${label}_${feedbackFilter.data_inicio || 'todos'}.zip`;
                     a.click();
                     URL.revokeObjectURL(url);
                     setExportFeedbackOpen(false);

@@ -121,10 +121,11 @@ async def export_musicas(
     projeto_id: Optional[int] = None,
     data_inicio: Optional[str] = None,
     data_fim: Optional[str] = None,
+    sub_projeto_id: Optional[int] = None,
     _user=Depends(get_current_user_required),
 ):
     """Exporta músicas arquivadas filtradas por projeto e/ou janela temporal."""
-    return musica_service.exportar_musicas(projeto_id, data_inicio, data_fim)
+    return musica_service.exportar_musicas(projeto_id, data_inicio, data_fim, sub_projeto_id)
 
 
 @router.patch("/api/musicas/{musica_id}/desarquivar", tags=["Producao"])
