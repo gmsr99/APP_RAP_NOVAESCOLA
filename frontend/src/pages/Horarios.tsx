@@ -756,8 +756,14 @@ const Horarios = () => {
         );
       } else {
         // filterMode === 'all': próprias sessões (todos os tipos) + aulas presenciais dos outros mentores
+        // Sessões presenciais têm tipo = null ou 'aula' (o frontend não envia tipo para sessões regulares)
+        const isPresencial = (a: AulaAPI) =>
+          !a.is_autonomous &&
+          a.tipo !== 'trabalho_autonomo' &&
+          a.tipo !== 'outro' &&
+          a.tipo !== 'trabalho_interno';
         out = out.filter(a =>
-          a.tipo === 'aula' ||
+          isPresencial(a) ||
           a.mentor_user_id === userId ||
           a.responsavel_user_id === userId ||
           (a.participantes_ids?.includes(userId) ?? false)

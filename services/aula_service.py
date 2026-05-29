@@ -744,10 +744,15 @@ def listar_todas_aulas(limite=2000, allowed_project_ids=None, hide_direcao_sessi
                 .limit(limite)
             )
             if allowed_project_ids is not None:
-                # Sessões presenciais (tipo='aula') são sempre devolvidas para coordenação de boleias;
-                # outros tipos ficam restritos aos projetos permitidos do mentor
+                # Sessões presenciais são sempre devolvidas para coordenação de boleias.
+                # Presencial = tipo IS NULL (frontend não envia tipo para sessões regulares) ou tipo = 'aula'.
+                # Outros tipos (TA, outro, trabalho_interno) ficam restritos aos projetos do mentor.
                 statement = statement.where(
-                    or_(Aula.tipo == 'aula', Aula.projeto_id.in_(allowed_project_ids))
+                    or_(
+                        Aula.tipo.is_(None),
+                        Aula.tipo == 'aula',
+                        Aula.projeto_id.in_(allowed_project_ids),
+                    )
                 )
             rows = session.exec(statement).all()
 
