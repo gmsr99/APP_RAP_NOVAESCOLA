@@ -10,7 +10,7 @@ from database.connection import close_pool
 from api.routers import (
     auth, studio, sessions, notifications, projects, records,
     team, financial, equipment, production, stats, geo, wiki,
-    chat, ai, shortcuts, tasks, admin
+    chat, ai, shortcuts, tasks, admin, curriculo
 )
 
 app = FastAPI(
@@ -36,7 +36,7 @@ for r in [auth.router, studio.router, records.router, sessions.router,
           notifications.router, projects.router, team.router, financial.router,
           equipment.router, production.router, stats.router, geo.router,
           wiki.router, chat.router, ai.router, shortcuts.router, tasks.router,
-          admin.router]:
+          admin.router, curriculo.router]:
     app.include_router(r)
 
 

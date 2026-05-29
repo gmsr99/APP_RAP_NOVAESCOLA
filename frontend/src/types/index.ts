@@ -369,3 +369,31 @@ export interface AuditLog {
   ip_address: string | null;
   created_at: string;
 }
+
+// Catálogo de Disciplinas
+export type WorkTypeRole = 'coordenador' | 'mentor' | 'produtor' | 'videomaker';
+
+export interface DisciplinaAtividadeTemplate {
+  id: number;
+  disciplina_id: number;
+  nome: string;
+  is_autonomous: boolean;
+  horas: number;
+  sessoes: number | null;
+  role: WorkTypeRole;
+  ordem: number;
+}
+
+export interface DisciplinaTemplate {
+  id: number;
+  nome: string;
+  descricao: string | null;
+  musicas_previstas: number;
+  horas_previstas: number | null;
+  sessoes: number | null;
+  duracao_minutos: number;
+  num_producoes: number;
+  ativo: boolean;
+  ordem: number;
+  atividades: DisciplinaAtividadeTemplate[];
+}

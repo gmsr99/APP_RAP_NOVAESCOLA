@@ -29,6 +29,7 @@ class TurmaDisciplinaCreate(BaseModel):
     descricao: Optional[str] = None
     musicas_previstas: int = 0
     atividades: list = []
+    disciplina_id: Optional[int] = None  # se fornecido, instancia atividades do catálogo
 
 
 class TurmaDisciplinaUpdate(BaseModel):
@@ -152,12 +153,19 @@ async def get_wiki_turma_disciplinas(turma_id: int, user=Depends(get_current_use
 
 @router.post("/api/wiki/turma/{turma_id}/disciplinas", tags=["Wiki"])
 async def create_wiki_disciplina(turma_id: int, payload: TurmaDisciplinaCreate, user=Depends(get_current_user_required)):
-    """Cria disciplina local com atividades em batch."""
+    """Cria disciplina local com atividades em batch ou a partir do catálogo."""
     _require_coordenacao(user)
-    result = wiki_service.criar_disciplina_turma(
-        turma_id, payload.nome, payload.descricao,
-        payload.musicas_previstas, payload.atividades
-    )
+    if payload.disciplina_id:
+        # Instancia a partir do catálogo (auto-cria atividades do template)
+        result = curriculo_service.criar_disciplina_turma(
+            turma_id, payload.nome, payload.descricao,
+            payload.musicas_previstas, payload.disciplina_id
+        )
+    else:
+        result = wiki_service.criar_disciplina_turma(
+            turma_id, payload.nome, payload.descricao,
+            payload.musicas_previstas, payload.atividades
+        )
     if not result:
         raise HTTPException(status_code=500, detail="Erro ao criar disciplina")
     return result

@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/services/api';
 import { useAuth } from '@/contexts/AuthContext';
-import type { RoleDefinition, Projeto, SystemSettings, AuditLog, PermissionLevel, ActionKey } from '@/types';
+import type { RoleDefinition, Projeto, SystemSettings, AuditLog, PermissionLevel, ActionKey, DisciplinaTemplate, DisciplinaAtividadeTemplate, WorkTypeRole } from '@/types';
 import { toast } from 'sonner';
 import {
   Shield, Plus, Save, Eye, EyeOff, Users, BookOpen, Settings,
-  ClipboardList, Download, Lock, Award, X, ChevronDown,
+  ClipboardList, Download, Lock, Award, X, ChevronDown, Library,
+  Pencil, Trash2, ChevronRight,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1061,6 +1062,319 @@ function AuditTab() {
   );
 }
 
+// ── Catálogo de Disciplinas Tab ────────────────────────────────────────────
+
+const ROLE_LABELS: Record<WorkTypeRole, string> = {
+  coordenador: 'Coordenador',
+  mentor: 'Mentor / Rapper',
+  produtor: 'Produtor',
+  videomaker: 'Videomaker',
+};
+
+const ROLE_COLORS: Record<WorkTypeRole, string> = {
+  coordenador: 'bg-blue-100 text-blue-800',
+  mentor: 'bg-green-100 text-green-800',
+  produtor: 'bg-orange-100 text-orange-800',
+  videomaker: 'bg-purple-100 text-purple-800',
+};
+
+const EMPTY_DISC = {
+  nome: '', descricao: '', musicas_previstas: 0,
+  sessoes: 16, duracao_minutos: 120, num_producoes: 0, ativo: true, ordem: 0,
+};
+
+const EMPTY_ATV = {
+  nome: '', is_autonomous: false, horas: 0, sessoes: null as number | null,
+  role: 'mentor' as WorkTypeRole, ordem: 0,
+};
+
+function DisciplinaCatalogoTab() {
+  const queryClient = useQueryClient();
+  const [expanded, setExpanded] = useState<number | null>(null);
+  const [editingDisc, setEditingDisc] = useState<DisciplinaTemplate | null>(null);
+  const [editDiscState, setEditDiscState] = useState<typeof EMPTY_DISC>(EMPTY_DISC);
+  const [creatingDisc, setCreatingDisc] = useState(false);
+  const [newDisc, setNewDisc] = useState<typeof EMPTY_DISC>(EMPTY_DISC);
+
+  const [editingAtv, setEditingAtv] = useState<DisciplinaAtividadeTemplate | null>(null);
+  const [editAtvState, setEditAtvState] = useState<typeof EMPTY_ATV>(EMPTY_ATV);
+  const [creatingAtv, setCreatingAtv] = useState<number | null>(null); // disciplina_id
+  const [newAtv, setNewAtv] = useState<typeof EMPTY_ATV>(EMPTY_ATV);
+
+  const { data: disciplinas = [], isLoading } = useQuery<DisciplinaTemplate[]>({
+    queryKey: ['admin-catalogo'],
+    queryFn: () => api.get('/api/admin/disciplinas'),
+  });
+
+  const createDisc = useMutation({
+    mutationFn: (data: object) => api.post('/api/admin/disciplinas', data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-catalogo'] }); toast.success('Disciplina criada.'); setCreatingDisc(false); setNewDisc(EMPTY_DISC); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const updateDisc = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: object }) => api.put(`/api/admin/disciplinas/${id}`, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-catalogo'] }); toast.success('Disciplina actualizada.'); setEditingDisc(null); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteDisc = useMutation({
+    mutationFn: (id: number) => api.delete(`/api/admin/disciplinas/${id}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-catalogo'] }); toast.success('Disciplina apagada.'); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const createAtv = useMutation({
+    mutationFn: ({ discId, data }: { discId: number; data: object }) =>
+      api.post(`/api/admin/disciplinas/${discId}/atividades`, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-catalogo'] }); toast.success('Atividade criada.'); setCreatingAtv(null); setNewAtv(EMPTY_ATV); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const updateAtv = useMutation({
+    mutationFn: ({ discId, atvId, data }: { discId: number; atvId: number; data: object }) =>
+      api.put(`/api/admin/disciplinas/${discId}/atividades/${atvId}`, data),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-catalogo'] }); toast.success('Atividade actualizada.'); setEditingAtv(null); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteAtv = useMutation({
+    mutationFn: ({ discId, atvId }: { discId: number; atvId: number }) =>
+      api.delete(`/api/admin/disciplinas/${discId}/atividades/${atvId}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-catalogo'] }); toast.success('Atividade apagada.'); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (isLoading) return <p className="text-sm text-muted-foreground py-4">A carregar catálogo…</p>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Catálogo de disciplinas disponíveis. Ao criar uma disciplina numa turma, as atividades são instanciadas automaticamente.
+        </p>
+        <Button size="sm" onClick={() => setCreatingDisc(true)}>
+          <Plus className="h-4 w-4 mr-1" /> Nova Disciplina
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        {disciplinas.map(disc => (
+          <div key={disc.id} className="border rounded-lg overflow-hidden">
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-4 py-3 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+              onClick={() => setExpanded(expanded === disc.id ? null : disc.id)}
+            >
+              <div className="flex items-center gap-3">
+                <ChevronRight className={`h-4 w-4 text-muted-foreground transition-transform ${expanded === disc.id ? 'rotate-90' : ''}`} />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{disc.nome}</span>
+                    {!disc.ativo && <span className="text-xs text-muted-foreground border rounded px-1.5 py-0.5">inativa</span>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {disc.sessoes ?? '—'} sessões · {disc.duracao_minutos}min · {disc.num_producoes} prod. · {disc.atividades.length} atividades
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                <Button size="sm" variant="ghost" className="h-7 px-2"
+                  onClick={() => { setEditingDisc(disc); setEditDiscState({ nome: disc.nome, descricao: disc.descricao ?? '', musicas_previstas: disc.musicas_previstas, sessoes: disc.sessoes ?? 16, duracao_minutos: disc.duracao_minutos, num_producoes: disc.num_producoes, ativo: disc.ativo, ordem: disc.ordem }); }}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive hover:text-destructive"
+                  onClick={() => { if (confirm(`Apagar "${disc.nome}"?`)) deleteDisc.mutate(disc.id); }}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Atividades expandidas */}
+            {expanded === disc.id && (
+              <div className="px-4 py-3 space-y-2 border-t bg-background">
+                {disc.atividades.length === 0 && (
+                  <p className="text-xs text-muted-foreground italic">Sem atividades definidas.</p>
+                )}
+                {disc.atividades.map(atv => (
+                  <div key={atv.id} className="flex items-center justify-between text-sm py-1.5 px-3 rounded border">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${ROLE_COLORS[atv.role as WorkTypeRole] ?? 'bg-gray-100 text-gray-800'}`}>
+                        {ROLE_LABELS[atv.role as WorkTypeRole] ?? atv.role}
+                      </span>
+                      <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${atv.is_autonomous ? 'bg-amber-100 text-amber-800' : 'bg-sky-100 text-sky-800'}`}>
+                        {atv.is_autonomous ? 'Autónomo' : 'Presencial'}
+                      </span>
+                      <span className="truncate">{atv.nome}</span>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-xs text-muted-foreground">{atv.horas}h{atv.sessoes ? ` / ${atv.sessoes} sess.` : ''}</span>
+                      <Button size="sm" variant="ghost" className="h-6 px-1.5"
+                        onClick={() => { setEditingAtv(atv); setEditAtvState({ nome: atv.nome, is_autonomous: atv.is_autonomous, horas: atv.horas, sessoes: atv.sessoes, role: atv.role, ordem: atv.ordem }); }}>
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-6 px-1.5 text-destructive hover:text-destructive"
+                        onClick={() => { if (confirm('Apagar atividade?')) deleteAtv.mutate({ discId: disc.id, atvId: atv.id }); }}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <Button size="sm" variant="outline" className="w-full mt-1"
+                  onClick={() => { setCreatingAtv(disc.id); setNewAtv(EMPTY_ATV); }}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar Atividade
+                </Button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Dialog: criar disciplina */}
+      <Dialog open={creatingDisc} onOpenChange={v => !v && setCreatingDisc(false)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Nova Disciplina</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div><Label>Nome</Label><Input value={newDisc.nome} onChange={e => setNewDisc(s => ({ ...s, nome: e.target.value }))} /></div>
+            <div><Label>Descrição</Label><Input value={newDisc.descricao} onChange={e => setNewDisc(s => ({ ...s, descricao: e.target.value }))} /></div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>Sessões</Label><Input type="number" value={newDisc.sessoes} onChange={e => setNewDisc(s => ({ ...s, sessoes: +e.target.value }))} /></div>
+              <div><Label>Duração (min)</Label><Input type="number" value={newDisc.duracao_minutos} onChange={e => setNewDisc(s => ({ ...s, duracao_minutos: +e.target.value }))} /></div>
+              <div><Label>Produções</Label><Input type="number" value={newDisc.num_producoes} onChange={e => setNewDisc(s => ({ ...s, num_producoes: +e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Músicas previstas</Label><Input type="number" value={newDisc.musicas_previstas} onChange={e => setNewDisc(s => ({ ...s, musicas_previstas: +e.target.value }))} /></div>
+              <div><Label>Ordem</Label><Input type="number" value={newDisc.ordem} onChange={e => setNewDisc(s => ({ ...s, ordem: +e.target.value }))} /></div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreatingDisc(false)}>Cancelar</Button>
+            <Button onClick={() => createDisc.mutate(newDisc)} disabled={!newDisc.nome || createDisc.isPending}>
+              <Plus className="h-4 w-4 mr-1" /> Criar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: editar disciplina */}
+      <Dialog open={!!editingDisc} onOpenChange={v => !v && setEditingDisc(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Editar — {editingDisc?.nome}</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div><Label>Nome</Label><Input value={editDiscState.nome} onChange={e => setEditDiscState(s => ({ ...s, nome: e.target.value }))} /></div>
+            <div><Label>Descrição</Label><Input value={editDiscState.descricao} onChange={e => setEditDiscState(s => ({ ...s, descricao: e.target.value }))} /></div>
+            <div className="grid grid-cols-3 gap-3">
+              <div><Label>Sessões</Label><Input type="number" value={editDiscState.sessoes} onChange={e => setEditDiscState(s => ({ ...s, sessoes: +e.target.value }))} /></div>
+              <div><Label>Duração (min)</Label><Input type="number" value={editDiscState.duracao_minutos} onChange={e => setEditDiscState(s => ({ ...s, duracao_minutos: +e.target.value }))} /></div>
+              <div><Label>Produções</Label><Input type="number" value={editDiscState.num_producoes} onChange={e => setEditDiscState(s => ({ ...s, num_producoes: +e.target.value }))} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Músicas previstas</Label><Input type="number" value={editDiscState.musicas_previstas} onChange={e => setEditDiscState(s => ({ ...s, musicas_previstas: +e.target.value }))} /></div>
+              <div><Label>Ordem</Label><Input type="number" value={editDiscState.ordem} onChange={e => setEditDiscState(s => ({ ...s, ordem: +e.target.value }))} /></div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={editDiscState.ativo} onCheckedChange={v => setEditDiscState(s => ({ ...s, ativo: v }))} />
+              <Label>Ativa (visível para criação de turmas)</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingDisc(null)}>Cancelar</Button>
+            <Button onClick={() => updateDisc.mutate({ id: editingDisc!.id, data: editDiscState })} disabled={updateDisc.isPending}>
+              <Save className="h-4 w-4 mr-1" /> Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: criar atividade */}
+      <Dialog open={creatingAtv !== null} onOpenChange={v => !v && setCreatingAtv(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Nova Atividade</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div><Label>Nome</Label><Input value={newAtv.nome} onChange={e => setNewAtv(s => ({ ...s, nome: e.target.value }))} placeholder="ex: Sessões Presenciais — Rapper" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Role</Label>
+                <Select value={newAtv.role} onValueChange={v => setNewAtv(s => ({ ...s, role: v as WorkTypeRole }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.entries(ROLE_LABELS) as [WorkTypeRole, string][]).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Tipo</Label>
+                <Select value={newAtv.is_autonomous ? 'autonomo' : 'presencial'} onValueChange={v => setNewAtv(s => ({ ...s, is_autonomous: v === 'autonomo' }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="presencial">Presencial</SelectItem>
+                    <SelectItem value="autonomo">Autónomo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Horas totais</Label><Input type="number" step="0.5" value={newAtv.horas} onChange={e => setNewAtv(s => ({ ...s, horas: +e.target.value }))} /></div>
+              <div><Label>Sessões (sugestão)</Label><Input type="number" value={newAtv.sessoes ?? ''} placeholder="—" onChange={e => setNewAtv(s => ({ ...s, sessoes: e.target.value ? +e.target.value : null }))} /></div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreatingAtv(null)}>Cancelar</Button>
+            <Button onClick={() => creatingAtv !== null && createAtv.mutate({ discId: creatingAtv, data: newAtv })} disabled={!newAtv.nome || !newAtv.horas || createAtv.isPending}>
+              <Plus className="h-4 w-4 mr-1" /> Adicionar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: editar atividade */}
+      <Dialog open={!!editingAtv} onOpenChange={v => !v && setEditingAtv(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Editar Atividade</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div><Label>Nome</Label><Input value={editAtvState.nome} onChange={e => setEditAtvState(s => ({ ...s, nome: e.target.value }))} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Role</Label>
+                <Select value={editAtvState.role} onValueChange={v => setEditAtvState(s => ({ ...s, role: v as WorkTypeRole }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(Object.entries(ROLE_LABELS) as [WorkTypeRole, string][]).map(([k, v]) => (
+                      <SelectItem key={k} value={k}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Tipo</Label>
+                <Select value={editAtvState.is_autonomous ? 'autonomo' : 'presencial'} onValueChange={v => setEditAtvState(s => ({ ...s, is_autonomous: v === 'autonomo' }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="presencial">Presencial</SelectItem>
+                    <SelectItem value="autonomo">Autónomo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Horas totais</Label><Input type="number" step="0.5" value={editAtvState.horas} onChange={e => setEditAtvState(s => ({ ...s, horas: +e.target.value }))} /></div>
+              <div><Label>Sessões (sugestão)</Label><Input type="number" value={editAtvState.sessoes ?? ''} placeholder="—" onChange={e => setEditAtvState(s => ({ ...s, sessoes: e.target.value ? +e.target.value : null }))} /></div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingAtv(null)}>Cancelar</Button>
+            <Button onClick={() => editingAtv && updateAtv.mutate({ discId: editingAtv.disciplina_id, atvId: editingAtv.id, data: editAtvState })} disabled={updateAtv.isPending}>
+              <Save className="h-4 w-4 mr-1" /> Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
 // ── Main Admin Page ────────────────────────────────────────────────────────
 
 export default function Admin() {
@@ -1096,6 +1410,9 @@ export default function Admin() {
           <TabsTrigger value="roles">
             <BookOpen className="h-4 w-4 mr-1" /> Roles
           </TabsTrigger>
+          <TabsTrigger value="catalogo">
+            <Library className="h-4 w-4 mr-1" /> Catálogo
+          </TabsTrigger>
           <TabsTrigger value="configuracoes">
             <Settings className="h-4 w-4 mr-1" /> Configurações
           </TabsTrigger>
@@ -1122,6 +1439,17 @@ export default function Admin() {
             </CardHeader>
             <CardContent>
               <RolesTab />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="catalogo" className="mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Catálogo de Disciplinas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DisciplinaCatalogoTab />
             </CardContent>
           </Card>
         </TabsContent>

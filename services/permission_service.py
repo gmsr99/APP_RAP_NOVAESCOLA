@@ -40,6 +40,11 @@ ACTION_KEYS_CATALOGUE = [
     {"key": "admin.audit",             "label": "Ver registo de auditoria",           "category": "Admin"},
     {"key": "admin.roles",             "label": "Gerir roles",                        "category": "Admin"},
     {"key": "admin.patentes",          "label": "Gerir patentes",                     "category": "Admin"},
+    # Tipos de trabalho — controlam quem pode receber atividades de cada tipo
+    {"key": "work_type.coordenador",   "label": "Receber trabalhos de Coordenador",    "category": "Tipos de Trabalho"},
+    {"key": "work_type.mentor",        "label": "Receber trabalhos de Mentor/Rapper",  "category": "Tipos de Trabalho"},
+    {"key": "work_type.produtor",      "label": "Receber trabalhos de Produtor",       "category": "Tipos de Trabalho"},
+    {"key": "work_type.videomaker",    "label": "Receber trabalhos de Videomaker",     "category": "Tipos de Trabalho"},
 ]
 
 # --- Simple TTL cache ---

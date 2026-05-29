@@ -132,6 +132,13 @@ interface WikiTurma {
   disciplinas: TurmaDisciplina[];
 }
 
+interface CatalogoOpcao {
+  id: number;
+  nome: string;
+  musicas_previstas: number;
+  atividades: { id: number }[];
+}
+
 interface WikiEstabelecimento {
   id: number;
   nome: string;
@@ -187,6 +194,7 @@ const Wiki = () => {
   const [editingDisciplina, setEditingDisciplina] = useState<TurmaDisciplina | null>(null);
   const [disciplinaTargetTurmaId, setDisciplinaTargetTurmaId] = useState<number | null>(null);
   const [discForm, setDiscForm] = useState({ nome: '', descricao: '', musicas_previstas: '0' });
+  const [discCatalogoId, setDiscCatalogoId] = useState<number | null>(null);
   const [batchAtividades, setBatchAtividades] = useState<Array<{
     nome: string; codigo: string; sessoes_previstas: string; horas_por_sessao: string; musicas_previstas: string; role: string;
   }>>([]);
@@ -311,6 +319,11 @@ const Wiki = () => {
       const res = await api.get('/api/estabelecimentos/contactos');
       return res.data as ContactoEstabelecimento[];
     }
+  });
+
+  const { data: catalogoOpcoes = [] } = useQuery<CatalogoOpcao[]>({
+    queryKey: ['curriculo-catalogo'],
+    queryFn: () => api.get('/api/curriculo/catalogo').then((r: any) => r.data ?? r),
   });
 
   const contactosPorEstab = todosContactos.reduce<Record<number, ContactoEstabelecimento[]>>((acc, c) => {
@@ -650,6 +663,7 @@ const Wiki = () => {
     setDisciplinaTargetTurmaId(turmaId);
     setDiscForm({ nome: '', descricao: '', musicas_previstas: '0' });
     setBatchAtividades([]);
+    setDiscCatalogoId(null);
     setIsDisciplinaDialogOpen(true);
   };
 
@@ -672,7 +686,9 @@ const Wiki = () => {
       descricao: discForm.descricao || null,
       musicas_previstas: parseInt(discForm.musicas_previstas) || 0,
     };
-    if (!editingDisciplina && batchAtividades.length > 0) {
+    if (!editingDisciplina && discCatalogoId) {
+      payload.disciplina_id = discCatalogoId;
+    } else if (!editingDisciplina && batchAtividades.length > 0) {
       payload.atividades = batchAtividades.map(a => ({
         nome: a.nome,
         codigo: a.codigo,
@@ -1399,6 +1415,41 @@ const Wiki = () => {
             <DialogTitle>{editingDisciplina ? 'Editar Disciplina' : 'Nova Disciplina'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Template picker — só para nova disciplina */}
+            {!editingDisciplina && catalogoOpcoes.length > 0 && (
+              <div className="grid gap-2">
+                <Label>Usar template do catálogo</Label>
+                <Select
+                  value={discCatalogoId ? String(discCatalogoId) : 'none'}
+                  onValueChange={v => {
+                    if (v === 'none') {
+                      setDiscCatalogoId(null);
+                    } else {
+                      const tpl = catalogoOpcoes.find(c => c.id === Number(v));
+                      setDiscCatalogoId(Number(v));
+                      if (tpl) setDiscForm(f => ({ ...f, nome: tpl.nome, musicas_previstas: String(tpl.musicas_previstas) }));
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="— Manual (sem template) —" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Manual (sem template) —</SelectItem>
+                    {catalogoOpcoes.map(c => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.nome} · {c.atividades.length} atividades
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {discCatalogoId && (
+                  <p className="text-xs text-muted-foreground">
+                    As atividades serão instanciadas automaticamente a partir do template.
+                  </p>
+                )}
+              </div>
+            )}
             <div className="grid gap-4 md:grid-cols-2">
               <div className="grid gap-2">
                 <Label>Nome da Disciplina</Label>
@@ -1419,8 +1470,8 @@ const Wiki = () => {
                 rows={2}
               />
             </div>
-            {/* Batch atividades (só para nova disciplina) */}
-            {!editingDisciplina && (
+            {/* Batch atividades (só para nova disciplina sem template) */}
+            {!editingDisciplina && !discCatalogoId && (
               <div className="space-y-3 border-t pt-4">
                 <div className="flex items-center justify-between">
                   <Label className="font-medium">Atividades (batch)</Label>
